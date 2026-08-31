@@ -1,0 +1,569 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/pos_provider.dart';
+import '../theme/celestial_theme.dart';
+import 'cart_panel.dart';
+import 'customer_order_approval_dialog.dart';
+import 'settings_dialog.dart';
+import 'table_qr_dialog.dart';
+
+class HeaderBar extends StatefulWidget {
+  const HeaderBar({super.key});
+
+  @override
+  State<HeaderBar> createState() => _HeaderBarState();
+}
+
+class _HeaderBarState extends State<HeaderBar> {
+  late Timer _timer;
+  late DateTime _currentTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTime = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  void _openMobileCartSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: const CartPanel(isMobileModal: true),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final posProvider = Provider.of<PosProvider>(context);
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final isCompact = MediaQuery.of(context).size.width < 1000;
+
+    if (isMobile) {
+      // Mobile Top App Bar
+      return Container(
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: CelestialTheme.bgSurface,
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Brand Logo & Compact Title (Tap to open Settings & Logo)
+            Expanded(
+              child: InkWell(
+                onTap: () => _openSettings(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 38,
+                      width: 38,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: posProvider.hasCustomLogo
+                            ? Image.memory(
+                                posProvider.customLogoBytes!,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.asset(
+                                'assets/images/Logo.png',
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CELESTIAL',
+                            style: GoogleFonts.cinzel(
+                              color: CelestialTheme.goldPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            'CAFE & ESPRESSO',
+                            style: GoogleFonts.outfit(
+                              color: CelestialTheme.goldLight.withValues(alpha: 0.7),
+                              fontSize: 8,
+                              letterSpacing: 0.8,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 6),
+
+            // Actions: Pending Approvals, Table QR, Settings & Cart Badge
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Pending Customer Orders Alert Pill (Mobile)
+                if (posProvider.pendingCustomerOrders.isNotEmpty)
+                  InkWell(
+                    onTap: () => CustomerOrderApprovalDialog.showPendingList(context),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: CelestialTheme.goldGradient,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.hourglass_top_rounded, size: 14, color: CelestialTheme.bgDark),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${posProvider.pendingCustomerOrders.length}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.bgDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Table QR Button
+                IconButton(
+                  onPressed: () => TableQrDialog.show(context),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, color: CelestialTheme.goldLight, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                  tooltip: 'Table QR Self-Ordering',
+                ),
+
+                const SizedBox(width: 4),
+
+                // Settings Button
+                IconButton(
+                  onPressed: () => _openSettings(context),
+                  icon: const Icon(Icons.settings_outlined, color: CelestialTheme.goldLight, size: 19),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  tooltip: 'Store Settings & Logo',
+                ),
+
+                const SizedBox(width: 4),
+
+                // Cart Trigger
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      onPressed: () => _openMobileCartSheet(context),
+                      icon: const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.goldPrimary, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                      style: IconButton.styleFrom(
+                        backgroundColor: CelestialTheme.bgCard,
+                      ),
+                    ),
+                    if (posProvider.cartItemCount > 0)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.goldPrimary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: CelestialTheme.bgDark, width: 1.2),
+                          ),
+                          child: Text(
+                            '${posProvider.cartItemCount}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.bgDark,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Tablet & Desktop Top Header Bar
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgSurface,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Logo & Brand Name (Tap to open Settings & Logo)
+          _buildBrand(context, posProvider),
+
+          const SizedBox(width: 24),
+
+          // Main Navigation Tabs
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildNavTab(
+                    context,
+                    index: 0,
+                    icon: Icons.point_of_sale_rounded,
+                    label: 'POS Station',
+                    badgeCount: posProvider.cartItemCount > 0 ? posProvider.cartItemCount : null,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 1,
+                    icon: Icons.hourglass_top_rounded,
+                    label: 'Pending Orders',
+                    badgeCount: posProvider.pendingCustomerOrders.isNotEmpty ? posProvider.pendingCustomerOrders.length : null,
+                    badgeColor: CelestialTheme.goldPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 2,
+                    icon: Icons.coffee_maker_rounded,
+                    label: 'Barista / KDS',
+                    badgeCount: posProvider.activeKdsOrders.isNotEmpty ? posProvider.activeKdsOrders.length : null,
+                    badgeColor: CelestialTheme.amberBrewing,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 3,
+                    icon: Icons.receipt_long_rounded,
+                    label: 'Order History',
+                  ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 4,
+                    icon: Icons.inventory_2_rounded,
+                    label: 'Menu & Stock',
+                  ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 5,
+                    icon: Icons.insights_rounded,
+                    label: 'Analytics',
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Pending Customer Orders Alert Button (Desktop)
+          if (posProvider.pendingCustomerOrders.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            ElevatedButton.icon(
+              onPressed: () => posProvider.setNavIndex(1),
+              icon: const Icon(Icons.hourglass_top_rounded, size: 16, color: CelestialTheme.bgDark),
+              label: Text(
+                '${posProvider.pendingCustomerOrders.length} Pending Approval',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: CelestialTheme.bgDark,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CelestialTheme.goldPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 4,
+              ),
+            ),
+          ],
+
+          if (!isCompact) ...[
+            const SizedBox(width: 14),
+            // Live Clock
+            _buildClock(),
+            const SizedBox(width: 12),
+            // Table QR Code Ordering Button
+            IconButton(
+              onPressed: () => TableQrDialog.show(context),
+              icon: const Icon(Icons.qr_code_scanner_rounded, color: CelestialTheme.goldLight, size: 22),
+              tooltip: 'Table QR Code Ordering',
+              splashRadius: 20,
+            ),
+            const SizedBox(width: 6),
+            // Store Settings & Logo Button
+            IconButton(
+              onPressed: () => _openSettings(context),
+              icon: const Icon(Icons.settings_outlined, color: CelestialTheme.goldLight, size: 22),
+              tooltip: 'Store Settings & Logo',
+              splashRadius: 20,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => const SettingsDialog(),
+    );
+  }
+
+  Widget _buildBrand(BuildContext context, PosProvider posProvider) {
+    return InkWell(
+      onTap: () => _openSettings(context),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 52,
+              width: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: posProvider.hasCustomLogo
+                    ? Image.memory(
+                        posProvider.customLogoBytes!,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.asset(
+                        'assets/images/Logo.png',
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CELESTIAL',
+                  style: GoogleFonts.cinzel(
+                    color: CelestialTheme.goldPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.5,
+                  ),
+                ),
+                Text(
+                  'CAFE & ESPRESSO',
+                  style: GoogleFonts.outfit(
+                    color: CelestialTheme.goldLight.withValues(alpha: 0.8),
+                    fontSize: 10,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavTab(
+    BuildContext context, {
+    required int index,
+    required IconData icon,
+    required String label,
+    int? badgeCount,
+    Color? badgeColor,
+  }) {
+    final posProvider = Provider.of<PosProvider>(context);
+    final isSelected = posProvider.currentNavIndex == index;
+
+    return InkWell(
+      onTap: () => posProvider.setNavIndex(index),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? CelestialTheme.goldPrimary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? CelestialTheme.goldPrimary
+                : Colors.transparent,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? CelestialTheme.goldPrimary
+                  : CelestialTheme.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? CelestialTheme.goldLight
+                    : CelestialTheme.textMuted,
+              ),
+            ),
+            if (badgeCount != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: badgeColor ?? CelestialTheme.goldPrimary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: CelestialTheme.bgDark,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClock() {
+    final timeStr = DateFormat('hh:mm:ss a').format(_currentTime);
+    final dateStr = DateFormat('EEE, MMM d').format(_currentTime);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            timeStr,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: CelestialTheme.goldLight,
+            ),
+          ),
+          Text(
+            dateStr,
+            style: GoogleFonts.outfit(
+              fontSize: 10,
+              color: CelestialTheme.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

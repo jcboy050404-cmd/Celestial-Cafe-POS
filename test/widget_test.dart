@@ -1,0 +1,235 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:celestial_pos/main.dart';
+import 'package:celestial_pos/models/menu_item.dart';
+import 'package:celestial_pos/models/order.dart';
+import 'package:celestial_pos/providers/pos_provider.dart';
+
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('Celestial Cafe POS app launches properly and renders official catalog on Desktop', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const CelestialCafePosApp());
+    await tester.pumpAndSettle();
+
+    // Verify Brand & Navigation
+    expect(find.text('CELESTIAL'), findsOneWidget);
+    expect(find.text('CAFE & ESPRESSO'), findsOneWidget);
+    expect(find.text('POS Station'), findsOneWidget);
+    expect(find.text('Barista / KDS'), findsOneWidget);
+    expect(find.text('Order History'), findsOneWidget);
+    expect(find.text('Menu & Stock'), findsOneWidget);
+    expect(find.text('Analytics'), findsOneWidget);
+
+    // Verify Official Menu Items & Empty Initial Order Tray
+    expect(find.text('Current Order'), findsOneWidget);
+    expect(find.text('Your Tray is Empty'), findsOneWidget);
+    expect(find.text('Spanish Latte'), findsOneWidget);
+    expect(find.text('Americano'), findsOneWidget);
+  });
+
+  testWidgets('Celestial Cafe POS app renders on Mobile screen with Bottom Navigation', (WidgetTester tester) async {
+    // Phone viewport: 390 x 844
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const CelestialCafePosApp());
+    await tester.pumpAndSettle();
+
+    // Verify Mobile Header & Mobile Bottom Nav Destinations
+    expect(find.text('CELESTIAL'), findsOneWidget);
+    expect(find.text('POS'), findsOneWidget);
+    expect(find.text('KDS'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Stock'), findsOneWidget);
+    expect(find.text('Insights'), findsOneWidget);
+
+    // Verify Mobile Menu Grid
+    expect(find.text('Spanish Latte'), findsOneWidget);
+    expect(find.text('Americano'), findsOneWidget);
+  });
+
+  test('PosProvider starts with 0 dummy orders and cleanly processes new orders', () {
+    final provider = PosProvider();
+
+    // Starts 100% clean
+    expect(provider.orders.isEmpty, true);
+    expect(provider.activeKdsOrders.isEmpty, true);
+    expect(provider.todayOrdersCount, 0);
+    expect(provider.todayTotalSales, 0.0);
+    expect(provider.cart.isEmpty, true);
+    expect(provider.cartItemCount, 0);
+
+    final item = provider.menuItems.first; // Americano ₱90
+    final initialStock = item.stockCount;
+
+    // Add item to cart with Extra Espresso Shot (₱25)
+    provider.addToCart(
+      item,
+      quantity: 2,
+      customizations: [
+        SelectedCustomization(groupTitle: 'Add-ons & Extras', optionName: 'Extra Espresso Shot', extraPrice: 25.00),
+      ],
+      notes: 'Extra hot',
+    );
+
+    expect(provider.cart.length, 1);
+    expect(provider.cartItemCount, 2);
+    expect(provider.cartSubtotal, (item.price + 25.00) * 2);
+
+    // Apply 10% discount
+    provider.applyDiscount(percentage: 10);
+    expect(provider.discountPercentage, 10.0);
+    expect(provider.cartDiscountAmount, provider.cartSubtotal * 0.10);
+
+    // Checkout order with cash ₱500 bill
+    final createdOrder = provider.completeCheckout(
+      paymentMethod: PaymentMethod.cash,
+      amountTendered: 500.0,
+      specialOrderNotes: 'VIP patron',
+    );
+
+    // Verify order is created and cart is cleared
+    expect(provider.orders.length, 1);
+    expect(createdOrder.items.length, 1);
+    expect(createdOrder.paymentMethod, PaymentMethod.cash);
+    expect(provider.cart.isEmpty, true);
+    expect(provider.menuItems.first.stockCount, initialStock - 2);
+
+    // Verify order exists in order history & KDS
+    expect(provider.orders.first.id, createdOrder.id);
+    expect(provider.pendingOrders.any((o) => o.id == createdOrder.id), true);
+    expect(provider.todayOrdersCount, 1);
+    expect(provider.todayTotalSales, createdOrder.totalAmount);
+
+    // Advance status to preparing -> ready -> completed
+    provider.updateOrderStatus(createdOrder.id, OrderStatus.preparing);
+    expect(provider.preparingOrders.any((o) => o.id == createdOrder.id), true);
+
+    provider.updateOrderStatus(createdOrder.id, OrderStatus.ready);
+    expect(provider.readyOrders.any((o) => o.id == createdOrder.id), true);
+
+    provider.updateOrderStatus(createdOrder.id, OrderStatus.completed);
+    expect(provider.completedOrders.any((o) => o.id == createdOrder.id), true);
+  });
+
+  test('PosProvider local persistence preserves data across sessions', () async {
+    final provider1 = PosProvider();
+    final firstItem = provider1.menuItems.first;
+
+    // Modify stock
+    provider1.updateStockCount(firstItem.id, 77);
+
+    // Create an order
+    provider1.addToCart(firstItem, quantity: 1);
+    final order = provider1.completeCheckout(
+      paymentMethod: PaymentMethod.mobilePay,
+      amountTendered: 90.0,
+    );
+
+    // Simulate reopening the app with a fresh provider instance
+    final provider2 = PosProvider();
+    // Wait for async initialization
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(provider2.orders.length, 1);
+    expect(provider2.orders.first.id, order.id);
+    expect(provider2.menuItems.firstWhere((m) => m.id == firstItem.id).stockCount, 76);
+  });
+
+  test('PosProvider item price settings and price updates', () async {
+    final provider = PosProvider();
+    final item = provider.menuItems.first; // Americano initial ₱90
+    expect(item.price, 90.00);
+
+    // Update Americano price to ₱99
+    provider.updateItemPrice(item.id, 99.00);
+    expect(provider.menuItems.first.price, 99.00);
+
+    // Bulk adjust coffee prices (+₱10)
+    provider.bulkAdjustPrices(flatAmount: 10.0, category: ItemCategory.coffee);
+    expect(provider.menuItems.first.price, 109.00);
+  });
+
+  test('PosProvider inventory management and stock toggles', () {
+    final provider = PosProvider();
+    final firstItem = provider.menuItems.first;
+
+    provider.updateStockCount(firstItem.id, 100);
+    expect(provider.menuItems.first.stockCount, 100);
+    expect(provider.menuItems.first.inStock, true);
+
+    provider.toggleItemStock(firstItem.id);
+    expect(provider.menuItems.first.inStock, false);
+
+    provider.toggleItemStock(firstItem.id);
+    expect(provider.menuItems.first.inStock, true);
+  });
+
+  test('PosProvider customer table QR self-ordering creates order and syncs status', () {
+    final provider = PosProvider();
+    final firstItem = provider.menuItems.first;
+
+    final customerOrder = provider.submitCustomerSelfOrder(
+      tableNumber: 'Table 3',
+      customerName: 'Alice',
+      items: [
+        OrderItem(
+          id: 'item_test_1',
+          menuItem: firstItem,
+          quantity: 2,
+          customizations: [
+            SelectedCustomization(groupTitle: 'Cup Size', optionName: '22 oz', extraPrice: 30.0),
+          ],
+        ),
+      ],
+      paymentMethod: PaymentMethod.mobilePay,
+      orderNotes: 'Please bring to Table 3',
+    );
+
+    expect(customerOrder.tableNumber, 'Table 3');
+    expect(customerOrder.customerName, 'Alice');
+    expect(customerOrder.totalAmount, (firstItem.price + 30.0) * 2);
+    expect(customerOrder.status, OrderStatus.pending);
+    expect(provider.activeKdsOrders.any((o) => o.id == customerOrder.id), true);
+
+    // Transition status to ready
+    provider.updateOrderStatus(customerOrder.id, OrderStatus.ready);
+    expect(provider.orders.firstWhere((o) => o.id == customerOrder.id).status, OrderStatus.ready);
+  });
+
+  test('PosProvider menu item photo upload and image byte retrieval', () {
+    final provider = PosProvider();
+    final dummyBase64 = base64Encode(utf8.encode('PNG_IMAGE_BYTES_MOCK'));
+
+    final photoItem = MenuItem(
+      id: 'item_with_photo_1',
+      name: 'Matcha Cloud Frappe',
+      category: ItemCategory.frappe,
+      price: 185.0,
+      description: 'Matcha frappe with foam cloud',
+      icon: '🥤',
+      imageBase64: dummyBase64,
+    );
+
+    provider.addNewMenuItem(photoItem);
+
+    final retrievedBytes = provider.getItemImageBytes('item_with_photo_1');
+    expect(retrievedBytes, isNotNull);
+    expect(utf8.decode(retrievedBytes!), 'PNG_IMAGE_BYTES_MOCK');
+
+    final customerMenu = provider.getMenuJsonForCustomer();
+    final menuItemJson = customerMenu.firstWhere((m) => m['id'] == 'item_with_photo_1');
+    expect(menuItemJson['imageBase64'], dummyBase64);
+    expect(menuItemJson['imageUrl'], '/api/item-image?id=item_with_photo_1');
+  });
+}
