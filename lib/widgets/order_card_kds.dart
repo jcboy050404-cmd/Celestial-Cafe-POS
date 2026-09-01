@@ -20,6 +20,7 @@ class OrderCardKds extends StatefulWidget {
 
 class _OrderCardKdsState extends State<OrderCardKds> {
   late Timer _timer;
+  bool _isActionLoading = false;
 
   @override
   void initState() {
@@ -53,14 +54,22 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         color: CelestialTheme.bgCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: (order.status == OrderStatus.preparing || order.status == OrderStatus.confirmed)
-              ? CelestialTheme.amberBrewing.withValues(alpha: 0.5)
-              : order.status == OrderStatus.ready
-                  ? CelestialTheme.emeraldReady.withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.08),
-          width: 1.2,
+          color: order.hasKitchenDishes
+              ? const Color(0xFFFF5722).withValues(alpha: 0.65)
+              : (order.status == OrderStatus.preparing || order.status == OrderStatus.confirmed)
+                  ? CelestialTheme.amberBrewing.withValues(alpha: 0.5)
+                  : order.status == OrderStatus.ready
+                      ? CelestialTheme.emeraldReady.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.08),
+          width: order.hasKitchenDishes ? 1.6 : 1.2,
         ),
         boxShadow: [
+          if (order.hasKitchenDishes)
+            BoxShadow(
+              color: const Color(0xFFFF5722).withValues(alpha: 0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 16,
@@ -84,12 +93,24 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                 Expanded(
                   child: Row(
                     children: [
+                      if (order.hasKitchenDishes) ...[
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF5722).withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.7)),
+                          ),
+                          child: const Text('🍳', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
                       Text(
                         order.orderNumber,
                         style: GoogleFonts.outfit(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
-                          color: CelestialTheme.goldLight,
+                          color: order.hasKitchenDishes ? const Color(0xFFFFE0B2) : CelestialTheme.goldLight,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -165,9 +186,68 @@ class _OrderCardKdsState extends State<OrderCardKds> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Guest: ${order.customerName}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        'Guest: ${order.customerName}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+                      ),
+                      if (order.hasKitchenDishes)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF5722).withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65), width: 1.2),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🍳', style: TextStyle(fontSize: 10)),
+                              const SizedBox(width: 3.5),
+                              Text(
+                                '${order.kitchenDishCount} Kitchen',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFFF7043),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (order.hasBaristaDrinks)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.amberBrewing.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5), width: 1.2),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('☕', style: TextStyle(fontSize: 10)),
+                              const SizedBox(width: 3.5),
+                              Text(
+                                '${order.baristaDrinkCount} Bar',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: CelestialTheme.amberBrewing,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 Text(
                   '${order.totalItemCount} items',
@@ -246,6 +326,8 @@ class _OrderCardKdsState extends State<OrderCardKds> {
   }
 
   Widget _buildOrderItemRow(OrderItem item) {
+    final isKitchen = item.isKitchenDish;
+
     final sizeCustom = item.customizations.where((c) {
       final name = c.optionName.toLowerCase();
       return name.contains('16oz') || name.contains('22oz') ||
@@ -258,25 +340,60 @@ class _OrderCardKdsState extends State<OrderCardKds> {
           !name.contains('16 oz') && !name.contains('22 oz');
     }).toList();
 
-    return Column(
+    final itemWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (isKitchen)
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF5722).withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.7), width: 1.2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text('🍳', style: TextStyle(fontSize: 11)),
+                SizedBox(width: 4),
+                Text(
+                  'KITCHEN COOK DISH',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                    color: Color(0xFFFF7043),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Qty badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
               decoration: BoxDecoration(
-                color: CelestialTheme.goldPrimary,
+                color: isKitchen ? const Color(0xFFFF5722) : CelestialTheme.goldPrimary,
                 borderRadius: BorderRadius.circular(6),
+                boxShadow: isKitchen
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFFF5722).withValues(alpha: 0.4),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: Text(
                 '${item.quantity}x',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: CelestialTheme.bgDark,
+                  color: isKitchen ? Colors.white : CelestialTheme.bgDark,
                 ),
               ),
             ),
@@ -295,7 +412,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                           style: GoogleFonts.outfit(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: CelestialTheme.textLight,
+                            color: isKitchen ? const Color(0xFFFFE0B2) : CelestialTheme.textLight,
                           ),
                         ),
                       ),
@@ -372,6 +489,20 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         ),
       ],
     );
+
+    if (isKitchen) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF5722).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.45), width: 1.2),
+        ),
+        child: itemWidget,
+      );
+    }
+
+    return itemWidget;
   }
 
   Widget _buildActionButton(BuildContext context, PosProvider provider, Order order) {
@@ -379,20 +510,28 @@ class _OrderCardKdsState extends State<OrderCardKds> {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _confirmStatusTransition(
-            context,
-            provider,
-            order,
-            OrderStatus.preparing,
-            title: 'Start Brewing / Prep',
-            actionLabel: 'Start Brewing',
-            color: CelestialTheme.amberBrewing,
-            icon: Icons.coffee_maker_rounded,
-          ),
-          icon: const Icon(Icons.coffee_maker_rounded, size: 17, color: CelestialTheme.bgDark),
-          label: const Text(
-            'Start Brewing / Prep',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: CelestialTheme.bgDark),
+          onPressed: _isActionLoading
+              ? null
+              : () => _confirmStatusTransition(
+                  context,
+                  provider,
+                  order,
+                  OrderStatus.preparing,
+                  title: 'Start Brewing / Prep',
+                  actionLabel: 'Start Brewing',
+                  color: CelestialTheme.amberBrewing,
+                  icon: Icons.coffee_maker_rounded,
+                ),
+          icon: _isActionLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                )
+              : const Icon(Icons.coffee_maker_rounded, size: 17, color: CelestialTheme.bgDark),
+          label: Text(
+            _isActionLoading ? 'Starting Brew...' : 'Start Brewing / Prep',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: CelestialTheme.bgDark),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: CelestialTheme.amberBrewing,
@@ -446,23 +585,31 @@ class _OrderCardKdsState extends State<OrderCardKds> {
               ),
               const SizedBox(width: 6),
               ElevatedButton(
-                onPressed: () => _confirmStatusTransition(
-                  context,
-                  provider,
-                  order,
-                  OrderStatus.preparing,
-                  title: 'Start Brewing',
-                  actionLabel: 'Brew Now',
-                  color: CelestialTheme.amberBrewing,
-                  icon: Icons.coffee_maker_rounded,
-                ),
+                onPressed: _isActionLoading
+                    ? null
+                    : () => _confirmStatusTransition(
+                        context,
+                        provider,
+                        order,
+                        OrderStatus.preparing,
+                        title: 'Start Brewing',
+                        actionLabel: 'Brew Now',
+                        color: CelestialTheme.amberBrewing,
+                        icon: Icons.coffee_maker_rounded,
+                      ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: CelestialTheme.amberBrewing,
                   foregroundColor: CelestialTheme.bgDark,
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('Brew Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                child: _isActionLoading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 1.8, color: CelestialTheme.bgDark),
+                      )
+                    : const Text('Brew Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
               ),
             ],
           ),
@@ -472,18 +619,26 @@ class _OrderCardKdsState extends State<OrderCardKds> {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _confirmStatusTransition(
-            context,
-            provider,
-            order,
-            OrderStatus.ready,
-            title: 'Mark Ready for Pickup',
-            actionLabel: 'Confirm Ready',
-            color: CelestialTheme.emeraldReady,
-            icon: Icons.notifications_active_rounded,
-          ),
-          icon: const Icon(Icons.notifications_active_rounded, size: 16),
-          label: const Text('Mark Ready for Pickup'),
+          onPressed: _isActionLoading
+              ? null
+              : () => _confirmStatusTransition(
+                  context,
+                  provider,
+                  order,
+                  OrderStatus.ready,
+                  title: 'Mark Ready for Pickup',
+                  actionLabel: 'Confirm Ready',
+                  color: CelestialTheme.emeraldReady,
+                  icon: Icons.notifications_active_rounded,
+                ),
+          icon: _isActionLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                )
+              : const Icon(Icons.notifications_active_rounded, size: 16),
+          label: Text(_isActionLoading ? 'Marking Ready...' : 'Mark Ready for Pickup'),
           style: ElevatedButton.styleFrom(
             backgroundColor: CelestialTheme.emeraldReady,
             foregroundColor: CelestialTheme.bgDark,
@@ -496,20 +651,28 @@ class _OrderCardKdsState extends State<OrderCardKds> {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _confirmStatusTransition(
-            context,
-            provider,
-            order,
-            OrderStatus.completed,
-            title: 'Complete & Hand Over',
-            actionLabel: 'Complete Order',
-            color: const Color(0xFF22C55E),
-            icon: Icons.check_circle_rounded,
-          ),
-          icon: const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
-          label: const Text(
-            'Complete & Hand Over',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+          onPressed: _isActionLoading
+              ? null
+              : () => _confirmStatusTransition(
+                  context,
+                  provider,
+                  order,
+                  OrderStatus.completed,
+                  title: 'Complete & Hand Over',
+                  actionLabel: 'Complete Order',
+                  color: const Color(0xFF22C55E),
+                  icon: Icons.check_circle_rounded,
+                ),
+          icon: _isActionLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
+          label: Text(
+            _isActionLoading ? 'Completing...' : 'Complete & Hand Over',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF22C55E),
@@ -712,26 +875,56 @@ class _OrderCardKdsState extends State<OrderCardKds> {
             ),
             child: const Text('Cancel / Review', style: TextStyle(color: CelestialTheme.textMuted, fontWeight: FontWeight.bold)),
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              HapticFeedback.heavyImpact();
-              provider.updateOrderStatus(order.id, nextStatus);
+          Builder(
+            builder: (ctx) {
+              bool isSubmitting = false;
+              return StatefulBuilder(
+                builder: (ctx, setDialogState) {
+                  return ElevatedButton.icon(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            setDialogState(() => isSubmitting = true);
+                            if (mounted) setState(() => _isActionLoading = true);
+                            HapticFeedback.heavyImpact();
+                            await Future.delayed(const Duration(milliseconds: 400));
+                            provider.updateOrderStatus(order.id, nextStatus);
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) setState(() => _isActionLoading = false);
+                          },
+                    icon: isSubmitting
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
+                            ),
+                          )
+                        : Icon(icon, size: 16, color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark),
+                    label: Text(
+                      isSubmitting
+                          ? (nextStatus == OrderStatus.preparing
+                              ? 'Starting Brew...'
+                              : nextStatus == OrderStatus.ready
+                                  ? 'Marking Ready...'
+                                  : 'Completing...')
+                          : actionLabel,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                },
+              );
             },
-            icon: Icon(icon, size: 16, color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark),
-            label: Text(
-              actionLabel,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
           ),
         ],
       ),

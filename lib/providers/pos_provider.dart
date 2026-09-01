@@ -145,6 +145,27 @@ class PosProvider extends ChangeNotifier {
       final paymentMethodStr = rawOrder['paymentMethod'] as String? ?? 'cash';
       final rawItems = rawOrder['items'] as List<dynamic>? ?? [];
 
+      final cleanTable = tableNum.trim().toLowerCase().startsWith('table')
+          ? tableNum.trim()
+          : 'Table ${tableNum.trim()}';
+
+      // Disallow multiple orders on the same table while an order is being prepared
+      final existingActive = _orders.where((o) =>
+          o.tableNumber?.toLowerCase() == cleanTable.toLowerCase() &&
+          (o.status == OrderStatus.pending ||
+              o.status == OrderStatus.confirmed ||
+              o.status == OrderStatus.preparing)).firstOrNull;
+
+      if (existingActive != null) {
+        return {
+          'success': false,
+          'error': 'This table already has an order in preparation (${existingActive.orderNumber}). You can order again once it is ready or completed.',
+          'existingOrderId': existingActive.id,
+          'existingOrderNumber': existingActive.orderNumber,
+          'status': existingActive.status.name,
+        };
+      }
+
       final paymentMethod = paymentMethodStr.toLowerCase().contains('gcash') ||
               paymentMethodStr.toLowerCase().contains('mobile')
           ? PaymentMethod.mobilePay
@@ -305,6 +326,7 @@ class PosProvider extends ChangeNotifier {
       _saveOrdersToStorage();
       _saveMenuToStorage();
       _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
 
       return {
@@ -332,9 +354,15 @@ class PosProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _getActiveOrdersJson() {
     return activeKdsOrders.map((o) {
       final json = o.toJson();
+      json['hasKitchenDishes'] = o.hasKitchenDishes;
+      json['kitchenDishCount'] = o.kitchenDishCount;
+      json['hasBaristaDrinks'] = o.hasBaristaDrinks;
+      json['baristaDrinkCount'] = o.baristaDrinkCount;
       json['items'] = o.items.map((i) => {
         'name': i.menuItem.name,
         'quantity': i.quantity,
+        'category': i.menuItem.category.name,
+        'isKitchen': i.isKitchenDish,
         'notes': i.notes,
         'customizations': i.customizations.map((c) => {
           'optionName': c.optionName,
@@ -732,8 +760,10 @@ class PosProvider extends ChangeNotifier {
     _orders.insert(0, newOrder);
     _saveOrdersToStorage();
     _saveMenuToStorage();
-    _kdsServer.broadcastOrders();
-    notifyListeners();
+    Future.microtask(() {
+      _kdsServer.broadcastOrders();
+      notifyListeners();
+    });
     return newOrder;
   }
 
@@ -908,8 +938,10 @@ class PosProvider extends ChangeNotifier {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index >= 0) {
       _orders[index].status = newStatus;
+      final targetOrder = _orders[index];
       _saveOrdersToStorage();
       _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrderStatus(targetOrder.id, targetOrder.orderNumber, newStatus.name);
 
       // Haptic pulse on every status change
       switch (newStatus) {
@@ -955,6 +987,7 @@ class PosProvider extends ChangeNotifier {
 
       _saveOrdersToStorage();
       _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
   }
@@ -981,6 +1014,7 @@ class PosProvider extends ChangeNotifier {
       _orders.removeAt(index);
       _saveOrdersToStorage();
       _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
   }

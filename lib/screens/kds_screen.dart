@@ -17,15 +17,22 @@ class KdsScreen extends StatefulWidget {
 
 class _KdsScreenState extends State<KdsScreen> {
   OrderStatus? _statusFilter;
+  String _stationFilter = 'all';
 
   @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    final filteredOrders = _statusFilter == null
+    List<Order> filteredOrders = _statusFilter == null
         ? posProvider.activeKdsOrders
         : posProvider.orders.where((o) => o.status == _statusFilter).toList();
+
+    if (_stationFilter == 'kitchen') {
+      filteredOrders = filteredOrders.where((o) => o.hasKitchenDishes).toList();
+    } else if (_stationFilter == 'barista') {
+      filteredOrders = filteredOrders.where((o) => o.hasBaristaDrinks).toList();
+    }
 
     return Container(
       color: CelestialTheme.bgDark,
@@ -231,7 +238,7 @@ class _KdsScreenState extends State<KdsScreen> {
             ),
             const SizedBox(height: 10),
 
-            // Row 3: Status Filter Chips with horizontal scrolling
+            // Row 3: Status & Station Filter Chips with horizontal scrolling
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -241,6 +248,12 @@ class _KdsScreenState extends State<KdsScreen> {
                   _buildStatusTab('Brewing', OrderStatus.preparing, provider.preparingOrders.length, CelestialTheme.amberBrewing),
                   const SizedBox(width: 6),
                   _buildStatusTab('Ready', OrderStatus.ready, provider.readyOrders.length, CelestialTheme.emeraldReady),
+                  const SizedBox(width: 10),
+                  Container(width: 1, height: 22, color: Colors.white.withValues(alpha: 0.15)),
+                  const SizedBox(width: 10),
+                  _buildStationTab('🍳 Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
+                  const SizedBox(width: 6),
+                  _buildStationTab('☕ Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
                 ],
               ),
             ),
@@ -341,7 +354,7 @@ class _KdsScreenState extends State<KdsScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Filter Chips Row
+          // Filter Chips Row with Status & Station Filters
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -351,6 +364,12 @@ class _KdsScreenState extends State<KdsScreen> {
                 _buildStatusTab('Brewing / Prep', OrderStatus.preparing, provider.preparingOrders.length, CelestialTheme.amberBrewing),
                 const SizedBox(width: 8),
                 _buildStatusTab('Ready for Pickup', OrderStatus.ready, provider.readyOrders.length, CelestialTheme.emeraldReady),
+                const SizedBox(width: 12),
+                Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.15)),
+                const SizedBox(width: 12),
+                _buildStationTab('🍳 Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
+                const SizedBox(width: 8),
+                _buildStationTab('☕ Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
               ],
             ),
           ),
@@ -397,6 +416,52 @@ class _KdsScreenState extends State<KdsScreen> {
         color: isSelected ? CelestialTheme.textLight : CelestialTheme.textMuted,
       ),
       onSelected: (_) => setState(() => _statusFilter = status),
+    );
+  }
+
+  Widget _buildStationTab(String title, String station, int count, Color color) {
+    final isSelected = _stationFilter == station;
+
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(title),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: isSelected ? color : CelestialTheme.bgSurface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : CelestialTheme.textLight,
+              ),
+            ),
+          ),
+        ],
+      ),
+      selected: isSelected,
+      selectedColor: color.withValues(alpha: 0.25),
+      backgroundColor: CelestialTheme.bgCard,
+      side: BorderSide(
+        color: isSelected ? color : color.withValues(alpha: 0.35),
+        width: isSelected ? 1.4 : 1,
+      ),
+      labelStyle: TextStyle(
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+        color: isSelected ? color : CelestialTheme.textLight,
+      ),
+      onSelected: (selected) {
+        setState(() {
+          _stationFilter = selected ? station : 'all';
+        });
+      },
     );
   }
 

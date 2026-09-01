@@ -424,12 +424,8 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                     // Payment Method Details (Cash Tender Calculator)
                     if (_selectedPaymentMethod == PaymentMethod.cash)
                       _buildCashTenderCalculator(total, changeDue, isMobile)
-                    else if (_selectedPaymentMethod == PaymentMethod.mobilePay)
-                      _buildDigitalPaymentNotice('GCash / Maya / Mobile Wallet', Icons.phone_android_rounded, CelestialTheme.blueInfo)
-                    else if (_selectedPaymentMethod == PaymentMethod.creditCard)
-                      _buildDigitalPaymentNotice('Credit / Debit Card Terminal', Icons.credit_card_rounded, CelestialTheme.emeraldReady)
                     else
-                      _buildDigitalPaymentNotice('Celestial Pay QR Code', Icons.qr_code_rounded, CelestialTheme.goldLight),
+                      _buildDigitalPaymentNotice('GCash Mobile Wallet', Icons.phone_android_rounded, CelestialTheme.blueInfo),
 
                     const SizedBox(height: 16),
 
@@ -726,9 +722,37 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            item.menuItem.name,
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.menuItem.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: item.isKitchenDish ? const Color(0xFFFFE0B2) : CelestialTheme.textLight,
+                                  ),
+                                ),
+                              ),
+                              if (item.isKitchenDish)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  margin: const EdgeInsets.only(left: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF5722).withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65)),
+                                  ),
+                                  child: const Text(
+                                    '🍳 KITCHEN',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFFF7043),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           if (customsText.isNotEmpty)
                             Text(
@@ -915,9 +939,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
   Widget _buildPaymentMethodTabs(bool isMobile) {
     final methods = [
       (PaymentMethod.cash, 'Cash', Icons.payments_outlined),
-      (PaymentMethod.mobilePay, 'GCash / Maya', Icons.phone_android_rounded),
-      (PaymentMethod.creditCard, 'Card', Icons.credit_card_rounded),
-      (PaymentMethod.qrCode, 'Celestial QR', Icons.qr_code_rounded),
+      (PaymentMethod.mobilePay, 'GCash', Icons.phone_android_rounded),
     ];
 
     if (isMobile) {
@@ -1422,6 +1444,32 @@ class _PendingCustomerOrdersListDialog extends StatelessWidget {
                                           '• ${order.tableNumber ?? "Dine-In"}',
                                           style: const TextStyle(fontSize: 12, color: CelestialTheme.goldLight),
                                         ),
+                                        if (order.hasKitchenDishes) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFF5722).withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.6)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Text('🍳', style: TextStyle(fontSize: 9)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  '${order.kitchenDishCount} Kitchen',
+                                                  style: const TextStyle(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: Color(0xFFFF7043),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                     const SizedBox(height: 2),

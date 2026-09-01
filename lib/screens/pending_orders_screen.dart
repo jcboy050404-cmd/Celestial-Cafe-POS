@@ -353,6 +353,32 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                     ),
                   ),
                 ),
+                if (order.hasKitchenDishes) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF5722).withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65), width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🍳', style: TextStyle(fontSize: 10)),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${order.kitchenDishCount} Kitchen',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFFFF7043),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 // Elapsed Time
                 Row(
@@ -422,85 +448,9 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
               child: Column(
                 children: order.items.map((item) {
                   final customs = item.customizations.map((c) => c.optionName).join(', ');
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 22,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '${item.quantity}x',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: CelestialTheme.goldPrimary,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                item.menuItem.name,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: CelestialTheme.textLight,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '₱${item.totalPrice.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                                color: CelestialTheme.goldLight,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (customs.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 22, top: 1),
-                            child: Text(
-                              '› $customs',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                color: CelestialTheme.textMuted,
-                              ),
-                            ),
-                          ),
-                        if (item.notes != null && item.notes!.trim().isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 22, top: 1),
-                            child: Text(
-                              'Note: "${item.notes}"',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                color: CelestialTheme.roseAlert,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                itemCount: order.items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
-                itemBuilder: (ctx, iIdx) {
-                  final item = order.items[iIdx];
-                  final customs = item.customizations.map((c) => c.optionName).join(', ');
+                  final isKitchen = item.isKitchenDish;
 
-                  return Column(
+                  final itemContent = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
@@ -511,21 +461,30 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                             alignment: Alignment.centerLeft,
                             child: Text(
                               '${item.quantity}x',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: CelestialTheme.goldPrimary,
+                                color: isKitchen ? const Color(0xFFFF7043) : CelestialTheme.goldPrimary,
                               ),
                             ),
                           ),
                           Expanded(
-                            child: Text(
-                              item.menuItem.name,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: CelestialTheme.textLight,
-                              ),
+                            child: Row(
+                              children: [
+                                if (isKitchen) ...[
+                                  const Text('🍳 ', style: TextStyle(fontSize: 11)),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    item.menuItem.name,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isKitchen ? const Color(0xFFFFE0B2) : CelestialTheme.textLight,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           Text(
@@ -562,6 +521,118 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                         ),
                     ],
                   );
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: isKitchen
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF5722).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.35)),
+                            ),
+                            child: itemContent,
+                          )
+                        : itemContent,
+                  );
+                }).toList(),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                itemCount: order.items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                itemBuilder: (ctx, iIdx) {
+                  final item = order.items[iIdx];
+                  final customs = item.customizations.map((c) => c.optionName).join(', ');
+                  final isKitchen = item.isKitchenDish;
+
+                  final itemContent = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 22,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${item.quantity}x',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isKitchen ? const Color(0xFFFF7043) : CelestialTheme.goldPrimary,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                if (isKitchen) ...[
+                                  const Text('🍳 ', style: TextStyle(fontSize: 11)),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    item.menuItem.name,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isKitchen ? const Color(0xFFFFE0B2) : CelestialTheme.textLight,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '₱${item.totalPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.goldLight,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (customs.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 22, top: 1),
+                          child: Text(
+                            '› $customs',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: CelestialTheme.textMuted,
+                            ),
+                          ),
+                        ),
+                      if (item.notes != null && item.notes!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 22, top: 1),
+                          child: Text(
+                            'Note: "${item.notes}"',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: CelestialTheme.roseAlert,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+
+                  return isKitchen
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF5722).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.35)),
+                          ),
+                          child: itemContent,
+                        )
+                      : itemContent;
                 },
               ),
             ),

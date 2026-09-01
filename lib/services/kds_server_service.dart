@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import '../models/order.dart';
 
 typedef OrderStatusUpdateCallback = void Function(String orderId, String newStatus);
 typedef CustomerOrderCallback = Map<String, dynamic> Function(Map<String, dynamic> rawOrder);
@@ -63,7 +65,7 @@ class KdsServerService {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
       _isRunning = true;
       if (kDebugMode) {
-        print('☕ Celestial POS & KDS Server started on $serverUrl');
+        print('Celestial POS & KDS Server started on $serverUrl');
       }
 
       _server!.listen((HttpRequest request) {
@@ -77,7 +79,7 @@ class KdsServerService {
         _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
         _isRunning = true;
         if (kDebugMode) {
-          print('☕ Celestial KDS Server started on fallback $serverUrl');
+          print('Celestial KDS Server started on fallback $serverUrl');
         }
         _server!.listen((HttpRequest request) {
           _handleRequest(request);
@@ -98,22 +100,85 @@ class KdsServerService {
         type: InternetAddressType.IPv4,
       );
 
+      // Android cellular interface name patterns — never use these as server IP
+      const cellularPrefixes = [
+        'rmnet', 'ccmni', 'pdp_ip', 'v4-rmnet', 'clat', 'wwan', 'ppp',
+      ];
+
+      bool isCellular(String name) {
+        final lower = name.toLowerCase();
+        return cellularPrefixes.any((p) => lower.startsWith(p));
+      }
+
+      String? bestIp;    // Best LAN / Wi-Fi IP
+      String? cellularIp; // Last-resort: cellular IP (avoid if possible)
+
       for (var interface in interfaces) {
+        final name = interface.name;
+        final isCell = isCellular(name);
+
         for (var addr in interface.addresses) {
-          if (!addr.isLoopback) {
-            if (addr.address.startsWith('192.168.43.') ||
-                addr.address.startsWith('172.20.10.') ||
-                addr.address.startsWith('192.168.')) {
-              _localIp = addr.address;
-              return;
-            }
-            _localIp = addr.address;
+          if (addr.isLoopback) continue;
+          final ip = addr.address;
+
+          if (kDebugMode) print('Interface: $name  IP: $ip  cellular: $isCell');
+
+          // Skip cellular interfaces for priority matching
+          if (isCell) {
+            cellularIp ??= ip;
+            continue;
+          }
+
+          // Priority 1: Current router subnet (192.168.8.x — gateway 192.168.8.1)
+          if (ip.startsWith('192.168.8.')) {
+            _localIp = ip;
+            if (kDebugMode) print('Using router Wi-Fi IP (192.168.8.x): $ip');
+            return;
+          }
+          // Priority 2: TP-Link AP subnet (10.0.0.x)
+          else if (ip.startsWith('10.0.0.')) {
+            bestIp ??= ip;
+          }
+          // Priority 3: Common router range (192.168.0.x)
+          else if (ip.startsWith('192.168.0.')) {
+            bestIp ??= ip;
+          }
+          // Priority 4: Android hotspot (192.168.43.x)
+          else if (ip.startsWith('192.168.43.')) {
+            bestIp ??= ip;
+          }
+          // Priority 5: iPhone hotspot (172.20.10.x)
+          else if (ip.startsWith('172.20.10.')) {
+            bestIp ??= ip;
+          }
+          // Priority 6: Any other 192.168.x.x
+          else if (ip.startsWith('192.168.')) {
+            bestIp ??= ip;
+          }
+          // Priority 7: Any non-cellular 10.x.x.x
+          else if (ip.startsWith('10.')) {
+            bestIp ??= ip;
+          }
+          // Priority 8: Anything else non-loopback non-cellular
+          else {
+            bestIp ??= ip;
           }
         }
       }
+
+      if (bestIp != null) {
+        _localIp = bestIp;
+        if (kDebugMode) print('Using LAN IP: $_localIp');
+      } else if (cellularIp != null) {
+        // Only fall back to cellular IP if there is truly no other option
+        _localIp = cellularIp;
+        if (kDebugMode) print('No Wi-Fi IP found, using cellular IP: $_localIp');
+      } else {
+        if (kDebugMode) print('No IP found, keeping default: $_localIp');
+      }
     } catch (e) {
       if (kDebugMode) print('Error detecting local IP: $e');
-      _localIp = '192.168.43.1';
+      _localIp = '192.168.8.1';
     }
   }
 
@@ -142,13 +207,54 @@ class KdsServerService {
         'orders': ordersList,
       });
 
+      final deadClients = <WebSocket>[];
       for (var client in List<WebSocket>.from(_clients)) {
         if (client.readyState == WebSocket.open) {
-          client.add(payload);
+          try {
+            client.add(payload);
+          } catch (_) {
+            deadClients.add(client);
+          }
+        } else {
+          deadClients.add(client);
         }
+      }
+      for (var dead in deadClients) {
+        _clients.remove(dead);
+        try { dead.close(); } catch (_) {}
       }
     } catch (e) {
       if (kDebugMode) print('Error broadcasting KDS orders: $e');
+    }
+  }
+
+  void broadcastOrderStatus(String orderId, String orderNumber, String status) {
+    try {
+      final payload = jsonEncode({
+        'type': 'ORDER_STATUS_UPDATE',
+        'orderId': orderId,
+        'orderNumber': orderNumber,
+        'status': status,
+      });
+
+      final deadClients = <WebSocket>[];
+      for (var client in List<WebSocket>.from(_clients)) {
+        if (client.readyState == WebSocket.open) {
+          try {
+            client.add(payload);
+          } catch (_) {
+            deadClients.add(client);
+          }
+        } else {
+          deadClients.add(client);
+        }
+      }
+      for (var dead in deadClients) {
+        _clients.remove(dead);
+        try { dead.close(); } catch (_) {}
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error broadcasting order status update: $e');
     }
   }
 
@@ -164,6 +270,36 @@ class KdsServerService {
     }
 
     final path = request.uri.path.toLowerCase();
+
+    // ── Captive Portal Detection ─────────────────────────────────────────────
+    // iOS checks captive.apple.com/hotspot-detect.html when joining Wi-Fi.
+    // If this server is pointed to by the router's DNS for that domain,
+    // iOS gets a "Success" response and Safari opens local IPs normally.
+    // Android checks /generate_204, Windows checks /connecttest.txt & /ncsi.txt
+    if (path == '/hotspot-detect.html' || path == '/library/test/success.html') {
+      // Apple iOS / macOS captive portal response
+      request.response
+        ..headers.contentType = ContentType.html
+        ..statusCode = HttpStatus.ok
+        ..write('<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>')
+        ..close();
+      return;
+    } else if (path == '/generate_204' || path == '/gen_204') {
+      // Android / Chrome captive portal response (204 No Content = online)
+      request.response
+        ..statusCode = 204
+        ..close();
+      return;
+    } else if (path == '/connecttest.txt' || path == '/ncsi.txt') {
+      // Windows Network Connectivity Status Indicator
+      request.response
+        ..headers.contentType = ContentType.text
+        ..statusCode = HttpStatus.ok
+        ..write('Microsoft Connect Test')
+        ..close();
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (path == '/ws') {
       _handleWebSocket(request);
@@ -185,6 +321,8 @@ class KdsServerService {
       _handleOrderStatusApi(request);
     } else if (path.startsWith('/api/orders/update-status') || path.startsWith('/api/update-status')) {
       _handleUpdateStatusApi(request);
+    } else if (path.startsWith('/api/table-order')) {
+      _handleTableOrderApi(request);
     } else if (path.startsWith('/api/orders')) {
       _handleOrdersApi(request);
     } else {
@@ -212,17 +350,15 @@ class KdsServerService {
 
   void _serveLogo(HttpRequest request) async {
     try {
-      final file = File('assets/images/Logo.png');
-      if (await file.exists()) {
-        final bytes = await file.readAsBytes();
-        request.response
-          ..headers.contentType = ContentType.parse('image/png')
-          ..headers.add('Cache-Control', 'public, max-age=3600')
-          ..statusCode = HttpStatus.ok
-          ..add(bytes)
-          ..close();
-        return;
-      }
+      final byteData = await rootBundle.load('assets/images/Logo.png');
+      final bytes = byteData.buffer.asUint8List();
+      request.response
+        ..headers.contentType = ContentType.parse('image/png')
+        ..headers.add('Cache-Control', 'public, max-age=3600')
+        ..statusCode = HttpStatus.ok
+        ..add(bytes)
+        ..close();
+      return;
     } catch (_) {}
     request.response.statusCode = HttpStatus.notFound;
     request.response.close();
@@ -238,125 +374,162 @@ class KdsServerService {
   }
 
   void _handleOrderStatusApi(HttpRequest request) {
-    final orderId = request.uri.queryParameters['orderId'] ?? request.uri.queryParameters['id'] ?? '';
-    final cleanId = orderId.trim().toLowerCase();
+    try {
+      final orderId = request.uri.queryParameters['orderId'] ??
+          request.uri.queryParameters['id'] ??
+          request.uri.queryParameters['orderNumber'] ??
+          '';
+      final cleanId = orderId.trim().toLowerCase();
 
-    final activeList = getActiveOrdersJson != null ? getActiveOrdersJson!() : <Map<String, dynamic>>[];
-    final List<String> currentlyPreparing = [];
-    final List<String> currentlyInQueue = [];
-    final List<String> currentlyReady = [];
+      final activeList = getActiveOrdersJson != null ? getActiveOrdersJson!() : <Map<String, dynamic>>[];
+      final List<String> currentlyPreparing = [];
+      final List<String> currentlyInQueue = [];
+      final List<String> currentlyReady = [];
 
-    for (var o in activeList) {
-      final s = (o['status'] as String? ?? '').toLowerCase();
-      final num = o['orderNumber'] as String? ?? '';
-      if (num.isNotEmpty) {
-        if (s == 'preparing' || s == 'brewing' || s == 'kitchen') {
-          currentlyPreparing.add(num);
-        } else if (s == 'confirmed' || s == 'inqueue' || s == 'queue') {
-          currentlyInQueue.add(num);
-        } else if (s == 'ready') {
-          currentlyReady.add(num);
-        }
-      }
-    }
-
-    dynamic matchedOrder;
-    if (getOrderByIdCallback != null && cleanId.isNotEmpty) {
-      matchedOrder = getOrderByIdCallback!(cleanId);
-    }
-
-    if (matchedOrder == null && activeList.isNotEmpty) {
       for (var o in activeList) {
-        final oId = (o['id'] as String? ?? '').toLowerCase();
-        final oNum = (o['orderNumber'] as String? ?? '').toLowerCase();
-        if (oId == cleanId || oNum == cleanId || oNum.replaceAll('#', '').trim() == cleanId) {
-          final isPending = o['status'] == 'pending';
-          request.response
-            ..headers.contentType = ContentType.json
-            ..statusCode = HttpStatus.ok
-            ..write(jsonEncode({
-              'success': true,
-              'orderId': o['id'],
-              'orderNumber': o['orderNumber'],
-              'status': o['status'],
-              'isPaid': !isPending,
-              'tableNumber': o['tableNumber'],
-              'totalAmount': o['totalAmount'],
-              'items': o['items'] ?? [],
-              'currentlyPreparing': currentlyPreparing,
-              'currentlyInQueue': currentlyInQueue,
-              'currentlyReady': currentlyReady,
-            }))
-            ..close();
-          return;
-        }
-      }
-    }
-
-    if (matchedOrder != null) {
-      final statusName = matchedOrder.status?.name?.toString() ?? matchedOrder.status?.toString() ?? '';
-      final isPaid = statusName != 'pending' && statusName != 'cancelled';
-      final dynamic orderItems = matchedOrder.items;
-      List<Map<String, dynamic>> itemsJson = [];
-      if (orderItems is List) {
-        for (var i in orderItems) {
-          final itemName = i.menuItem?.name ?? i.name ?? 'Item';
-          final qty = i.quantity ?? 1;
-          final price = i.totalPrice ?? i.price ?? 0.0;
-          final uPrice = i.unitPrice ?? (price / (qty > 0 ? qty : 1));
-          final note = i.notes ?? '';
-          List<dynamic> customs = [];
-          if (i.customizations is List) {
-            customs = (i.customizations as List).map((c) => c.optionName ?? c.toString()).toList();
+        final s = (o['status'] as String? ?? '').toLowerCase();
+        final num = o['orderNumber'] as String? ?? '';
+        final table = o['tableNumber'] as String? ?? '';
+        final tableLabel = table.isNotEmpty ? ' · T$table' : '';
+        final bool hasKitchen = o['hasKitchenDishes'] == true || (o['items'] as List?)?.any((item) {
+          final cat = (item['category'] as String? ?? '').toLowerCase();
+          final iname = (item['name'] as String? ?? '').toLowerCase();
+          return item['isKitchen'] == true || cat.contains('street') || cat.contains('pasta') || cat.contains('sandwich') ||
+              iname.contains('buffalo') || iname.contains('wing') || iname.contains('fries') ||
+              iname.contains('stick') || iname.contains('lumpia') || iname.contains('pasta') ||
+              iname.contains('carbonara') || iname.contains('sandwich');
+        }) == true;
+        final stationTag = hasKitchen ? ' 🍳' : '';
+        final chip = num.isNotEmpty ? '$num$tableLabel$stationTag' : '';
+        if (chip.isNotEmpty) {
+          if (s == 'preparing' || s == 'brewing' || s == 'kitchen') {
+            currentlyPreparing.add(chip);
+          } else if (s == 'confirmed' || s == 'inqueue' || s == 'queue') {
+            currentlyInQueue.add(chip);
+          } else if (s == 'ready') {
+            currentlyReady.add(chip);
           }
-          itemsJson.add({
-            'name': itemName,
-            'quantity': qty,
-            'price': price,
-            'unitPrice': uPrice,
-            'notes': note,
-            'customizations': customs,
-          });
         }
       }
 
-      request.response
-        ..headers.contentType = ContentType.json
-        ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({
-          'success': true,
-          'orderId': matchedOrder.id,
-          'orderNumber': matchedOrder.orderNumber,
-          'status': matchedOrder.status.name,
-          'isPaid': isPaid,
-          'tableNumber': matchedOrder.tableNumber,
-          'totalAmount': matchedOrder.totalAmount,
-          'items': itemsJson,
-          'currentlyPreparing': currentlyPreparing,
-          'currentlyInQueue': currentlyInQueue,
-          'currentlyReady': currentlyReady,
-        }))
-        ..close();
-    } else {
-      request.response
-        ..headers.contentType = ContentType.json
-        ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({
-          'success': false,
-          'status': 'pending',
-          'isPaid': false,
-          'error': 'Order not found in records',
-          'currentlyPreparing': currentlyPreparing,
-          'currentlyInQueue': currentlyInQueue,
-          'currentlyReady': currentlyReady,
-        }))
-        ..close();
+      dynamic matchedOrder;
+      if (getOrderByIdCallback != null && cleanId.isNotEmpty) {
+        matchedOrder = getOrderByIdCallback!(cleanId);
+      }
+
+      if (matchedOrder == null && activeList.isNotEmpty) {
+        for (var o in activeList) {
+          final oId = (o['id'] as String? ?? '').toLowerCase();
+          final oNum = (o['orderNumber'] as String? ?? '').toLowerCase();
+          if (oId == cleanId || oNum == cleanId || oNum.replaceAll('#', '').trim() == cleanId) {
+            matchedOrder = o;
+            break;
+          }
+        }
+      }
+
+      if (matchedOrder != null) {
+        final String orderIdVal = matchedOrder is Order
+            ? matchedOrder.id
+            : (matchedOrder['id']?.toString() ?? '');
+        final String orderNumberVal = matchedOrder is Order
+            ? matchedOrder.orderNumber
+            : (matchedOrder['orderNumber']?.toString() ?? '');
+        final String statusVal = matchedOrder is Order
+            ? matchedOrder.status.name
+            : (matchedOrder['status']?.toString() ?? 'pending');
+        final String tableVal = matchedOrder is Order
+            ? (matchedOrder.tableNumber ?? '')
+            : (matchedOrder['tableNumber']?.toString() ?? '');
+        final double totalVal = matchedOrder is Order
+            ? matchedOrder.totalAmount
+            : ((matchedOrder['totalAmount'] as num?)?.toDouble() ?? 0.0);
+        final bool isPaid = statusVal != 'pending' && statusVal != 'cancelled';
+
+        final dynamic orderItems = matchedOrder is Order ? matchedOrder.items : matchedOrder['items'];
+        List<Map<String, dynamic>> itemsJson = [];
+        if (orderItems is List) {
+          for (var i in orderItems) {
+            if (i is OrderItem) {
+              itemsJson.add({
+                'name': i.menuItem.name,
+                'quantity': i.quantity,
+                'price': i.totalPrice,
+                'unitPrice': i.unitPrice,
+                'notes': i.notes ?? '',
+                'customizations': i.customizations.map((c) => c.optionName).toList(),
+              });
+            } else if (i is Map) {
+              itemsJson.add({
+                'name': i['name'] ?? i['itemName'] ?? 'Item',
+                'quantity': i['quantity'] ?? 1,
+                'price': i['price'] ?? i['totalPrice'] ?? 0.0,
+                'unitPrice': i['unitPrice'] ?? 0.0,
+                'notes': i['notes'] ?? '',
+                'customizations': (i['customizations'] as List?)
+                        ?.map((c) => c is Map ? (c['optionName'] ?? c['name'] ?? '') : c.toString())
+                        .toList() ??
+                    [],
+              });
+            }
+          }
+        }
+
+        request.response
+          ..headers.contentType = ContentType.json
+          ..statusCode = HttpStatus.ok
+          ..write(jsonEncode({
+            'success': true,
+            'orderId': orderIdVal,
+            'orderNumber': orderNumberVal,
+            'status': statusVal,
+            'isPaid': isPaid,
+            'tableNumber': tableVal,
+            'totalAmount': totalVal,
+            'items': itemsJson,
+            'currentlyPreparing': currentlyPreparing,
+            'currentlyInQueue': currentlyInQueue,
+            'currentlyReady': currentlyReady,
+          }))
+          ..close();
+      } else {
+        request.response
+          ..headers.contentType = ContentType.json
+          ..statusCode = HttpStatus.ok
+          ..write(jsonEncode({
+            'success': true,
+            'status': 'pending',
+            'isPaid': false,
+            'error': 'Order lookup in progress',
+            'currentlyPreparing': currentlyPreparing,
+            'currentlyInQueue': currentlyInQueue,
+            'currentlyReady': currentlyReady,
+          }))
+          ..close();
+      }
+    } catch (e, stack) {
+      if (kDebugMode) print('Error in _handleOrderStatusApi: $e\n$stack');
+      try {
+        request.response
+          ..headers.contentType = ContentType.json
+          ..statusCode = HttpStatus.ok
+          ..write(jsonEncode({
+            'success': true,
+            'status': 'pending',
+            'isPaid': false,
+            'error': e.toString(),
+            'currentlyPreparing': [],
+            'currentlyInQueue': [],
+            'currentlyReady': [],
+          }))
+          ..close();
+      } catch (_) {}
     }
   }
 
   void _handleCustomerOrderApi(HttpRequest request) async {
     try {
-      final content = await utf8.decoder.bind(request).join();
+      final content = await utf8.decoder.bind(request).join().timeout(const Duration(seconds: 25));
       final data = jsonDecode(content) as Map<String, dynamic>;
 
       if (onCustomerOrderSubmitted != null) {
@@ -364,22 +537,22 @@ class KdsServerService {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
-          ..write(jsonEncode(result))
-          ..close();
+          ..write(jsonEncode(result));
+        await request.response.close();
       } else {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.internalServerError
-          ..write(jsonEncode({'success': false, 'error': 'Server callback not initialized'}))
-          ..close();
+          ..write(jsonEncode({'success': false, 'error': 'Server callback not initialized'}));
+        await request.response.close();
       }
     } catch (e) {
       try {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.badRequest
-          ..write(jsonEncode({'success': false, 'error': e.toString()}))
-          ..close();
+          ..write(jsonEncode({'success': false, 'error': e.toString()}));
+        await request.response.close();
       } catch (_) {}
     }
   }
@@ -470,6 +643,56 @@ class KdsServerService {
       ..close();
   }
 
+  /// Returns the most recent non-completed, non-cancelled active order for a given table number.
+  /// Used by customer page to auto-restore tracking on any device that opens the same table URL.
+  void _handleTableOrderApi(HttpRequest request) {
+    final raw = request.uri.queryParameters['table'] ?? '';
+    final tableNum = raw.replaceAll(RegExp(r'table\s*', caseSensitive: false), '').trim();
+    if (tableNum.isEmpty) {
+      request.response
+        ..headers.contentType = ContentType.json
+        ..statusCode = HttpStatus.ok
+        ..write(jsonEncode({'success': false, 'error': 'No table specified'}))
+        ..close();
+      return;
+    }
+
+    final activeList = getActiveOrdersJson != null ? getActiveOrdersJson!() : <Map<String, dynamic>>[];
+    Map<String, dynamic>? matched;
+    for (final o in activeList.reversed.toList()) {
+      final t = (o['tableNumber'] as String? ?? '')
+          .replaceAll(RegExp(r'table\s*', caseSensitive: false), '')
+          .trim();
+      final s = (o['status'] as String? ?? '').toLowerCase();
+      if (t == tableNum && s != 'completed' && s != 'cancelled') {
+        matched = o;
+        break;
+      }
+    }
+
+    if (matched != null) {
+      request.response
+        ..headers.contentType = ContentType.json
+        ..statusCode = HttpStatus.ok
+        ..write(jsonEncode({
+          'success': true,
+          'orderId': matched['id'],
+          'orderNumber': matched['orderNumber'],
+          'status': matched['status'],
+          'tableNumber': matched['tableNumber'],
+          'totalAmount': matched['totalAmount'],
+          'items': matched['items'] ?? [],
+        }))
+        ..close();
+    } else {
+      request.response
+        ..headers.contentType = ContentType.json
+        ..statusCode = HttpStatus.ok
+        ..write(jsonEncode({'success': false, 'error': 'No active order for this table'}))
+        ..close();
+    }
+  }
+
   void _handleUpdateStatusApi(HttpRequest request) async {
     try {
       final content = await utf8.decoder.bind(request).join();
@@ -500,6 +723,7 @@ class KdsServerService {
   void _handleWebSocket(HttpRequest request) async {
     try {
       final socket = await WebSocketTransformer.upgrade(request);
+      socket.pingInterval = const Duration(seconds: 6);
       _clients.add(socket);
 
       if (getActiveOrdersJson != null) {
@@ -526,10 +750,13 @@ class KdsServerService {
         },
         onDone: () {
           _clients.remove(socket);
+          try { socket.close(); } catch (_) {}
         },
         onError: (err) {
           _clients.remove(socket);
+          try { socket.close(); } catch (_) {}
         },
+        cancelOnError: true,
       );
     } catch (e) {
       if (kDebugMode) print('WebSocket upgrade failed: $e');
@@ -806,6 +1033,69 @@ class KdsServerService {
     }
     .item-name { font-weight: 700; font-size: 14px; color: var(--text-light); flex: 1; }
 
+    /* Kitchen Cook Dish Highlighting */
+    .ticket.has-kitchen {
+      border-top: 3.5px solid #FF5722 !important;
+      box-shadow: 0 4px 20px rgba(255, 87, 34, 0.16) !important;
+    }
+    .kitchen-item-row {
+      background: linear-gradient(135deg, rgba(255, 87, 34, 0.16) 0%, rgba(255, 112, 67, 0.05) 100%) !important;
+      border: 1.5px solid rgba(255, 87, 34, 0.5) !important;
+      border-left: 4px solid #FF5722 !important;
+      border-radius: 10px;
+      padding: 9px 11px !important;
+      margin-bottom: 9px !important;
+      box-shadow: 0 2px 10px rgba(255, 87, 34, 0.15);
+    }
+    .kitchen-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #FF7043;
+      background: rgba(255, 87, 34, 0.22);
+      border: 1px solid rgba(255, 87, 34, 0.45);
+      border-radius: 5px;
+      padding: 2px 7px;
+      margin-bottom: 5px;
+    }
+    .kitchen-name {
+      color: #FFE0B2 !important;
+      font-weight: 800 !important;
+    }
+    .kitchen-qty {
+      background: #FF5722 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 2px 8px rgba(255, 87, 34, 0.4);
+    }
+    .station-badge-kitchen {
+      background: rgba(255, 87, 34, 0.2);
+      border: 1.2px solid rgba(255, 87, 34, 0.65);
+      color: #FF7043;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10.5px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .station-badge-bar {
+      background: rgba(255, 159, 28, 0.16);
+      border: 1.2px solid rgba(255, 159, 28, 0.5);
+      color: var(--gold-light);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10.5px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     .size-badge { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; }
     .size-16oz { background: rgba(76, 201, 240, 0.25); color: var(--blue-info); border: 1.2px solid var(--blue-info); }
     .size-22oz { background: rgba(255, 159, 28, 0.25); color: var(--amber-brewing); border: 1.2px solid var(--amber-brewing); }
@@ -852,6 +1142,23 @@ class KdsServerService {
     .btn-ready { background: var(--emerald-ready); color: var(--bg-dark); }
     .btn-done { background: #22c55e; color: #ffffff; font-weight: 800; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4); }
 
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(0, 0, 0, 0.25);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    .btn-done .btn-spinner {
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); }
     .empty-icon { font-size: 48px; margin-bottom: 12px; }
   </style>
@@ -873,13 +1180,16 @@ class KdsServerService {
 
   <div class="filter-bar">
     <button class="tab-btn active" onclick="setFilter('all', this)">Active Queue <span class="tab-count" id="countAll">0</span></button>
+    <button class="tab-btn" onclick="setFilter('confirmed', this)">In Queue <span class="tab-count" id="countQueue">0</span></button>
     <button class="tab-btn" onclick="setFilter('preparing', this)">Brewing / Prep <span class="tab-count" id="countBrewing">0</span></button>
     <button class="tab-btn" onclick="setFilter('ready', this)">Ready for Pickup <span class="tab-count" id="countReady">0</span></button>
+    <button class="tab-btn" onclick="setFilter('kitchen', this)" style="border: 1px solid rgba(255,87,34,0.5); color: #FF7043;">🍳 Kitchen Food <span class="tab-count" id="countKitchen" style="background: rgba(255,87,34,0.25); color: #FF7043;">0</span></button>
+    <button class="tab-btn" onclick="setFilter('barista', this)" style="border: 1px solid rgba(255,159,28,0.4); color: var(--gold-light);">☕ Barista Drinks <span class="tab-count" id="countBarista">0</span></button>
   </div>
 
   <main id="ticketsContainer">
     <div class="empty-state">
-      <div class="empty-icon">☕</div>
+      <div class="empty-icon" style="font-size:36px;opacity:0.3;">—</div>
       <h3>No Active Kitchen Tickets</h3>
       <p style="font-size: 13px; margin-top: 4px;">Orders approved & confirmed at the POS will appear here live.</p>
     </div>
@@ -967,14 +1277,46 @@ class KdsServerService {
         .catch(err => console.warn('Poll err:', err));
     }
 
+    function isItemKitchen(item) {
+      if (item.isKitchen === true) return true;
+      const cat = (item.category || '').toLowerCase();
+      if (cat.includes('street') || cat.includes('pasta') || cat.includes('sandwich') || cat.includes('bites') || cat.includes('food')) {
+        return true;
+      }
+      const n = (item.name || item.menuItem?.name || '').toLowerCase();
+      return n.includes('buffalo') || n.includes('wing') || n.includes('fries') ||
+        n.includes('stick') || n.includes('lumpia') || n.includes('shanghai') ||
+        n.includes('pasta') || n.includes('carbonara') || n.includes('aglio') ||
+        n.includes('sandwich') || n.includes('toast') || n.includes('burger');
+    }
+
+    function orderHasKitchen(order) {
+      if (order.hasKitchenDishes === true) return true;
+      return (order.items || []).some(isItemKitchen);
+    }
+
+    function orderHasBarista(order) {
+      if (order.hasBaristaDrinks === true) return true;
+      return (order.items || []).some(i => !isItemKitchen(i));
+    }
+
     let prevCount = 0;
     function renderOrders(orders) {
       currentOrders = orders;
-      const active = orders.filter(o => o.status === 'preparing' || o.status === 'ready');
+      const active = orders.filter(o => o.status === 'confirmed' || o.status === 'inqueue' || o.status === 'preparing' || o.status === 'ready');
       
       document.getElementById('countAll').innerText = active.length;
+      const countQueueEl = document.getElementById('countQueue');
+      if (countQueueEl) countQueueEl.innerText = active.filter(o => o.status === 'confirmed' || o.status === 'inqueue').length;
       document.getElementById('countBrewing').innerText = active.filter(o => o.status === 'preparing').length;
       document.getElementById('countReady').innerText = active.filter(o => o.status === 'ready').length;
+
+      const kitchenOrders = active.filter(orderHasKitchen);
+      const baristaOrders = active.filter(orderHasBarista);
+      const countKitchenEl = document.getElementById('countKitchen');
+      if (countKitchenEl) countKitchenEl.innerText = kitchenOrders.length;
+      const countBaristaEl = document.getElementById('countBarista');
+      if (countBaristaEl) countBaristaEl.innerText = baristaOrders.length;
 
       if (active.length > prevCount) {
         playChime();
@@ -983,14 +1325,20 @@ class KdsServerService {
 
       const filtered = activeFilter === 'all'
         ? active
-        : active.filter(o => o.status === activeFilter);
+        : (activeFilter === 'confirmed'
+            ? active.filter(o => o.status === 'confirmed' || o.status === 'inqueue')
+            : (activeFilter === 'kitchen'
+                ? kitchenOrders
+                : (activeFilter === 'barista'
+                    ? baristaOrders
+                    : active.filter(o => o.status === activeFilter))));
 
       const container = document.getElementById('ticketsContainer');
 
       if (filtered.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon">☕</div>
+            <div class="empty-icon" style="font-size:36px;opacity:0.3;">—</div>
             <h3>No Active Kitchen Tickets</h3>
             <p style="font-size: 13px; margin-top: 4px;">Orders rung up on the POS will appear here live.</p>
           </div>
@@ -1007,7 +1355,27 @@ class KdsServerService {
           timerClass = 'timer-amber';
         }
 
+        let kitchenCount = 0;
+        let baristaCount = 0;
+        (order.items || []).forEach(i => {
+          if (isItemKitchen(i)) {
+            kitchenCount += (i.quantity || 1);
+          } else {
+            baristaCount += (i.quantity || 1);
+          }
+        });
+
+        let stationBadgesHtml = '';
+        if (kitchenCount > 0) {
+          stationBadgesHtml += `<span class="station-badge-kitchen">🍳 \${kitchenCount} Kitchen</span>`;
+        }
+        if (baristaCount > 0) {
+          stationBadgesHtml += `<span class="station-badge-bar">☕ \${baristaCount} Bar</span>`;
+        }
+
         const itemsHtml = (order.items || []).map(item => {
+          const itemName = item.name || item.menuItem?.name || 'Item';
+          const isKitchen = isItemKitchen(item);
           let sizeHtml = '';
           const nonSizeCustoms = [];
 
@@ -1028,11 +1396,25 @@ class KdsServerService {
 
           const noteHtml = item.notes ? `<div class="note-box">Note: \${item.notes}</div>` : '';
 
+          if (isKitchen) {
+            return `
+              <div class="item-row kitchen-item-row" onclick="this.classList.toggle('item-done')">
+                <div class="kitchen-tag">🍳 KITCHEN COOK DISH</div>
+                <div class="item-title-row">
+                  <span class="item-qty kitchen-qty">\${item.quantity}x</span>
+                  <span class="item-name kitchen-name">🔥 \${itemName}</span>
+                </div>
+                \${customsListHtml}
+                \${noteHtml}
+              </div>
+            `;
+          }
+
           return `
             <div class="item-row" onclick="this.classList.toggle('item-done')">
               <div class="item-title-row">
                 <span class="item-qty">\${item.quantity}x</span>
-                <span class="item-name">\${item.name || item.menuItem?.name || ''}</span>
+                <span class="item-name">\${itemName}</span>
                 \${sizeHtml}
               </div>
               \${customsListHtml}
@@ -1044,22 +1426,23 @@ class KdsServerService {
         let actionBtn = '';
         let pendingBadge = '';
         if (order.status === 'confirmed') {
-          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing')">Start Brewing / Prep</button>`;
+          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing', this)">Start Brewing / Prep</button>`;
         } else if (order.status === 'pending') {
           pendingBadge = `<div style="background: rgba(255,159,28,0.15); border: 1px solid rgba(255,159,28,0.4); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: bold; color: var(--amber-brewing); margin-bottom: 8px; text-align: center;">Awaiting Cashier Payment</div>`;
-          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing')">Start Brewing / Confirm</button>`;
+          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing', this)">Start Brewing / Confirm</button>`;
         } else if (order.status === 'preparing') {
-          actionBtn = `<button class="action-btn btn-ready" onclick="updateStatus('\${order.id}', 'ready')">Mark Ready for Pickup</button>`;
+          actionBtn = `<button class="action-btn btn-ready" onclick="updateStatus('\${order.id}', 'ready', this)">Mark Ready for Pickup</button>`;
         } else if (order.status === 'ready') {
-          actionBtn = `<button class="action-btn btn-done" onclick="updateStatus('\${order.id}', 'completed')">Complete & Hand Over</button>`;
+          actionBtn = `<button class="action-btn btn-done" onclick="updateStatus('\${order.id}', 'completed', this)">Complete & Hand Over</button>`;
         }
 
         const tableInfo = order.tableNumber ? ` • \${order.tableNumber}` : '';
         const orderTypeLabel = order.orderType === 'dineIn' ? 'Dine-In' : 'Takeaway';
         const totalItems = (order.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
 
+        const ticketHasKitchen = kitchenCount > 0 ? 'has-kitchen' : '';
         return `
-          <div class="ticket \${order.status}">
+          <div class="ticket \${order.status} \${ticketHasKitchen}">
             <div class="ticket-header">
               <div class="ticket-title-group">
                 <div class="ticket-number">\${order.orderNumber}</div>
@@ -1071,7 +1454,10 @@ class KdsServerService {
               </div>
             </div>
             <div class="ticket-sub">
-              <span class="guest-name">Guest: \${order.customerName || 'Guest Patron'}</span>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span class="guest-name">Guest: \${order.customerName || 'Guest Patron'}</span>
+                \${stationBadgesHtml}
+              </div>
               <span class="item-count-text">\${totalItems} items</span>
             </div>
             <div class="ticket-body">
@@ -1093,41 +1479,51 @@ class KdsServerService {
       }
     }
 
-    function updateStatus(orderId, newStatus) {
-      const idx = currentOrders.findIndex(o => o.id === orderId);
-      if (idx >= 0) {
-        if (newStatus === 'completed' || newStatus === 'cancelled') {
-          currentOrders.splice(idx, 1);
-        } else {
-          currentOrders[idx].status = newStatus;
-        }
-        renderOrders(currentOrders);
+    function updateStatus(orderId, newStatus, btn) {
+      if (btn) {
+        btn.disabled = true;
+        const actionLabel = newStatus === 'preparing'
+          ? 'Brewing...'
+          : (newStatus === 'ready' ? 'Marking Ready...' : 'Completing...');
+        btn.innerHTML = '<span class="btn-spinner"></span><span>' + actionLabel + '</span>';
       }
 
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        try {
-          ws.send(JSON.stringify({
-            action: 'update_status',
-            orderId: orderId,
-            status: newStatus
-          }));
-        } catch (e) {}
-      }
-
-      fetch('/api/orders/update-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: orderId, status: newStatus })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.orders) {
-          renderOrders(data.orders);
+      setTimeout(() => {
+        const idx = currentOrders.findIndex(o => o.id === orderId);
+        if (idx >= 0) {
+          if (newStatus === 'completed' || newStatus === 'cancelled') {
+            currentOrders.splice(idx, 1);
+          } else {
+            currentOrders[idx].status = newStatus;
+          }
+          renderOrders(currentOrders);
         }
-      })
-      .catch(err => {
-        console.warn('HTTP status sync fallback error:', err);
-      });
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({
+              action: 'update_status',
+              orderId: orderId,
+              status: newStatus
+            }));
+          } catch (e) {}
+        }
+
+        fetch('/api/orders/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderId, status: newStatus })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.orders) {
+            renderOrders(data.orders);
+          }
+        })
+        .catch(err => {
+          console.warn('HTTP status sync fallback error:', err);
+        });
+      }, 400);
     }
 
     renderOrders(currentOrders);
@@ -1147,7 +1543,20 @@ class KdsServerService {
   <title>Celestial Cafe — Table Self-Ordering</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    /* System-font fallbacks for no-internet (local network) environments */
+    @font-face {
+      font-family: 'Outfit';
+      src: local('-apple-system'), local('SF Pro Display'), local('Helvetica Neue'), local('Arial');
+      font-weight: 100 900;
+    }
+    @font-face {
+      font-family: 'Cinzel';
+      src: local('Georgia'), local('Times New Roman'), local('Times');
+      font-weight: 600 900;
+    }
+  </style>
   <style>
     :root {
       --bg-dark: #0D0A0F;
@@ -1178,7 +1587,7 @@ class KdsServerService {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
     }
     body {
@@ -1232,7 +1641,7 @@ class KdsServerService {
     }
     .brand-logo-frame img { width: 100%; height: 100%; object-fit: cover; }
     .brand-title {
-      font-family: 'Cinzel', serif;
+      font-family: 'Cinzel', Georgia, 'Times New Roman', 'Palatino Linotype', serif;
       font-weight: 800;
       font-size: 16px;
       letter-spacing: 2px;
@@ -1292,7 +1701,7 @@ class KdsServerService {
       font-size: 20px;
       font-weight: 800;
       color: var(--text-light);
-      font-family: 'Cinzel', serif;
+      font-family: 'Cinzel', Georgia, 'Times New Roman', 'Palatino Linotype', serif;
       letter-spacing: 0.5px;
     }
     .hero-sub {
@@ -1780,14 +2189,23 @@ class KdsServerService {
     }
     .status-step.completed .step-label { color: var(--emerald); }
 
-    /* READY ALARM BANNER & SILENT-MODE STROBE */
+    /* READY ALARM BANNER & SILENT-MODE HIGH-CONTRAST STROBE */
     body.alarm-active {
-      animation: screenStrobe 0.8s infinite alternate !important;
+      animation: screenStrobe 0.65s infinite alternate !important;
     }
     @keyframes screenStrobe {
-      0% { background-color: #0D0A0F; }
-      50% { background-color: #173832; }
-      100% { background-color: #2D2314; }
+      0% {
+        background-color: #0D0A0F;
+        box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+      }
+      50% {
+        background-color: #073832;
+        box-shadow: inset 0 0 160px rgba(46, 196, 182, 0.95), 0 0 80px rgba(46, 196, 182, 0.8);
+      }
+      100% {
+        background-color: #382A0A;
+        box-shadow: inset 0 0 160px rgba(212, 175, 55, 0.95), 0 0 80px rgba(212, 175, 55, 0.8);
+      }
     }
     .ready-alarm-box {
       background: rgba(46, 196, 182, 0.2);
@@ -1894,7 +2312,7 @@ class KdsServerService {
     <div class="tracker-card">
       <!-- Wi-Fi Disconnect Alert Banner -->
       <div id="wifiWarningBanner" style="display: none; background: rgba(231,29,54,0.18); border: 1.5px solid var(--rose); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 14px; text-align: center; color: #FFA8B2; font-size: 12.5px; font-weight: 700; box-shadow: 0 4px 16px rgba(231,29,54,0.3); animation: pulse 2s infinite;">
-        ⚠️ Wi-Fi Disconnected! Please reconnect to Cafe Wi-Fi to continue tracking your order live.
+        Wi-Fi Disconnected! Please reconnect to Cafe Wi-Fi to continue tracking your order live.
       </div>
 
       <!-- Slow Connection / Loading Banner -->
@@ -1988,11 +2406,7 @@ class KdsServerService {
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: center; margin-top: 18px;">
-        <button onclick="testAlarm()" style="background: rgba(46, 196, 182, 0.14); border: 1px solid var(--emerald); color: var(--emerald); border-radius: var(--radius-md); padding: 12px 18px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          <span>Test Ready Alarm</span>
-        </button>
-        <button onclick="newOrder()" id="btnOrderAnotherItem" style="display: none; background: linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%); border: 1.5px solid var(--gold-primary); color: var(--gold-light); border-radius: var(--radius-md); padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(212,175,55,0.18);">
+        <button onclick="newOrder(true)" id="btnOrderAnotherItem" style="display: none; background: linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%); border: 1.5px solid var(--gold-primary); color: var(--gold-light); border-radius: var(--radius-md); padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(212,175,55,0.18);">
           + Order Another Item
         </button>
       </div>
@@ -2062,8 +2476,7 @@ class KdsServerService {
       <div class="opt-group-title">Payment Method</div>
       <div class="opt-grid">
         <div class="opt-chip selected" onclick="selectPayment('cash', this)">Pay Cash at Counter</div>
-        <div class="opt-chip" onclick="selectPayment('gcash', this)">Pay GCash / Maya at Counter</div>
-        <div class="opt-chip" onclick="selectPayment('creditCard', this)">Pay Card at Counter</div>
+        <div class="opt-chip" onclick="selectPayment('gcash', this)">Pay GCash at Counter</div>
       </div>
 
       <div style="border-top: 1px dashed rgba(255,255,255,0.12); padding-top: 14px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -2135,7 +2548,7 @@ class KdsServerService {
   </div>
 
   <!-- Dynamic Pop-Up Success / Notice Modal -->
-  <div class="modal-overlay" id="successModal" style="align-items: center; justify-content: center; padding: 20px;" onclick="if(event.target===this) closeModal('successModal')">
+  <div class="modal-overlay" id="successModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 99999;" onclick="if(event.target===this) closeModal('successModal')">
     <div class="modal-content" style="max-width: 400px; border-radius: var(--radius-xl); border: 1.5px solid var(--emerald); padding: 26px 20px; text-align: center; margin: auto;">
       <div id="successModalIconContainer" style="width: 58px; height: 58px; border-radius: 50%; background: rgba(46,196,182,0.15); border: 1.5px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald);">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -2174,6 +2587,39 @@ class KdsServerService {
     </div>
   </div>
 
+  <!-- Order Completed Pop-Up Modal -->
+  <div class="modal-overlay" id="orderCompletedModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 99999;" onclick="if(event.target===this) closeModal('orderCompletedModal')">
+    <div class="modal-content" style="max-width: 400px; border-radius: var(--radius-xl); border: 2px solid var(--emerald); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 0 35px var(--emerald-glow), 0 20px 60px rgba(0,0,0,0.95); animation: fadeInModal 0.25s ease-out;">
+      <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(46,196,182,0.18); border: 2px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: 0 0 24px var(--emerald-glow);">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--emerald); margin-bottom: 6px;">Order Served & Completed</div>
+      
+      <div class="modal-title" id="completedModalOrderNum" style="font-size: 38px; font-family: 'Cinzel', serif; font-weight: 800; color: var(--gold-light); letter-spacing: 1px;">#1</div>
+      <div id="completedModalTableInfo" style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 4px;">Table 1 • Dine-In</div>
+
+      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(46,196,182,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(46,196,182,0.3);">
+        Your order has been served. Thank you for dining with Celestial Cafe! Would you like to order anything else?
+      </div>
+
+      <!-- Action Buttons: Order Again / No Thanks -->
+      <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 10px;">
+        <button onclick="closeModal('orderCompletedModal'); newOrder(true);" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 14px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 18px var(--gold-glow); display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <span>☕</span>
+          <span>Order Again</span>
+        </button>
+
+        <button onclick="dismissOrderCompleted()" style="width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted); border-radius: var(--radius-md); padding: 12px; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: all 0.15s;">
+          No Thanks
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Live Kitchen Activity Pop-Up Modal -->
   <div class="modal-overlay" id="kitchenQueueModal" onclick="if(event.target===this) closeModal('kitchenQueueModal')">
     <div class="modal-content" style="max-width: 480px; margin: 0 auto; border-top: 2px solid var(--amber-brewing);">
@@ -2200,7 +2646,7 @@ class KdsServerService {
       <div style="background: rgba(255,159,28,0.1); border: 1.5px solid rgba(255,159,28,0.35); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--amber-brewing); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-            <span>🔥 Now Brewing / Preparing</span>
+            <span>Now Brewing / Preparing</span>
           </div>
           <span id="modalNowPrepCount" style="font-size: 11px; font-weight: 700; color: var(--gold-light);">0 orders</span>
         </div>
@@ -2213,7 +2659,7 @@ class KdsServerService {
       <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-            <span>📋 Orders In Queue</span>
+            <span>Orders In Queue</span>
           </div>
           <span id="modalInQueueCount" style="font-size: 11px; font-weight: 700; color: var(--text-muted);">0 in queue</span>
         </div>
@@ -2226,7 +2672,7 @@ class KdsServerService {
       <div style="background: rgba(46,196,182,0.08); border: 1px solid rgba(46,196,182,0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--emerald); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-            <span>✨ Ready For Pickup</span>
+            <span>Ready For Pickup</span>
           </div>
           <span id="modalReadyCount" style="font-size: 11px; font-weight: 700; color: var(--emerald);">0 ready</span>
         </div>
@@ -2243,6 +2689,34 @@ class KdsServerService {
 
   <script>
     /*__INITIAL_MENU_DATA__*/
+
+    // ── Safe Storage Polyfill ────────────────────────────────────────────────
+    // Tries localStorage first (best persistence), then sessionStorage (tab-scoped),
+    // then falls back to a plain in-memory object (Safari Private / restricted envs).
+    const _store = (() => {
+      try {
+        localStorage.setItem('__celestial_test__', '1');
+        localStorage.removeItem('__celestial_test__');
+        return localStorage;
+      } catch (_) {
+        try {
+          sessionStorage.setItem('__celestial_test__', '1');
+          sessionStorage.removeItem('__celestial_test__');
+          return sessionStorage;
+        } catch (_2) {
+          const _mem = {};
+          return {
+            getItem(k) { return Object.prototype.hasOwnProperty.call(_mem, k) ? _mem[k] : null; },
+            setItem(k, v) { _mem[k] = String(v); },
+            removeItem(k) { delete _mem[k]; },
+            get length() { return Object.keys(_mem).length; },
+            key(i) { return Object.keys(_mem)[i] || null; }
+          };
+        }
+      }
+    })();
+    // ────────────────────────────────────────────────────────────────────────
+
     let menuData = window.INITIAL_MENU || [];
     let cart = [];
     let currentTable = 'Table 1';
@@ -2345,18 +2819,18 @@ class KdsServerService {
     }
 
     function startRepeatingAlarm() {
-      const orderKey = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '1';
-      if (localStorage.getItem('alarmDismissed_' + orderKey) === 'true') {
+      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
+      if (_store.getItem('alarmDismissed_' + orderKey) === 'true') {
         return;
       }
-      if (prevTrackStatus === 'completed' || localStorage.getItem('orderCompleted') === 'true') {
+      if (prevTrackStatus === 'completed' || _store.getItem('orderCompleted') === 'true') {
         return;
       }
 
       document.body.classList.add('alarm-active');
       const numEl = document.getElementById('alarmModalOrderNum');
       const tableEl = document.getElementById('alarmModalTableInfo');
-      if (numEl) numEl.innerText = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '#1';
+      if (numEl) numEl.innerText = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
       if (tableEl) tableEl.innerText = `\${currentTable} • Dine-In`;
 
       const modal = document.getElementById('readyAlarmModal');
@@ -2388,9 +2862,9 @@ class KdsServerService {
     }
 
     function stopAlarm() {
-      const orderKey = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '1';
+      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
       try {
-        localStorage.setItem('alarmDismissed_' + orderKey, 'true');
+        _store.setItem('alarmDismissed_' + orderKey, 'true');
       } catch(e) {}
 
       if (alarmInterval) {
@@ -2403,16 +2877,14 @@ class KdsServerService {
       if (modal) modal.style.display = 'none';
       const box = document.getElementById('readyAlarmBox');
       if (box) box.style.display = 'none';
+
+      const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
+      if (orderAnotherBtn) {
+        orderAnotherBtn.style.display = 'inline-flex';
+        orderAnotherBtn.innerText = '+ Order More / New Order';
+      }
     }
 
-    function testAlarm() {
-      const orderKey = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '1';
-      try {
-        localStorage.removeItem('alarmDismissed_' + orderKey);
-        localStorage.removeItem('orderCompleted');
-      } catch(e) {}
-      startRepeatingAlarm();
-    }
 
     function connectCustomerWs() {
       const loc = window.location;
@@ -2422,7 +2894,28 @@ class KdsServerService {
         custWs.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
-            if (data.type === 'SYNC_ORDERS' && (activeTrackedOrderId || activeTrackedOrderNum)) {
+            if (data.type === 'ORDER_STATUS_UPDATE') {
+              const cleanId = (activeTrackedOrderId || '').toLowerCase();
+              const cleanNum = (activeTrackedOrderNum || '').toLowerCase();
+              const msgId = (data.orderId || '').toLowerCase();
+              const msgNum = (data.orderNumber || '').toLowerCase();
+              const cleanMsgNum = msgNum.replace('#', '').trim();
+              const cleanCurrentNum = cleanNum.replace('#', '').trim();
+
+              if (msgId === cleanId || msgNum === cleanNum || (cleanMsgNum && cleanMsgNum === cleanCurrentNum)) {
+                if (data.status === 'cancelled') {
+                  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+                  showSuccessModal({
+                    title: 'Order Cancelled',
+                    message: 'Your order was cancelled by the cashier. You can now place a new order.',
+                    buttonText: 'Return to Menu',
+                    onDismiss: () => newOrder(true)
+                  });
+                  return;
+                }
+                updateTrackerUI(data.status);
+              }
+            } else if (data.type === 'SYNC_ORDERS' && (activeTrackedOrderId || activeTrackedOrderNum)) {
               const cleanId = (activeTrackedOrderId || '').toLowerCase();
               const cleanNum = (activeTrackedOrderNum || '').toLowerCase();
               const found = (data.orders || []).find(o => {
@@ -2432,6 +2925,9 @@ class KdsServerService {
               });
               if (found && found.status) {
                 updateTrackerUI(found.status);
+              } else if (!found && prevTrackStatus && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
+                // Order is no longer in active KDS queue (completed or cancelled by barista) -> check server status
+                checkOrderStatus();
               }
               // Also update live queue from the broadcast order list
               const orders = data.orders || [];
@@ -2502,6 +2998,10 @@ class KdsServerService {
       }
 
       grid.innerHTML = filtered.map(item => {
+        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich') ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => (item.name || '').toLowerCase().includes(k));
+        const kitchenTag = isKitchen ? '<span style="background: rgba(255,87,34,0.2); border: 1px solid rgba(255,87,34,0.5); color: #FF7043; font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px; margin-left: 5px;">🍳 Kitchen Cooked</span>' : '';
+
         const imgUrl = item.imageBase64 ? ('data:image/png;base64,' + item.imageBase64) : (item.imageUrl || (item.imagePath ? `/api/item-image?id=\${item.id}` : ''));
         const imageCardHtml = imgUrl ? `
           <div class="item-img-container">
@@ -2519,7 +3019,10 @@ class KdsServerService {
           <div class="item-card" onclick="openCustomModal('\${item.id}')">
             \${imageCardHtml}
             <div>
-              <span class="item-cat-badge">\${item.categoryLabel || item.category}</span>
+              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">
+                <span class="item-cat-badge">\${item.categoryLabel || item.category}</span>
+                \${kitchenTag}
+              </div>
               <div class="item-card-name">\${item.name}</div>
               <div class="item-card-desc">\${item.description || ''}</div>
             </div>
@@ -2656,8 +3159,11 @@ class KdsServerService {
         document.getElementById('cartBar').style.display = 'flex';
         document.getElementById('cartCountText').innerText = `\${count} item\${count > 1 ? 's' : ''}`;
         document.getElementById('cartTotalText').innerText = `₱\${Math.round(total)}`;
+        // Persist cart so it survives an accidental page refresh
+        try { _store.setItem('pendingCart', JSON.stringify(cart)); } catch(_) {}
       } else {
         document.getElementById('cartBar').style.display = 'none';
+        try { _store.removeItem('pendingCart'); } catch(_) {}
       }
     }
 
@@ -2673,10 +3179,14 @@ class KdsServerService {
 
       list.innerHTML = cart.map((item, idx) => {
         const customsText = item.customizations.map(c => c.optionName).join(', ');
+        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich') ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => (item.name || '').toLowerCase().includes(k));
+        const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.2);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:5px;">🍳 KITCHEN</span>' : '';
+
         return `
           <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1; padding-right: 8px;">
-              <div style="font-weight: 700; font-size: 14px; color: var(--text-light);">\${item.name}</div>
+              <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center;">\${item.name}\${kitchenBadge}</div>
               \${customsText ? `<div style="font-size: 11.5px; color: var(--gold-light); margin-top: 2px;">› \${customsText}</div>` : ''}
               \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 2px;">Note: "\${item.notes}"</div>` : ''}
               <div style="font-weight: 800; font-size: 14.5px; color: var(--gold-light); margin-top: 4px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
@@ -2803,6 +3313,25 @@ class KdsServerService {
         });
         return;
       }
+
+      // Block submission only if user is actively on tracker view
+      const trackerEl = document.getElementById('trackerView');
+      if (trackerEl && trackerEl.style.display === 'block' && activeTrackedOrderId && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
+        showSuccessModal({
+          title: 'Active Order In Progress',
+          message: 'You already have an active order (' + (activeTrackedOrderNum || '') + '). You cannot order again until your current order is completed or cancelled.',
+          buttonText: 'View My Order',
+          onDismiss: () => {
+            closeModal('trayModal');
+            document.getElementById('controlsWrapper').style.display = 'none';
+            document.getElementById('menuView').style.display = 'none';
+            document.getElementById('cartBar').style.display = 'none';
+            document.getElementById('trackerView').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        });
+        return;
+      }
       initAudio();
 
       const btn = document.getElementById('btnSendOrder');
@@ -2842,14 +3371,26 @@ class KdsServerService {
         };
 
         const controller = new AbortController();
-        submitTimeout = setTimeout(() => controller.abort(), 10000);
+        submitTimeout = setTimeout(() => controller.abort(), 15000);
 
-        const res = await fetch('/api/customer/order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
+        let res = null;
+        try {
+          res = await fetch('/api/customer/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+        } catch (fetchErr) {
+          if (submitTimeout) clearTimeout(submitTimeout);
+          closeModal('trayModal');
+          showSuccessModal({
+            title: 'Connection Notice',
+            message: 'Could not connect to Cafe server or request timed out. Please ensure you are connected to the Cafe hotspot and try again.',
+            buttonText: 'OK'
+          });
+          return;
+        }
         if (submitTimeout) clearTimeout(submitTimeout);
 
         let data = null;
@@ -2860,10 +3401,27 @@ class KdsServerService {
         if (data && data.success && data.orderId) {
           const submittedItems = cart.slice();
           cart = [];
+          try { _store.removeItem('pendingCart'); } catch(_) {}
           updateCartBar();
           closeModal('trayModal');
-          startOrderTracking(data.orderId, data.orderNumber, data.totalAmount, (data.items && data.items.length > 0) ? data.items : submittedItems);
+          try {
+            startOrderTracking(data.orderId, data.orderNumber, data.totalAmount, (data.items && data.items.length > 0) ? data.items : submittedItems);
+          } catch(trackErr) {
+            console.error('Tracking UI render notice:', trackErr);
+          }
         } else {
+          closeModal('trayModal');
+          if (data && data.existingOrderId) {
+            showSuccessModal({
+              title: 'Order In Preparation',
+              message: data.error || 'This table already has an order in preparation.',
+              buttonText: 'View Active Order',
+              onDismiss: () => {
+                startOrderTracking(data.existingOrderId, data.existingOrderNumber || '#1', 0, [], data.status || 'pending');
+              }
+            });
+            return;
+          }
           showSuccessModal({
             title: 'Order Notice',
             message: (data && data.error) ? data.error : 'Could not submit order. Please try again.',
@@ -2872,9 +3430,10 @@ class KdsServerService {
         }
       } catch (err) {
         if (submitTimeout) clearTimeout(submitTimeout);
+        closeModal('trayModal');
         showSuccessModal({
-          title: 'Connection Notice',
-          message: 'Could not connect to Cafe server or request timed out. Please ensure you are connected to the Cafe hotspot and try again.',
+          title: 'Order Notice',
+          message: 'An unexpected issue occurred while preparing your ticket. Please try again.',
           buttonText: 'OK'
         });
       } finally {
@@ -2887,22 +3446,24 @@ class KdsServerService {
 
     let activeTrackedItems = [];
 
-    function startOrderTracking(orderId, orderNumber, total, items) {
+    function startOrderTracking(orderId, orderNumber, total, items, initialStatus) {
       activeTrackedOrderId = orderId;
       activeTrackedOrderNum = orderNumber;
-      prevTrackStatus = 'pending';
+      const statusToUse = initialStatus || 'pending';
+      prevTrackStatus = statusToUse;
       if (items && Array.isArray(items)) {
         activeTrackedItems = items;
       }
 
       try {
-        localStorage.setItem('activeOrderId', orderId);
-        localStorage.setItem('activeOrderNum', orderNumber);
-        localStorage.setItem('activeOrderTotal', total);
-        localStorage.setItem('activeTableNumber', currentTable);
+        _store.setItem('activeOrderId', orderId);
+        _store.setItem('activeOrderNum', orderNumber);
+        _store.setItem('activeOrderTotal', total);
+        _store.setItem('activeTableNumber', currentTable);
         if (items && items.length > 0) {
-          localStorage.setItem('activeOrderItems', JSON.stringify(items));
+          _store.setItem('activeOrderItems', JSON.stringify(items));
         }
+        _store.removeItem('pendingCart');
       } catch(e) {}
 
       document.getElementById('controlsWrapper').style.display = 'none';
@@ -2923,11 +3484,13 @@ class KdsServerService {
       }
 
       renderTrackedItemsList(activeTrackedItems, total);
-      updateTrackerUI('pending');
+      updateTrackerUI(statusToUse);
 
       if (pollInterval) clearInterval(pollInterval);
-      checkOrderStatus();
-      pollInterval = setInterval(checkOrderStatus, 1500);
+      if (statusToUse !== 'completed' && statusToUse !== 'cancelled') {
+        checkOrderStatus();
+        pollInterval = setInterval(checkOrderStatus, 1500);
+      }
     }
 
     let prevTrackStatus = '';
@@ -2956,32 +3519,27 @@ class KdsServerService {
 
           if (!activeTrackedOrderId && !activeTrackedOrderNum) return;
 
-          // Order gone from server (deleted/cancelled/purged)
-          if (!data || data.success === false) {
+          if (!data) return;
+
+          // Order explicitly cancelled by cashier
+          if (data.status === 'cancelled') {
             if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-            newOrder();
+            showSuccessModal({
+              title: 'Order Cancelled',
+              message: 'Your order was cancelled by the cashier. You can now place a new order.',
+              buttonText: 'Return to Menu',
+              onDismiss: () => newOrder(true)
+            });
             return;
           }
 
-          if (data && data.status) {
-            if (data.status === 'cancelled' && prevTrackStatus !== 'cancelled') {
-              if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-              showSuccessModal({
-                title: 'Order Cancelled',
-                message: 'Your order was cancelled by the cashier.',
-                buttonText: 'Return to Menu',
-                onDismiss: () => newOrder()
-              });
-              return;
-            }
-            updateTrackerUI(data.status);
-            if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-              activeTrackedItems = data.items;
-              try { localStorage.setItem('activeOrderItems', JSON.stringify(data.items)); } catch(e) {}
-              renderTrackedItemsList(data.items, data.totalAmount);
-            }
-            renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
+          updateTrackerUI(data.status);
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            activeTrackedItems = data.items;
+            try { _store.setItem('activeOrderItems', JSON.stringify(data.items)); } catch(e) {}
+            renderTrackedItemsList(data.items, data.totalAmount);
           }
+          renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
         })
         .catch(e => {
           if (slowFetchTimer) clearTimeout(slowFetchTimer);
@@ -3010,7 +3568,7 @@ class KdsServerService {
       const readyCount = document.getElementById('modalReadyCount');
       const summaryBadge = document.getElementById('trackerQueueSummaryBadge');
 
-      const currentNum = (activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '').trim();
+      const currentNum = (activeTrackedOrderNum || _store.getItem('activeOrderNum') || '').trim();
       const preps = Array.isArray(preparingList) ? preparingList : [];
       const queue = Array.isArray(queueList) ? queueList : [];
       const ready = Array.isArray(readyList) ? readyList : [];
@@ -3027,11 +3585,16 @@ class KdsServerService {
           nowPrepContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">No orders currently on bar</span>';
         } else {
           nowPrepContainer.innerHTML = preps.map(num => {
-            const isMine = currentNum && (num.toLowerCase() === currentNum.toLowerCase() || num.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
+            const chipBase = num.split(' ·')[0].trim();
+            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
+            const isKitchenChip = num.includes('🍳');
             if (isMine) {
-              return `<span style="background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; padding: 6px 12px; border-radius: 14px; font-weight: 800; font-size: 12.5px; box-shadow: 0 0 14px rgba(212,175,55,0.7); display: inline-flex; align-items: center; gap: 5px;"><span>☕ \${num}</span> <span style="font-size: 10px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 6px; border-radius: 6px;">Your Order!</span></span>`;
+              return `<span style="background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; padding: 6px 12px; border-radius: 14px; font-weight: 800; font-size: 12.5px; box-shadow: 0 0 14px rgba(212,175,55,0.7); display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 10px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 6px; border-radius: 6px;">Your Order!</span></span>`;
             }
-            return `<span style="background: rgba(255,159,28,0.2); border: 1.2px solid var(--amber-brewing); color: var(--amber-brewing); padding: 5px 10px; border-radius: 10px; font-weight: 700; font-size: 12px;">☕ \${num}</span>`;
+            if (isKitchenChip) {
+              return `<span style="background: rgba(255,87,34,0.18); border: 1.2px solid #FF5722; color: #FF7043; padding: 5px 10px; border-radius: 10px; font-weight: 800; font-size: 12px; box-shadow: 0 2px 8px rgba(255,87,34,0.25); display: inline-flex; align-items: center; gap: 4px;">\${num}</span>`;
+            }
+            return `<span style="background: rgba(255,159,28,0.2); border: 1.2px solid var(--amber-brewing); color: var(--amber-brewing); padding: 5px 10px; border-radius: 10px; font-weight: 700; font-size: 12px;">\${num}</span>`;
           }).join('');
         }
       }
@@ -3041,9 +3604,10 @@ class KdsServerService {
           inQueueContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">Queue is currently clear</span>';
         } else {
           inQueueContainer.innerHTML = queue.map(num => {
-            const isMine = currentNum && (num.toLowerCase() === currentNum.toLowerCase() || num.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
+            const chipBase = num.split(' ·')[0].trim();
+            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
             if (isMine) {
-              return `<span style="background: rgba(46,196,182,0.25); border: 1.2px solid var(--emerald); color: var(--emerald); padding: 5px 11px; border-radius: 10px; font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;"><span>📋 \${num}</span> <span style="font-size: 9.5px; background: rgba(46,196,182,0.35); padding: 1px 5px; border-radius: 4px;">Your Ticket</span></span>`;
+              return `<span style="background: rgba(46,196,182,0.25); border: 1.2px solid var(--emerald); color: var(--emerald); padding: 5px 11px; border-radius: 10px; font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 9.5px; background: rgba(46,196,182,0.35); padding: 1px 5px; border-radius: 4px;">Your Ticket</span></span>`;
             }
             return `<span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-light); padding: 4px 9px; border-radius: 8px; font-weight: 600; font-size: 11.5px;">\${num}</span>`;
           }).join('');
@@ -3055,11 +3619,12 @@ class KdsServerService {
           readyContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">No orders at pickup counter</span>';
         } else {
           readyContainer.innerHTML = ready.map(num => {
-            const isMine = currentNum && (num.toLowerCase() === currentNum.toLowerCase() || num.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
+            const chipBase = num.split(' ·')[0].trim();
+            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
             if (isMine) {
-              return `<span style="background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); color: #000; padding: 5px 11px; border-radius: 10px; font-weight: 900; font-size: 12px; box-shadow: 0 0 12px var(--emerald-glow); display: inline-flex; align-items: center; gap: 5px;"><span>✨ \${num}</span> <span style="font-size: 9.5px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 5px; border-radius: 4px;">Ready Now!</span></span>`;
+              return `<span style="background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); color: #000; padding: 5px 11px; border-radius: 10px; font-weight: 900; font-size: 12px; box-shadow: 0 0 12px var(--emerald-glow); display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 9.5px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 5px; border-radius: 4px;">Ready Now!</span></span>`;
             }
-            return `<span style="background: rgba(46,196,182,0.18); border: 1px solid var(--emerald); color: var(--emerald); padding: 4px 9px; border-radius: 8px; font-weight: 700; font-size: 11.5px;">✨ \${num}</span>`;
+            return `<span style="background: rgba(46,196,182,0.18); border: 1px solid var(--emerald); color: var(--emerald); padding: 4px 9px; border-radius: 8px; font-weight: 700; font-size: 11.5px;">\${num}</span>`;
           }).join('');
         }
       }
@@ -3091,6 +3656,12 @@ class KdsServerService {
       }
 
       modalListEl.innerHTML = itemList.map(i => {
+        const itemName = i.name || i.menuItem?.name || 'Item';
+        const isKitchen = i.isKitchen === true ||
+          ['streetBites', 'pastaDishes', 'sandwich'].includes((i.category || '').toLowerCase()) ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => itemName.toLowerCase().includes(k));
+        const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.22);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:900;padding:2px 6px;border-radius:4px;margin-left:6px;">🍳 KITCHEN</span>' : '';
+
         const customsList = i.customizations || [];
         const customsText = customsList.map(c => typeof c === 'string' ? c : (c.optionName || c.name || '')).filter(Boolean).join(', ');
         const notesText = i.notes ? `<div style="font-size:11px;color:var(--rose);margin-top:3px;font-weight:600;">Note: "\${i.notes}"</div>` : '';
@@ -3102,7 +3673,8 @@ class KdsServerService {
             <div style="flex:1;padding-right:12px;">
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-weight:800;color:var(--gold-primary);font-size:12.5px;">\${i.quantity || 1}x</span>
-                <span style="font-weight:700;color:var(--text-light);font-size:13.5px;">\${i.name || i.menuItem?.name || 'Item'}</span>
+                <span style="font-weight:700;color:\${isKitchen ? '#FFE0B2' : 'var(--text-light)'};font-size:13.5px;">\${itemName}</span>
+                \${kitchenBadge}
               </div>
               \${customsHtml}
               \${notesText}
@@ -3131,7 +3703,7 @@ class KdsServerService {
       else if (s === 'completed') statusLabel = 'Completed';
       if (statusEl) statusEl.innerText = statusLabel;
 
-      const savedTotal = localStorage.getItem('activeOrderTotal') || '0';
+      const savedTotal = _store.getItem('activeOrderTotal') || '0';
       renderTrackedItemsList(activeTrackedItems, parseFloat(savedTotal) || 0);
 
       if (modal) modal.style.display = 'flex';
@@ -3145,6 +3717,7 @@ class KdsServerService {
       const pendingNotice = document.getElementById('pendingPaymentNotice');
       const confirmedNotice = document.getElementById('confirmedPaymentNotice');
       const brewingNotice = document.getElementById('brewingNotice');
+      const compNotice = document.getElementById('completedNotice');
       const headerTag = document.getElementById('trackerHeaderTag');
       const pendingActions = document.getElementById('pendingActionButtons');
 
@@ -3155,6 +3728,7 @@ class KdsServerService {
         if (pendingNotice) pendingNotice.style.display = 'block';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'none';
+        if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'block';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step active';
@@ -3165,6 +3739,7 @@ class KdsServerService {
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'block';
         if (brewingNotice) brewingNotice.style.display = 'none';
+        if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step completed';
@@ -3175,6 +3750,7 @@ class KdsServerService {
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'block';
+        if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step completed';
@@ -3205,15 +3781,18 @@ class KdsServerService {
         const compNotice = document.getElementById('completedNotice');
         if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
-        if (orderAnotherBtn) orderAnotherBtn.style.display = 'inline-flex';
+        if (orderAnotherBtn) {
+          orderAnotherBtn.style.display = 'inline-flex';
+          orderAnotherBtn.innerText = '+ Order More / New Order';
+        }
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step active';
 
         // Only start repeating alarm if live transitioning from kitchen into ready
         if (prevTrackStatus === 'preparing' || prevTrackStatus === 'brewing' || prevTrackStatus === 'confirmed' || prevTrackStatus === 'inqueue') {
-          const orderKey = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '1';
-          if (localStorage.getItem('alarmDismissed_' + orderKey) !== 'true') {
+          const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
+          if (_store.getItem('alarmDismissed_' + orderKey) !== 'true') {
             startRepeatingAlarm();
           }
         }
@@ -3225,26 +3804,69 @@ class KdsServerService {
         const compNotice = document.getElementById('completedNotice');
         if (compNotice) compNotice.style.display = 'block';
         if (pendingActions) pendingActions.style.display = 'none';
-        if (orderAnotherBtn) orderAnotherBtn.style.display = 'inline-flex';
+        if (orderAnotherBtn) {
+          orderAnotherBtn.style.display = 'inline-flex';
+          orderAnotherBtn.innerText = '+ Order More / New Order';
+        }
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step completed';
         stopAlarm();
 
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+
+        // Pop-up celebratory completed modal with "Order Again" and "No Thanks"
+        showOrderCompletedModal();
+
         try {
-          localStorage.removeItem('activeOrderId');
-          localStorage.removeItem('activeOrderNum');
-          localStorage.removeItem('activeOrderTotal');
-          localStorage.removeItem('activeOrderItems');
-          localStorage.setItem('orderCompleted', 'true');
+          _store.removeItem('activeOrderId');
+          _store.removeItem('activeOrderNum');
+          _store.removeItem('activeOrderTotal');
+          _store.removeItem('activeOrderItems');
+          _store.removeItem('pendingCart');
+          _store.removeItem('orderCompleted');
         } catch(e) {}
       }
       prevTrackStatus = s;
     }
 
+    let completedModalShown = false;
+    function showOrderCompletedModal() {
+      if (completedModalShown) return;
+      const compModal = document.getElementById('orderCompletedModal');
+      if (!compModal) return;
+
+      const compNum = document.getElementById('completedModalOrderNum');
+      const compTable = document.getElementById('completedModalTableInfo');
+      const displayNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
+      if (compNum) compNum.innerText = displayNum;
+      if (compTable) compTable.innerText = `\${currentTable} • Dine-In`;
+
+      compModal.style.display = 'flex';
+      compModal.style.zIndex = '99999';
+      completedModalShown = true;
+    }
+
+    function dismissOrderCompleted() {
+      closeModal('orderCompletedModal');
+      // Customer clicked "No Thanks" - remove the redundant "Order Again" prompt and provide a subtle "Back to Menu"
+      const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
+      if (orderAnotherBtn) {
+        orderAnotherBtn.style.display = 'inline-flex';
+        orderAnotherBtn.innerText = 'Back to Menu';
+        orderAnotherBtn.style.background = 'rgba(255,255,255,0.06)';
+        orderAnotherBtn.style.border = '1px solid rgba(255,255,255,0.18)';
+        orderAnotherBtn.style.color = 'var(--text-muted)';
+        orderAnotherBtn.style.boxShadow = 'none';
+      }
+    }
+
     async function cancelCustomerOrder() {
-      const targetId = activeTrackedOrderId || activeTrackedOrderNum || localStorage.getItem('activeOrderId') || localStorage.getItem('activeOrderNum');
-      const orderNum = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '';
+      const targetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
+      const orderNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '';
       if (!targetId) {
         newOrder();
         return;
@@ -3257,8 +3879,8 @@ class KdsServerService {
         cancelText: 'Keep Order',
         isDestructive: true,
         onConfirm: async () => {
-          const currentTargetId = activeTrackedOrderId || activeTrackedOrderNum || localStorage.getItem('activeOrderId') || localStorage.getItem('activeOrderNum');
-          const currentOrderNum = activeTrackedOrderNum || localStorage.getItem('activeOrderNum') || '';
+          const currentTargetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
+          const currentOrderNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '';
           const btn = document.getElementById('btnCancelOrder');
           if (btn) {
             btn.innerHTML = '<span class="btn-spinner"></span><span>Cancelling Order...</span>';
@@ -3290,17 +3912,18 @@ class KdsServerService {
 
             if (data && data.success) {
               try {
-                localStorage.removeItem('activeOrderId');
-                localStorage.removeItem('activeOrderNum');
-                localStorage.removeItem('activeOrderTotal');
-                localStorage.removeItem('activeOrderItems');
-                localStorage.removeItem('orderCompleted');
+                _store.removeItem('activeOrderId');
+                _store.removeItem('activeOrderNum');
+                _store.removeItem('activeOrderTotal');
+                _store.removeItem('activeOrderItems');
+                _store.removeItem('pendingCart');
+                _store.removeItem('orderCompleted');
               } catch(e) {}
               showSuccessModal({
                 title: 'Order Cancelled',
                 message: `Order \${currentOrderNum || ''} has been cancelled successfully. You can now place a new order.`,
                 buttonText: 'Return to Menu',
-                onDismiss: () => newOrder()
+                onDismiss: () => newOrder(true)
               });
             } else {
               const errMsg = (data && data.error) ? data.error : 'Cannot cancel order at this time. Please speak with the cashier directly.';
@@ -3332,7 +3955,22 @@ class KdsServerService {
       });
     }
 
-    function newOrder() {
+    function newOrder(force = false) {
+      if (!force && activeTrackedOrderId && prevTrackStatus && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
+        showSuccessModal({
+          title: 'Order In Progress',
+          message: 'Your order (' + (activeTrackedOrderNum || '') + ') is currently in progress. You cannot place another order until it is completed or cancelled.',
+          buttonText: 'View Active Order',
+          onDismiss: () => {
+            document.getElementById('controlsWrapper').style.display = 'none';
+            document.getElementById('menuView').style.display = 'none';
+            document.getElementById('cartBar').style.display = 'none';
+            document.getElementById('trackerView').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        });
+        return;
+      }
       stopAlarm();
       if (pollInterval) {
         clearInterval(pollInterval);
@@ -3345,19 +3983,19 @@ class KdsServerService {
       cart = [];
 
       try {
-        // Clear all order-related localStorage including stale alarm flags
+        // Clear order-related storage while keeping table assignment intact
         const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
+        for (let i = 0; i < _store.length; i++) {
+          const k = _store.key(i);
           if (k && k.startsWith('alarmDismissed_')) keys.push(k);
         }
-        keys.forEach(k => localStorage.removeItem(k));
-        localStorage.removeItem('activeOrderId');
-        localStorage.removeItem('activeOrderNum');
-        localStorage.removeItem('activeOrderTotal');
-        localStorage.removeItem('activeOrderItems');
-        localStorage.removeItem('activeTableNumber');
-        localStorage.removeItem('orderCompleted');
+        keys.forEach(k => _store.removeItem(k));
+        _store.removeItem('activeOrderId');
+        _store.removeItem('activeOrderNum');
+        _store.removeItem('activeOrderTotal');
+        _store.removeItem('activeOrderItems');
+        _store.removeItem('orderCompleted');
+        _store.removeItem('pendingCart');
       } catch(e) {}
 
       const btn = document.getElementById('btnSendOrder');
@@ -3375,6 +4013,25 @@ class KdsServerService {
       const breakdown = document.getElementById('trackedOrderBreakdown');
       if (breakdown) breakdown.style.display = 'none';
 
+      // Reset all notice banners
+      const compNotice = document.getElementById('completedNotice');
+      if (compNotice) compNotice.style.display = 'none';
+      const pendingNotice = document.getElementById('pendingPaymentNotice');
+      if (pendingNotice) pendingNotice.style.display = 'none';
+      const confirmedNotice = document.getElementById('confirmedPaymentNotice');
+      if (confirmedNotice) confirmedNotice.style.display = 'none';
+      const brewingNotice = document.getElementById('brewingNotice');
+      if (brewingNotice) brewingNotice.style.display = 'none';
+
+      completedModalShown = false;
+      const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
+      if (orderAnotherBtn) {
+        orderAnotherBtn.style.display = 'none';
+        orderAnotherBtn.style.background = '';
+        orderAnotherBtn.style.border = '';
+        orderAnotherBtn.style.color = '';
+        orderAnotherBtn.style.boxShadow = '';
+      }
       closeModal('trayModal');
       closeModal('customModal');
       closeModal('orderReceiptModal');
@@ -3382,6 +4039,7 @@ class KdsServerService {
       closeModal('successModal');
       closeModal('readyAlarmModal');
       closeModal('kitchenQueueModal');
+      closeModal('orderCompletedModal');
 
       document.getElementById('trackerView').style.display = 'none';
       document.getElementById('controlsWrapper').style.display = 'block';
@@ -3392,15 +4050,10 @@ class KdsServerService {
 
     function restoreActiveOrderIfAny() {
       try {
-        if (localStorage.getItem('orderCompleted') === 'true') {
-          newOrder();
-          return;
-        }
-
-        const savedId = localStorage.getItem('activeOrderId');
-        const savedNum = localStorage.getItem('activeOrderNum');
-        const savedTotal = parseFloat(localStorage.getItem('activeOrderTotal') || '0');
-        const savedTable = localStorage.getItem('activeTableNumber');
+        const savedId  = _store.getItem('activeOrderId');
+        const savedNum = _store.getItem('activeOrderNum');
+        const savedTotal = parseFloat(_store.getItem('activeOrderTotal') || '0');
+        const savedTable = _store.getItem('activeTableNumber');
         if (savedTable) {
           currentTable = savedTable;
           const tableSel = document.getElementById('tableSelect');
@@ -3408,40 +4061,72 @@ class KdsServerService {
         }
 
         let savedItems = [];
-        try {
-          savedItems = JSON.parse(localStorage.getItem('activeOrderItems') || '[]');
-        } catch(e) {}
+        try { savedItems = JSON.parse(_store.getItem('activeOrderItems') || '[]'); } catch(e) {}
 
         if (savedId || savedNum) {
-          // 1. Immediately restore tracking view synchronously
-          startOrderTracking(savedId || savedNum, savedNum || savedId, savedTotal, savedItems);
-
-          // 2. Fetch latest status from server in background
+          // Verify with server FIRST before showing tracker view
           const qId = savedId || savedNum;
           fetch(`/api/order-status?orderId=\${encodeURIComponent(qId)}`)
             .then(r => r.json())
             .then(data => {
-              // Order not found on server (cancelled, purged, or never existed)
-              if (!data || data.success === false) {
-                newOrder();
+              if (data && data.status === 'completed') {
+                const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
+                const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
+                startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, 'completed');
+                showOrderCompletedModal();
+                return;
+              }
+              if (!data || data.success === false || data.status === 'cancelled') {
+                // If cancelled or doesn't exist, reset to menu directly!
+                newOrder(true);
                 return;
               }
               if (data && data.status) {
-                if (data.status === 'cancelled') {
-                  newOrder();
-                } else if (data.status === 'completed') {
-                  updateTrackerUI('completed');
-                } else {
-                  const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
-                  const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
-                  startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse);
-                  updateTrackerUI(data.status);
-                  renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
-                }
+                const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
+                const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
+                startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, data.status);
+                renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
               }
             })
-            .catch(() => {});
+            .catch(() => {
+              // If offline or network error, stay locked to tracker view since active order was placed
+              startOrderTracking(savedId || savedNum, savedNum || savedId, savedTotal, savedItems, 'pending');
+            });
+          return;
         }
+
+        // ── Path B: No saved order — try cross-device recovery by table number ──
+        const urlTable = (new URLSearchParams(window.location.search)).get('table');
+        if (urlTable) {
+          fetch(`/api/table-order?table=\${encodeURIComponent(urlTable)}`)
+            .then(r => r.json())
+            .then(data => {
+              if (data && data.success && data.orderId && data.status &&
+                  data.status !== 'completed' && data.status !== 'cancelled') {
+                const items = (data.items && Array.isArray(data.items)) ? data.items : [];
+                const total = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : 0;
+                startOrderTracking(data.orderId, data.orderNumber, total, items, data.status);
+              } else {
+                // ── Path C: No active order at all — restore pending cart if any ──
+                _restorePendingCartIfAny();
+              }
+            })
+            .catch(() => { _restorePendingCartIfAny(); });
+        } else {
+          _restorePendingCartIfAny();
+        }
+      } catch(e) {}
+    }
+
+    // Restore a cart the customer built before accidentally refreshing/closing.
+    function _restorePendingCartIfAny() {
+      try {
+        const raw = _store.getItem('pendingCart');
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (!Array.isArray(saved) || saved.length === 0) return;
+        cart = saved;
+        updateCartBar();
       } catch(e) {}
     }
 

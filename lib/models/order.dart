@@ -25,9 +25,7 @@ enum OrderStatus {
 
 enum PaymentMethod {
   cash('Cash', '💵'),
-  creditCard('Credit / Debit Card', '💳'),
-  mobilePay('GCash / Maya / Apple Pay', '📱'),
-  qrCode('Celestial Pay QR', '⚡');
+  mobilePay('GCash', '📱');
 
   final String label;
   final String icon;
@@ -88,6 +86,8 @@ class OrderItem {
   }
 
   double get totalPrice => unitPrice * quantity;
+
+  bool get isKitchenDish => menuItem.isKitchenDish;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -238,6 +238,13 @@ class Order {
 
   int get totalItemCount =>
       items.fold(0, (sum, item) => sum + item.quantity);
+
+  bool get hasKitchenDishes => items.any((i) => i.isKitchenDish);
+  bool get hasBaristaDrinks => items.any((i) => !i.isKitchenDish);
+  int get kitchenDishCount =>
+      items.where((i) => i.isKitchenDish).fold(0, (sum, item) => sum + item.quantity);
+  int get baristaDrinkCount =>
+      items.where((i) => !i.isKitchenDish).fold(0, (sum, item) => sum + item.quantity);
 
   bool get isPaid =>
       status != OrderStatus.pending && status != OrderStatus.cancelled;

@@ -108,6 +108,26 @@ class MenuItem {
     this.customizationGroups = const [],
   });
 
+  bool get isKitchenDish {
+    if (category == ItemCategory.streetBites ||
+        category == ItemCategory.pastaDishes ||
+        category == ItemCategory.sandwich) {
+      return true;
+    }
+    final n = name.toLowerCase();
+    return n.contains('buffalo') ||
+        n.contains('wing') ||
+        n.contains('fries') ||
+        n.contains('stick') ||
+        n.contains('lumpia') ||
+        n.contains('shanghai') ||
+        n.contains('pasta') ||
+        n.contains('carbonara') ||
+        n.contains('aglio') ||
+        n.contains('sandwich') ||
+        n.contains('toast');
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,

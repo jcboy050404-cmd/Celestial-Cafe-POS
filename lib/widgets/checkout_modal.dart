@@ -159,12 +159,8 @@ class _CheckoutModalState extends State<CheckoutModal> {
                     // Method-specific Content
                     if (_selectedMethod == PaymentMethod.cash)
                       _buildCashSection(total, changeDue, isMobile)
-                    else if (_selectedMethod == PaymentMethod.creditCard)
-                      _buildCardSection(total)
-                    else if (_selectedMethod == PaymentMethod.mobilePay)
-                      _buildMobilePaySection(total)
                     else
-                      _buildQrSection(total),
+                      _buildMobilePaySection(total),
 
                     const SizedBox(height: 16),
 
@@ -317,10 +313,10 @@ class _CheckoutModalState extends State<CheckoutModal> {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: isMobile ? 2 : 4,
+      crossAxisCount: 2,
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,
-      childAspectRatio: isMobile ? 2.3 : 1.8,
+      childAspectRatio: isMobile ? 2.6 : 2.8,
       children: PaymentMethod.values.map((method) {
         final isSelected = _selectedMethod == method;
 
@@ -598,55 +594,6 @@ class _CheckoutModalState extends State<CheckoutModal> {
     return _buildReceivedAndChange(total, changeDue, isMobile);
   }
 
-  Widget _buildCardSection(double total) {
-    final changeDue = (_amountTendered - total).clamp(0.0, double.infinity);
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: CelestialTheme.goldCardGradient,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Icon(Icons.contactless_rounded, color: CelestialTheme.goldLight, size: 22),
-                  Text(
-                    'CELESTIAL TERMINAL',
-                    style: GoogleFonts.cinzel(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                      color: CelestialTheme.goldLight,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle_outline_rounded, color: CelestialTheme.emeraldReady, size: 13),
-                  SizedBox(width: 5),
-                  Text(
-                    'Tap or Insert Card to proceed',
-                    style: TextStyle(fontSize: 11, color: CelestialTheme.emeraldReady),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _buildReceivedAndChange(total, changeDue, false),
-      ],
-    );
-  }
-
   Widget _buildMobilePaySection(double total) {
     final changeDue = (_amountTendered - total).clamp(0.0, double.infinity);
     return Column(
@@ -664,12 +611,12 @@ class _CheckoutModalState extends State<CheckoutModal> {
                 Icon(Icons.qr_code_scanner_rounded, color: CelestialTheme.goldPrimary, size: 34),
                 SizedBox(height: 6),
                 Text(
-                  'GCash / Maya / GrabPay Contactless',
+                  'GCash Express QR / Number',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Scan customer mobile wallet or present merchant QR',
+                  'Scan customer GCash or present merchant GCash QR',
                   style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                   textAlign: TextAlign.center,
                 ),
@@ -680,55 +627,6 @@ class _CheckoutModalState extends State<CheckoutModal> {
         const SizedBox(height: 10),
         _buildReceivedAndChange(total, changeDue, false),
       ],
-    );
-  }
-
-  Widget _buildQrSection(double total) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CelestialTheme.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 75,
-            height: 75,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.qr_code_2_rounded, size: 60, color: Colors.black),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Scan with GCash or Maya',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: CelestialTheme.textLight,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Instantly settle ₱${total.toStringAsFixed(0)} via QR.',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    color: CelestialTheme.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
