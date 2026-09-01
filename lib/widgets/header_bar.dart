@@ -125,7 +125,7 @@ class _HeaderBarState extends State<HeaderBar> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'CAFE & ESPRESSO',
+                            'Cozy&Classic',
                             style: GoogleFonts.outfit(
                               color: CelestialTheme.goldLight.withValues(alpha: 0.7),
                               fontSize: 8,
@@ -440,7 +440,7 @@ class _HeaderBarState extends State<HeaderBar> {
                   ),
                 ),
                 Text(
-                  'CAFE & ESPRESSO',
+                  'Cozy&Classic',
                   style: GoogleFonts.outfit(
                     color: CelestialTheme.goldLight.withValues(alpha: 0.8),
                     fontSize: 10,

@@ -22,7 +22,7 @@ void main() {
 
     // Verify Brand & Navigation
     expect(find.text('CELESTIAL'), findsOneWidget);
-    expect(find.text('CAFE & ESPRESSO'), findsOneWidget);
+    expect(find.text('Cozy&Classic'), findsOneWidget);
     expect(find.text('POS Station'), findsOneWidget);
     expect(find.text('Barista / KDS'), findsOneWidget);
     expect(find.text('Order History'), findsOneWidget);
@@ -107,7 +107,7 @@ void main() {
 
     // Verify order exists in order history & KDS
     expect(provider.orders.first.id, createdOrder.id);
-    expect(provider.pendingOrders.any((o) => o.id == createdOrder.id), true);
+    expect(provider.activeKdsOrders.any((o) => o.id == createdOrder.id), true);
     expect(provider.todayOrdersCount, 1);
     expect(provider.todayTotalSales, createdOrder.totalAmount);
 
@@ -200,7 +200,7 @@ void main() {
     expect(customerOrder.customerName, 'Alice');
     expect(customerOrder.totalAmount, (firstItem.price + 30.0) * 2);
     expect(customerOrder.status, OrderStatus.pending);
-    expect(provider.activeKdsOrders.any((o) => o.id == customerOrder.id), true);
+    expect(provider.pendingCustomerOrders.any((o) => o.id == customerOrder.id), true);
 
     // Transition status to ready
     provider.updateOrderStatus(customerOrder.id, OrderStatus.ready);
