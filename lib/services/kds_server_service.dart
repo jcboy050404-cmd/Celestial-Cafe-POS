@@ -4632,16 +4632,6 @@ class KdsServerService {
       <!-- Scrollable Body with Group Options -->
       <div class="cust-dlg-body">
         <div id="customGroupContainer"></div>
-        
-        <!-- Special Instructions -->
-        <div>
-          <div class="cust-group-header" style="margin-bottom: 8px;">
-            <div class="cust-group-icon">✏️</div>
-            <div class="cust-group-title">Special Instructions</div>
-            <span class="cust-badge-optional">OPTIONAL</span>
-          </div>
-          <input type="text" id="modalItemNotes" class="cust-notes-input" placeholder="e.g. Less sweet, extra hot, no sauce...">
-        </div>
       </div>
 
       <!-- Footer Bar with Stepper & Add to Order Button -->
@@ -5670,7 +5660,7 @@ class KdsServerService {
       document.getElementById('modalItemName').innerText = selectedItem.name;
       document.getElementById('modalBasePriceBadge').innerText = `₱\${Math.round(selectedItem.price)}`;
       document.getElementById('modalItemDesc').innerText = selectedItem.description || '';
-      document.getElementById('modalItemNotes').value = '';
+
 
       // Tags Row
       const tagsRow = document.getElementById('modalTagsRow');
@@ -5866,7 +5856,7 @@ class KdsServerService {
         btn.disabled = true;
       }
       setTimeout(() => {
-        const notes = document.getElementById('modalItemNotes').value.trim();
+        const notes = '';
         const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
 
         cart.push({
