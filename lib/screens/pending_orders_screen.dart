@@ -362,20 +362,13 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65), width: 1),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🍳', style: TextStyle(fontSize: 10)),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${order.kitchenDishCount} Kitchen',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFFFF7043),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      '${order.kitchenDishCount} Kitchen',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFFF7043),
+                      ),
                     ),
                   ),
                 ],
@@ -472,7 +465,15 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                             child: Row(
                               children: [
                                 if (isKitchen) ...[
-                                  const Text('🍳 ', style: TextStyle(fontSize: 11)),
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF5722).withValues(alpha: 0.25),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text('KITCHEN', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Color(0xFFFF7043))),
+                                  ),
                                 ],
                                 Expanded(
                                   child: Text(
@@ -572,7 +573,15 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                             child: Row(
                               children: [
                                 if (isKitchen) ...[
-                                  const Text('🍳 ', style: TextStyle(fontSize: 11)),
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF5722).withValues(alpha: 0.25),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text('KITCHEN', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Color(0xFFFF7043))),
+                                  ),
                                 ],
                                 Expanded(
                                   child: Text(

@@ -20,9 +20,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _searchQuery = '';
   ItemCategory? _categoryFilter;
 
+  static bool _safeFileExists(String? path) {
+    if (path == null || path.trim().isEmpty) return false;
+    try {
+      return File(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
   Widget _buildItemThumbnail(MenuItem item, bool isMobile) {
     final bool hasBase64 = item.imageBase64 != null && item.imageBase64!.isNotEmpty;
-    final bool hasFile = item.imagePath != null && item.imagePath!.isNotEmpty && File(item.imagePath!).existsSync();
+    final bool hasFile = _safeFileExists(item.imagePath);
 
     if (hasBase64 || hasFile) {
       return Container(
@@ -439,7 +448,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: CelestialTheme.roseAlert),
                                     )
-                                    : (currentImagePath != null && File(currentImagePath!).existsSync())
+                                    : _safeFileExists(currentImagePath)
                                         ? Image.file(
                                             File(currentImagePath!),
                                             fit: BoxFit.cover,
@@ -637,12 +646,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ElevatedButton(
                   onPressed: () {
                     final name = nameController.text.trim();
-                    final price = double.tryParse(priceController.text.trim()) ?? 0.0;
+                    final rawPrice = priceController.text.trim().replaceAll(',', '.');
+                    final price = double.tryParse(rawPrice) ?? 0.0;
                     final stock = int.tryParse(stockController.text.trim()) ?? 0;
                     final desc = descController.text.trim();
                     final icon = iconController.text.trim().isNotEmpty ? iconController.text.trim() : '✨';
 
-                    if (name.isEmpty || price <= 0) return;
+                    if (name.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('⚠️ Please enter an item name.'),
+                          backgroundColor: CelestialTheme.roseAlert,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (price <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('⚠️ Please enter a valid price greater than ₱0.'),
+                          backgroundColor: CelestialTheme.roseAlert,
+                        ),
+                      );
+                      return;
+                    }
 
                     if (isEditing) {
                       final updated = editItem.copyWith(

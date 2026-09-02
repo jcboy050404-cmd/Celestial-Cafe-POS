@@ -41,7 +41,7 @@ class _TableQrDialogState extends State<TableQrDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: CelestialTheme.bgCard,
-            content: Text('⚠️ PDF Print Error: $e'),
+            content: Text('PDF Print Error: $e'),
           ),
         );
       }
@@ -137,7 +137,7 @@ class _TableQrDialogState extends State<TableQrDialog> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         backgroundColor: CelestialTheme.bgCard,
-                        content: Text('⚠️ PDF Export Error: $e'),
+                        content: Text('PDF Export Error: $e'),
                       ),
                     );
                   }
@@ -323,7 +323,8 @@ class _TableQrDialogState extends State<TableQrDialog> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text('☕ ', style: TextStyle(fontSize: 16)),
+                              const Icon(Icons.coffee_rounded, size: 16, color: Colors.black87),
+                              const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
                                   provider.storeName.toUpperCase(),
@@ -422,7 +423,7 @@ class _TableQrDialogState extends State<TableQrDialog> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   backgroundColor: CelestialTheme.bgCard,
-                                  content: Text('📋 Table order URL copied to clipboard!'),
+                                  content: Text('Table order URL copied to clipboard!'),
                                 ),
                               );
                             },
@@ -519,7 +520,7 @@ class _TableQrDialogState extends State<TableQrDialog> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             backgroundColor: CelestialTheme.bgCard,
-                            content: Text('📋 Table $_selectedTable link copied!'),
+                            content: Text('Table $_selectedTable link copied!'),
                           ),
                         );
                       },

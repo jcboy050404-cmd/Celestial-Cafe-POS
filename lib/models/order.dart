@@ -68,6 +68,7 @@ class OrderItem {
   int quantity;
   final List<SelectedCustomization> customizations;
   final String? notes;
+  bool isPrepared;
 
   OrderItem({
     required this.id,
@@ -75,6 +76,7 @@ class OrderItem {
     this.quantity = 1,
     this.customizations = const [],
     this.notes,
+    this.isPrepared = false,
   });
 
   double get unitPrice {
@@ -95,6 +97,7 @@ class OrderItem {
         'quantity': quantity,
         'customizations': customizations.map((c) => c.toJson()).toList(),
         'notes': notes,
+        'isPrepared': isPrepared,
       };
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -107,12 +110,14 @@ class OrderItem {
               .toList() ??
           [],
       notes: json['notes'] as String?,
+      isPrepared: json['isPrepared'] as bool? ?? false,
     );
   }
 
   OrderItem copyWith({
     int? quantity,
     String? notes,
+    bool? isPrepared,
   }) {
     return OrderItem(
       id: id,
@@ -120,6 +125,7 @@ class OrderItem {
       quantity: quantity ?? this.quantity,
       customizations: customizations,
       notes: notes ?? this.notes,
+      isPrepared: isPrepared ?? this.isPrepared,
     );
   }
 }

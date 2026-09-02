@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -251,18 +252,44 @@ class ReceiptPdfService {
               _buildDashedLine(),
               pw.SizedBox(height: 6),
 
-              // Barcode / QR Code
-              pw.BarcodeWidget(
-                data: order.orderNumber,
-                barcode: pw.Barcode.code128(),
-                width: 140,
-                height: 28,
-                drawText: false,
-              ),
-              pw.SizedBox(height: 2),
-              pw.Text(
-                order.orderNumber,
-                style: const pw.TextStyle(fontSize: 7.5, letterSpacing: 1),
+              // Live Order Tracking QR Code
+              pw.Container(
+                alignment: pw.Alignment.center,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text(
+                      'SCAN TO TRACK ORDER STATUS',
+                      style: pw.TextStyle(
+                        fontSize: 7.5,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.BarcodeWidget(
+                      data: posProvider.kdsServer.getOrderTrackingUrl(
+                        order.id,
+                        orderNumber: order.orderNumber,
+                      ),
+                      barcode: pw.Barcode.qrCode(),
+                      width: 62,
+                      height: 62,
+                      drawText: false,
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                      'Rings & vibrates phone when ready for pickup',
+                      textAlign: pw.TextAlign.center,
+                      style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      'TICKET: ${order.orderNumber}',
+                      style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
 
               pw.SizedBox(height: 6),
@@ -288,20 +315,26 @@ class ReceiptPdfService {
   }
 
   /// Print directly via Native System Printer Spooler
-  static Future<void> printReceipt({
+  static Future<bool> printReceipt({
     required Order order,
     required PosProvider posProvider,
   }) async {
-    final pdfBytes = await generateReceiptPdf(
-      order: order,
-      posProvider: posProvider,
-    );
+    try {
+      final pdfBytes = await generateReceiptPdf(
+        order: order,
+        posProvider: posProvider,
+      );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdfBytes,
-      name: 'Receipt_${order.orderNumber.replaceAll('#', '').trim()}',
-      format: roll80,
-    );
+      return await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: 'Receipt_${order.orderNumber.replaceAll('#', '').trim()}',
+        format: roll80,
+      );
+    } catch (e) {
+      // Non-fatal: log error so POS workflow never crashes if printer driver or spooler is offline
+      debugPrint('Thermal receipt print error (non-fatal): $e');
+      return false;
+    }
   }
 
   static pw.Widget _buildRow(String label, String value, {bool isBold = false, bool isLarge = false}) {

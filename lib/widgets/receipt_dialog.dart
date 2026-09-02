@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../services/receipt_pdf_service.dart';
 import '../theme/celestial_theme.dart';
+import 'order_tracking_qr_dialog.dart';
 
 class ReceiptDialog extends StatelessWidget {
   final Order order;
@@ -319,18 +321,86 @@ class ReceiptDialog extends StatelessWidget {
                     _buildDashedLine(),
                     const SizedBox(height: 14),
 
-                    // Barcode / Starry Footer
-                    const Center(
-                      child: Text(
-                        '||| | |||| | ||||| || ||| ||||| |||',
-                        style: TextStyle(
-                          fontSize: 22,
-                          letterSpacing: 3,
-                          color: CelestialTheme.textMuted,
-                          fontFamily: 'Courier',
+                    // Live Order Tracking QR Section
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
                         ),
                       ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.qr_code_scanner_rounded, size: 15, color: CelestialTheme.goldLight),
+                              const SizedBox(width: 6),
+                              Text(
+                                'SCAN TO TRACK ORDER LIVE',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.0,
+                                  color: CelestialTheme.goldLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          InkWell(
+                            onTap: () => OrderTrackingQrDialog.show(context, order),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: QrImageView(
+                                data: posProvider.kdsServer.getOrderTrackingUrl(
+                                  order.id,
+                                  orderNumber: order.orderNumber,
+                                ),
+                                version: QrVersions.auto,
+                                size: 120,
+                                backgroundColor: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Chimes & vibrates phone when ready for pickup',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              fontSize: 10.5,
+                              color: CelestialTheme.emeraldReady,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tap QR code to show large screen to customer',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              fontSize: 9.5,
+                              color: CelestialTheme.textSubtle,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+
                     const SizedBox(height: 6),
                     Text(
                       'Salamat sa pagbisita sa Celestial Cafe!\nMay your coffee be celestial & your day blessed',
@@ -355,6 +425,22 @@ class ReceiptDialog extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  // Show Customer QR Button
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => OrderTrackingQrDialog.show(context, order),
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: const Text('Customer QR'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CelestialTheme.goldLight,
+                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Print Slip Button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
@@ -391,7 +477,8 @@ class ReceiptDialog extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
+                  // Done / New Order Button
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => Navigator.pop(context),

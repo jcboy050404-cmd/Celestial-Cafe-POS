@@ -196,6 +196,17 @@ class _HeaderBarState extends State<HeaderBar> {
 
                 const SizedBox(width: 4),
 
+                // Text Size / Accessibility Button
+                IconButton(
+                  onPressed: () => _showQuickTextSizeModal(context),
+                  icon: const Icon(Icons.format_size_rounded, color: CelestialTheme.goldLight, size: 19),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  tooltip: 'Adjust Text Size',
+                ),
+
+                const SizedBox(width: 4),
+
                 // Settings Button
                 IconButton(
                   onPressed: () => _openSettings(context),
@@ -370,6 +381,14 @@ class _HeaderBarState extends State<HeaderBar> {
               splashRadius: 20,
             ),
             const SizedBox(width: 6),
+            // Text Size / Accessibility Quick Button
+            IconButton(
+              onPressed: () => _showQuickTextSizeModal(context),
+              icon: const Icon(Icons.format_size_rounded, color: CelestialTheme.goldLight, size: 22),
+              tooltip: 'Adjust Text Size & Vision Scale',
+              splashRadius: 20,
+            ),
+            const SizedBox(width: 6),
             // Store Settings & Logo Button
             IconButton(
               onPressed: () => _openSettings(context),
@@ -379,6 +398,193 @@ class _HeaderBarState extends State<HeaderBar> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showQuickTextSizeModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Consumer<PosProvider>(
+          builder: (context, provider, _) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                width: 380,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: CelestialTheme.bgSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.format_size_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Text Size & Vision',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: CelestialTheme.textLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Live text scaling for cashier & staff comfort.',
+                      style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            onPressed: provider.uiScale > 0.86
+                                ? () => provider.setUiScale((provider.uiScale - 0.10).clamp(0.85, 1.45))
+                                : null,
+                            icon: const Icon(Icons.remove_circle_outline_rounded, color: CelestialTheme.goldLight),
+                            tooltip: 'Smaller',
+                          ),
+                          Column(
+                            children: [
+                              Text(
+                                '${(provider.uiScale * 100).round()}%',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.goldLight,
+                                ),
+                              ),
+                              Text(
+                                provider.uiScale >= 1.4
+                                    ? 'Huge (Vision Aid)'
+                                    : provider.uiScale >= 1.25
+                                        ? 'Extra Large'
+                                        : provider.uiScale >= 1.1
+                                            ? 'Large'
+                                            : provider.uiScale < 0.95
+                                                ? 'Compact'
+                                                : 'Standard',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  color: CelestialTheme.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            onPressed: provider.uiScale < 1.44
+                                ? () => provider.setUiScale((provider.uiScale + 0.10).clamp(0.85, 1.45))
+                                : null,
+                            icon: const Icon(Icons.add_circle_outline_rounded, color: CelestialTheme.goldLight),
+                            tooltip: 'Larger',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _buildQuickPreset(provider, label: '90%', scale: 0.90),
+                        _buildQuickPreset(provider, label: '100%', scale: 1.00),
+                        _buildQuickPreset(provider, label: '115%', scale: 1.15),
+                        _buildQuickPreset(provider, label: '130%', scale: 1.30),
+                        _buildQuickPreset(provider, label: '145%', scale: 1.45),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if ((provider.uiScale - 1.0).abs() > 0.01)
+                          TextButton.icon(
+                            onPressed: () => provider.resetUiScale(),
+                            icon: const Icon(Icons.refresh_rounded, size: 14, color: CelestialTheme.textMuted),
+                            label: const Text('Reset', style: TextStyle(color: CelestialTheme.textMuted, fontSize: 11)),
+                          ),
+                        const Spacer(),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: CelestialTheme.goldPrimary,
+                            foregroundColor: CelestialTheme.bgDark,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickPreset(PosProvider provider, {required String label, required double scale}) {
+    final isSelected = (provider.uiScale - scale).abs() < 0.04;
+    return InkWell(
+      onTap: () => provider.setUiScale(scale),
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.bgCard,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? CelestialTheme.goldPrimary : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
+          ),
+        ),
       ),
     );
   }

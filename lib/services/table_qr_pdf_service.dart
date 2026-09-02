@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -117,29 +118,34 @@ class TableQrPdfService {
   }
 
   /// Print directly via Native Print Spooler or AirPrint
-  static Future<void> printTableQr({
+  static Future<bool> printTableQr({
     required String storeName,
     required String tagline,
     required String tableNumber,
     required String tableUrl,
     Uint8List? logoBytes,
   }) async {
-    final pdfBytes = await generateSingleTablePdf(
-      storeName: storeName,
-      tagline: tagline,
-      tableNumber: tableNumber,
-      tableUrl: tableUrl,
-      logoBytes: logoBytes,
-    );
+    try {
+      final pdfBytes = await generateSingleTablePdf(
+        storeName: storeName,
+        tagline: tagline,
+        tableNumber: tableNumber,
+        tableUrl: tableUrl,
+        logoBytes: logoBytes,
+      );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdfBytes,
-      name: '${storeName.replaceAll(' ', '_')}_Table_${tableNumber.replaceAll('Table', '').trim()}_QR.pdf',
-    );
+      return await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: '${storeName.replaceAll(' ', '_')}_Table_${tableNumber.replaceAll('Table', '').trim()}_QR.pdf',
+      );
+    } catch (e) {
+      debugPrint('Table QR print error (non-fatal): $e');
+      return false;
+    }
   }
 
   /// Print / Export Batch All Tables (e.g. Tables 1-10)
-  static Future<void> printBatchTables({
+  static Future<bool> printBatchTables({
     required String storeName,
     required String tagline,
     required int startTable,
@@ -147,19 +153,24 @@ class TableQrPdfService {
     required String Function(String table) getTableUrlCallback,
     Uint8List? logoBytes,
   }) async {
-    final pdfBytes = await generateBatchTablesPdf(
-      storeName: storeName,
-      tagline: tagline,
-      startTable: startTable,
-      totalTables: totalTables,
-      getTableUrlCallback: getTableUrlCallback,
-      logoBytes: logoBytes,
-    );
+    try {
+      final pdfBytes = await generateBatchTablesPdf(
+        storeName: storeName,
+        tagline: tagline,
+        startTable: startTable,
+        totalTables: totalTables,
+        getTableUrlCallback: getTableUrlCallback,
+        logoBytes: logoBytes,
+      );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdfBytes,
-      name: '${storeName.replaceAll(' ', '_')}_Tables_${startTable}_to_${startTable + totalTables - 1}_QR_Sheets.pdf',
-    );
+      return await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: '${storeName.replaceAll(' ', '_')}_Tables_${startTable}_to_${startTable + totalTables - 1}_QR_Sheets.pdf',
+      );
+    } catch (e) {
+      debugPrint('Batch Table QR print error (non-fatal): $e');
+      return false;
+    }
   }
 
   /// Internal Widget for Table Card Tent

@@ -119,7 +119,7 @@ class _KdsScreenState extends State<KdsScreen> {
                         color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('☕', style: TextStyle(fontSize: 16)),
+                      child: const Icon(Icons.coffee_maker_rounded, color: CelestialTheme.goldPrimary, size: 16),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -199,8 +199,8 @@ class _KdsScreenState extends State<KdsScreen> {
                     icon: const Icon(Icons.wifi_tethering_rounded, size: 15),
                     label: Text(
                       provider.kdsServer.clientCount > 0
-                          ? '📱 ${provider.kdsServer.clientCount} Connected'
-                          : '📡 Barista KDS',
+                          ? '${provider.kdsServer.clientCount} Connected'
+                          : 'Barista KDS',
                       style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -245,15 +245,17 @@ class _KdsScreenState extends State<KdsScreen> {
                 children: [
                   _buildStatusTab('Active Queue', null, provider.activeKdsOrders.length, CelestialTheme.goldPrimary),
                   const SizedBox(width: 6),
+                  _buildStatusTab('Confirmed', OrderStatus.confirmed, provider.confirmedOrders.length, const Color(0xFF2EC4B6)),
+                  const SizedBox(width: 6),
                   _buildStatusTab('Brewing', OrderStatus.preparing, provider.preparingOrders.length, CelestialTheme.amberBrewing),
                   const SizedBox(width: 6),
                   _buildStatusTab('Ready', OrderStatus.ready, provider.readyOrders.length, CelestialTheme.emeraldReady),
                   const SizedBox(width: 10),
                   Container(width: 1, height: 22, color: Colors.white.withValues(alpha: 0.15)),
                   const SizedBox(width: 10),
-                  _buildStationTab('🍳 Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
+                  _buildStationTab('Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
                   const SizedBox(width: 6),
-                  _buildStationTab('☕ Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
+                  _buildStationTab('Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
                 ],
               ),
             ),
@@ -361,15 +363,17 @@ class _KdsScreenState extends State<KdsScreen> {
               children: [
                 _buildStatusTab('Active Queue', null, provider.activeKdsOrders.length, CelestialTheme.goldPrimary),
                 const SizedBox(width: 8),
+                _buildStatusTab('Confirmed', OrderStatus.confirmed, provider.confirmedOrders.length, const Color(0xFF2EC4B6)),
+                const SizedBox(width: 8),
                 _buildStatusTab('Brewing / Prep', OrderStatus.preparing, provider.preparingOrders.length, CelestialTheme.amberBrewing),
                 const SizedBox(width: 8),
                 _buildStatusTab('Ready for Pickup', OrderStatus.ready, provider.readyOrders.length, CelestialTheme.emeraldReady),
                 const SizedBox(width: 12),
                 Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.15)),
                 const SizedBox(width: 12),
-                _buildStationTab('🍳 Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
+                _buildStationTab('Kitchen Food', 'kitchen', provider.activeKdsOrders.where((o) => o.hasKitchenDishes).length, const Color(0xFFFF5722)),
                 const SizedBox(width: 8),
-                _buildStationTab('☕ Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
+                _buildStationTab('Barista Drinks', 'barista', provider.activeKdsOrders.where((o) => o.hasBaristaDrinks).length, CelestialTheme.amberBrewing),
               ],
             ),
           ),
@@ -487,7 +491,7 @@ class _KdsScreenState extends State<KdsScreen> {
                 ],
               ),
               child: Center(
-                child: Text('✨', style: TextStyle(fontSize: isMobile ? 28 : 36)),
+                child: Icon(Icons.check_circle_outline_rounded, size: isMobile ? 32 : 40, color: CelestialTheme.goldLight),
               ),
             ),
             const SizedBox(height: 16),

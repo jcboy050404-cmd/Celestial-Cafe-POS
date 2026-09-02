@@ -96,13 +96,21 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       if (order.hasKitchenDishes) ...[
                         Container(
                           margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF5722).withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.7)),
                           ),
-                          child: const Text('🍳', style: TextStyle(fontSize: 11)),
+                          child: const Text(
+                            'KITCHEN',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFFF7043),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
                       ],
                       Text(
@@ -116,22 +124,47 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       const SizedBox(width: 8),
                       Flexible(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                           decoration: BoxDecoration(
-                            color: CelestialTheme.brownWarm.withValues(alpha: 0.3),
+                            gradient: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                                ? const LinearGradient(colors: [Color(0xFFFF9F1C), Color(0xFFE07A00)])
+                                : null,
+                            color: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                                ? null
+                                : CelestialTheme.brownWarm.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(6),
+                            boxShadow: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF9F1C).withValues(alpha: 0.45),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          child: Text(
-                            order.orderType == OrderType.dineIn
-                                ? '${order.orderType.label} • ${order.tableNumber ?? "Tbl"}'
-                                : order.orderType.label,
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                              color: CelestialTheme.goldLight,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery) ...[
+                                const Text('🥡', style: TextStyle(fontSize: 11)),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                order.orderType == OrderType.dineIn
+                                    ? '${order.orderType.label} • ${order.tableNumber ?? "Tbl"}'
+                                    : 'TAKEOUT / TO-GO',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                                      ? Colors.black
+                                      : CelestialTheme.goldLight,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -181,6 +214,34 @@ class _OrderCardKdsState extends State<OrderCardKds> {
             ),
           ),
 
+          if (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+            Container(
+              margin: const EdgeInsets.fromLTRB(14, 8, 14, 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9F1C).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFF9F1C).withValues(alpha: 0.6)),
+              ),
+              child: const Row(
+                children: [
+                  Text('🛍️', style: TextStyle(fontSize: 13)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'TAKEOUT / TO-GO • PACK IN BAG (USE PAPER CUPS & LIDS)',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFFFB74D),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -204,21 +265,14 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65), width: 1.2),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('🍳', style: TextStyle(fontSize: 10)),
-                              const SizedBox(width: 3.5),
-                              Text(
-                                '${order.kitchenDishCount} Kitchen',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFFFF7043),
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            '${order.kitchenDishCount} Kitchen',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFFF7043),
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
                       if (order.hasBaristaDrinks)
@@ -229,21 +283,14 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5), width: 1.2),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('☕', style: TextStyle(fontSize: 10)),
-                              const SizedBox(width: 3.5),
-                              Text(
-                                '${order.baristaDrinkCount} Bar',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: CelestialTheme.amberBrewing,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            '${order.baristaDrinkCount} Bar',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: CelestialTheme.amberBrewing,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
                     ],
@@ -271,7 +318,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                     child: Divider(height: 1),
                   ),
                   itemBuilder: (context, idx) {
-                    return _buildOrderItemRow(order.items[idx]);
+                    return _buildOrderItemRow(posProvider, order, order.items[idx], idx);
                   },
                 )
               : Expanded(
@@ -283,7 +330,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       child: Divider(height: 1),
                     ),
                     itemBuilder: (context, idx) {
-                      return _buildOrderItemRow(order.items[idx]);
+                      return _buildOrderItemRow(posProvider, order, order.items[idx], idx);
                     },
                   ),
                 ),
@@ -311,6 +358,28 @@ class _OrderCardKdsState extends State<OrderCardKds> {
               ),
             ),
 
+          if (order.items.isNotEmpty && order.items.every((i) => i.isPrepared) && order.status == OrderStatus.preparing)
+            Container(
+              margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+              decoration: BoxDecoration(
+                color: CelestialTheme.emeraldReady.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: CelestialTheme.emeraldReady.withValues(alpha: 0.45)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 14, color: CelestialTheme.emeraldReady),
+                  SizedBox(width: 6),
+                  Text(
+                    '✨ All Items Prepared & Ready!',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: CelestialTheme.emeraldReady),
+                  ),
+                ],
+              ),
+            ),
+
           // Action Status Button
           Container(
             padding: const EdgeInsets.all(12),
@@ -325,8 +394,16 @@ class _OrderCardKdsState extends State<OrderCardKds> {
     );
   }
 
-  Widget _buildOrderItemRow(OrderItem item) {
+  Widget _buildOrderItemRow(PosProvider posProvider, Order order, OrderItem item, int idx) {
     final isKitchen = item.isKitchenDish;
+    final isPrepared = item.isPrepared;
+    final isItemTakeout = order.orderType == OrderType.takeaway ||
+        order.orderType == OrderType.delivery ||
+        (item.notes != null && (
+            item.notes!.toLowerCase().contains('take') ||
+            item.notes!.toLowerCase().contains('to-go') ||
+            item.notes!.toLowerCase().contains('togo') ||
+            item.notes!.toLowerCase().contains('balot')));
 
     final sizeCustom = item.customizations.where((c) {
       final name = c.optionName.toLowerCase();
@@ -346,39 +423,51 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         if (isKitchen)
           Container(
             margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
             decoration: BoxDecoration(
               color: const Color(0xFFFF5722).withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.7), width: 1.2),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Text('🍳', style: TextStyle(fontSize: 11)),
-                SizedBox(width: 4),
-                Text(
-                  'KITCHEN COOK DISH',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
-                    color: Color(0xFFFF7043),
-                  ),
-                ),
-              ],
+            child: const Text(
+              'KITCHEN COOK DISH',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+                color: Color(0xFFFF7043),
+              ),
             ),
           ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Checkbox toggle for prepared state
+            Container(
+              width: 20,
+              height: 20,
+              margin: const EdgeInsets.only(right: 7, top: 1.5),
+              decoration: BoxDecoration(
+                color: isPrepared ? CelestialTheme.emeraldReady : Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: isPrepared ? CelestialTheme.emeraldReady : Colors.white.withValues(alpha: 0.25),
+                  width: 1.4,
+                ),
+              ),
+              child: isPrepared
+                  ? const Icon(Icons.check_rounded, size: 13, color: CelestialTheme.bgDark)
+                  : null,
+            ),
             // Qty badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
               decoration: BoxDecoration(
-                color: isKitchen ? const Color(0xFFFF5722) : CelestialTheme.goldPrimary,
+                color: isPrepared
+                    ? CelestialTheme.emeraldReady.withValues(alpha: 0.3)
+                    : (isKitchen ? const Color(0xFFFF5722) : CelestialTheme.goldPrimary),
                 borderRadius: BorderRadius.circular(6),
-                boxShadow: isKitchen
+                boxShadow: isKitchen && !isPrepared
                     ? [
                         BoxShadow(
                           color: const Color(0xFFFF5722).withValues(alpha: 0.4),
@@ -393,7 +482,9 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isKitchen ? Colors.white : CelestialTheme.bgDark,
+                  color: isPrepared
+                      ? CelestialTheme.emeraldReady
+                      : (isKitchen ? Colors.white : CelestialTheme.bgDark),
                 ),
               ),
             ),
@@ -412,7 +503,10 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                           style: GoogleFonts.outfit(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: isKitchen ? const Color(0xFFFFE0B2) : CelestialTheme.textLight,
+                            decoration: isPrepared ? TextDecoration.lineThrough : null,
+                            color: isPrepared
+                                ? CelestialTheme.textMuted
+                                : (isKitchen ? const Color(0xFFFFE0B2) : CelestialTheme.textLight),
                           ),
                         ),
                       ),
@@ -445,6 +539,53 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                           ),
                         ),
                       ],
+                      if (isItemTakeout) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF9F1C).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFF9F1C).withValues(alpha: 0.65)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('🥡', style: TextStyle(fontSize: 10)),
+                              SizedBox(width: 3),
+                              Text(
+                                'TO-GO',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFFFB74D),
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (isPrepared) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.emeraldReady.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: CelestialTheme.emeraldReady.withValues(alpha: 0.45)),
+                          ),
+                          child: const Text(
+                            '✓ PREPARED',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              color: CelestialTheme.emeraldReady,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
 
@@ -454,10 +595,11 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       padding: const EdgeInsets.only(top: 3),
                       child: Text(
                         otherCustoms.map((c) => '› ${c.optionName}').join('\n'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: CelestialTheme.goldLight,
+                          color: isPrepared ? CelestialTheme.textMuted : CelestialTheme.goldLight,
                           fontWeight: FontWeight.w500,
+                          decoration: isPrepared ? TextDecoration.lineThrough : null,
                         ),
                       ),
                     ),
@@ -469,15 +611,21 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                          color: isPrepared
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : CelestialTheme.roseAlert.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
+                          border: isPrepared
+                              ? Border.all(color: Colors.white.withValues(alpha: 0.1))
+                              : null,
                         ),
                         child: Text(
                           'Note: ${item.notes}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: CelestialTheme.roseAlert,
+                            color: isPrepared ? CelestialTheme.textMuted : CelestialTheme.roseAlert,
                             fontWeight: FontWeight.bold,
+                            decoration: isPrepared ? TextDecoration.lineThrough : null,
                           ),
                         ),
                       ),
@@ -490,19 +638,32 @@ class _OrderCardKdsState extends State<OrderCardKds> {
       ],
     );
 
-    if (isKitchen) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFF5722).withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.45), width: 1.2),
-        ),
-        child: itemWidget,
-      );
-    }
+    final interactiveItem = InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        posProvider.toggleOrderItemPrepared(order.id, idx);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Opacity(
+        opacity: isPrepared ? 0.58 : 1.0,
+        child: isKitchen
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5722).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.45), width: 1.2),
+                ),
+                child: itemWidget,
+              )
+            : Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                child: itemWidget,
+              ),
+      ),
+    );
 
-    return itemWidget;
+    return interactiveItem;
   }
 
   Widget _buildActionButton(BuildContext context, PosProvider provider, Order order) {
@@ -703,6 +864,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
     required IconData icon,
   }) {
     HapticFeedback.mediumImpact();
+    final checkedIndices = <int>{};
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -795,73 +957,95 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: CelestialTheme.bgCard,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Column(
-                    children: order.items.map((item) {
-                      final customsText = item.customizations.map((c) => c.optionName).join(', ');
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.check_box_outline_blank_rounded, size: 16, color: CelestialTheme.goldPrimary),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
+                StatefulBuilder(
+                  builder: (context, setChecklistState) {
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Column(
+                        children: List.generate(order.items.length, (idx) {
+                          final item = order.items[idx];
+                          final isChecked = checkedIndices.contains(idx);
+                          final customsText = item.customizations.map((c) => c.optionName).join(', ');
+                          return InkWell(
+                            onTap: () {
+                              setChecklistState(() {
+                                if (isChecked) {
+                                  checkedIndices.remove(idx);
+                                } else {
+                                  checkedIndices.add(idx);
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                              child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  RichText(
-                                    text: TextSpan(
+                                  Icon(
+                                    isChecked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                    size: 16,
+                                    color: CelestialTheme.goldPrimary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        TextSpan(
-                                          text: '${item.quantity}x ',
-                                          style: const TextStyle(
-                                            color: CelestialTheme.goldPrimary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
+                                        RichText(
+                                          text: TextSpan(
+                                            children: [
+                                              TextSpan(
+                                                text: '${item.quantity}x ',
+                                                style: const TextStyle(
+                                                  color: CelestialTheme.goldPrimary,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              TextSpan(
+                                                text: item.menuItem.name,
+                                                style: const TextStyle(
+                                                  color: CelestialTheme.textLight,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        TextSpan(
-                                          text: item.menuItem.name,
-                                          style: const TextStyle(
-                                            color: CelestialTheme.textLight,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
+                                        if (customsText.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              '› $customsText',
+                                              style: const TextStyle(fontSize: 11, color: CelestialTheme.goldLight),
+                                            ),
                                           ),
-                                        ),
+                                        if (item.notes != null && item.notes!.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              'Note: "${item.notes}"',
+                                              style: const TextStyle(fontSize: 11, color: CelestialTheme.roseAlert, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
-                                  if (customsText.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Text(
-                                        '› $customsText',
-                                        style: const TextStyle(fontSize: 11, color: CelestialTheme.goldLight),
-                                      ),
-                                    ),
-                                  if (item.notes != null && item.notes!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Text(
-                                        'Note: "${item.notes}"',
-                                        style: const TextStyle(fontSize: 11, color: CelestialTheme.roseAlert, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                          );
+                        }),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

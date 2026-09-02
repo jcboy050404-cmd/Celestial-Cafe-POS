@@ -33,8 +33,8 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
   Widget build(BuildContext context) {
     final provider = Provider.of<PosProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 600;
-    final serverUrl = provider.kdsServer.serverUrl;
     final clientCount = provider.kdsServer.clientCount;
+    final kdsUrl = provider.kdsServer.kdsUrl;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -44,6 +44,9 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
       ),
       child: Container(
         width: isMobile ? double.infinity : 480,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * (isMobile ? 0.92 : 0.88),
+        ),
         decoration: BoxDecoration(
           color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(20),
@@ -63,33 +66,48 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
-            Container(
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: CelestialTheme.bgCard,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.wifi_tethering_rounded, color: CelestialTheme.goldPrimary, size: 22),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Barista Phone Connect (Hotspot)',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: CelestialTheme.textLight,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.wifi_tethering_rounded,
+                      color: CelestialTheme.goldPrimary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Barista KDS Connection',
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          'Secure Station Link & Barista PIN',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: CelestialTheme.goldLight,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
-                    splashRadius: 18,
                   ),
                 ],
               ),
@@ -97,19 +115,20 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
 
             const Divider(height: 1),
 
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // Status Badge
+            // Scrollable Content Body
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  children: [
+                    // Server Status Banner
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: provider.kdsServer.isRunning
-                          ? CelestialTheme.emeraldReady.withValues(alpha: 0.15)
-                          : CelestialTheme.roseAlert.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                          ? CelestialTheme.emeraldReady.withValues(alpha: 0.12)
+                          : CelestialTheme.roseAlert.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: provider.kdsServer.isRunning
                             ? CelestialTheme.emeraldReady.withValues(alpha: 0.4)
@@ -117,8 +136,6 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                       ),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           width: 8,
@@ -134,11 +151,11 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                         Text(
                           provider.kdsServer.isRunning
                               ? (clientCount > 0
-                                  ? '🟢 Server Live • $clientCount Barista Connected'
-                                  : '🟢 Server Live • Ready on ${provider.kdsServer.localIp}')
-                              : '🔴 Server Offline',
+                                  ? 'Live • $clientCount Connected'
+                                  : 'Live • Ready')
+                              : 'Server Offline',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                             color: provider.kdsServer.isRunning
                                 ? CelestialTheme.emeraldReady
@@ -154,8 +171,8 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                                 SnackBar(
                                   backgroundColor: CelestialTheme.bgCard,
                                   content: Text(provider.kdsServer.isRunning
-                                      ? '⚡ Server online at ${provider.kdsServer.serverUrl}'
-                                      : '⚠️ Server offline. Please check hotspot.'),
+                                      ? 'Server online at ${provider.kdsServer.serverUrl}'
+                                      : 'Server offline. Please check hotspot.'),
                                 ),
                               );
                             }
@@ -166,16 +183,16 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                             decoration: BoxDecoration(
                               color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                              border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.refresh_rounded, size: 13, color: CelestialTheme.goldLight),
+                                Icon(Icons.refresh_rounded, size: 12, color: CelestialTheme.goldPrimary),
                                 SizedBox(width: 4),
                                 Text(
                                   'Restart',
-                                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.goldPrimary),
                                 ),
                               ],
                             ),
@@ -201,7 +218,7 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                       ],
                     ),
                     child: QrImageView(
-                      data: serverUrl,
+                      data: kdsUrl,
                       version: QrVersions.auto,
                       size: isMobile ? 160 : 180,
                       backgroundColor: Colors.white,
@@ -227,15 +244,14 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                       border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Icon(Icons.link_rounded, color: CelestialTheme.goldPrimary, size: 16),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            serverUrl,
+                            kdsUrl,
                             style: GoogleFonts.outfit(
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.bold,
                               color: CelestialTheme.goldLight,
                             ),
@@ -244,11 +260,11 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                         ),
                         InkWell(
                           onTap: () {
-                            Clipboard.setData(ClipboardData(text: serverUrl));
+                            Clipboard.setData(ClipboardData(text: kdsUrl));
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 backgroundColor: CelestialTheme.bgCard,
-                                content: Text('📋 KDS Link copied to clipboard!'),
+                                content: Text('KDS Link copied to clipboard!'),
                               ),
                             );
                           },
@@ -274,7 +290,61 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+
+                  // Barista Security PIN Card
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1720),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4), width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.security_rounded, color: CelestialTheme.goldLight, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'BARISTA SECURITY ACCESS PIN',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  color: CelestialTheme.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                provider.baristaPin,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 3,
+                                  color: CelestialTheme.goldLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showChangePinDialog(context, provider),
+                          icon: const Icon(Icons.edit_rounded, size: 14, color: CelestialTheme.goldPrimary),
+                          label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight)),
+                          style: TextButton.styleFrom(
+                            backgroundColor: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
 
                   // 3-Step Instructions
                   Container(
@@ -288,7 +358,7 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'HOW TO CONNECT (100% OFFLINE):',
+                          'HOW TO CONNECT (100% OFFLINE & SECURE):',
                           style: GoogleFonts.outfit(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -297,15 +367,18 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        _buildStep('1', 'Turn on Mobile Hotspot on this host phone.'),
+                        _buildStep('1', 'Turn on Mobile Hotspot on this host phone / PC.'),
                         _buildStep('2', 'Connect Barista phone to this Hotspot Wi-Fi.'),
-                        _buildStep('3', 'Scan the QR code above (or open browser to $serverUrl).'),
+                        _buildStep('3', 'Scan the QR code above with Barista phone camera.'),
+                        _buildStep('4', 'When the PIN screen pops up, enter PIN ${provider.baristaPin} to unlock.'),
+                        _buildStep('5', 'Customers scanning table QR cannot access KDS without this PIN.'),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
+          ),
 
             const Divider(height: 1),
 
@@ -319,14 +392,110 @@ class _KdsHotspotDialogState extends State<KdsHotspotDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
                     foregroundColor: CelestialTheme.bgDark,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showChangePinDialog(BuildContext context, PosProvider provider) {
+    final controller = TextEditingController(text: provider.baristaPin);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.lock_reset_rounded, color: CelestialTheme.goldPrimary, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Change Barista PIN',
+              style: TextStyle(color: CelestialTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set a 4-digit or longer security PIN for Barista KDS access.',
+                style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                maxLength: 8,
+                style: GoogleFonts.outfit(
+                  color: CelestialTheme.goldLight,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 4,
+                ),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  counterText: '',
+                  filled: true,
+                  fillColor: CelestialTheme.bgCard,
+                  hintText: '1234',
+                  hintStyle: const TextStyle(color: CelestialTheme.textSubtle),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newPin = controller.text.trim();
+              if (newPin.length >= 4) {
+                provider.updateBaristaPin(newPin);
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: CelestialTheme.bgCard,
+                    content: Text('Barista PIN updated to $newPin'),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.goldPrimary,
+              foregroundColor: CelestialTheme.bgDark,
+            ),
+            child: const Text('Save PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

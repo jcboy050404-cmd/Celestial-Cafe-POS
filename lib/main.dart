@@ -25,11 +25,23 @@ class CelestialCafePosApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => PosProvider()),
       ],
-      child: MaterialApp(
-        title: 'Celestial Cafe POS',
-        debugShowCheckedModeBanner: false,
-        theme: CelestialTheme.themeData,
-        home: const MainWorkstationScaffold(),
+      child: Consumer<PosProvider>(
+        builder: (context, posProvider, _) {
+          return MaterialApp(
+            title: 'Celestial Cafe POS',
+            debugShowCheckedModeBanner: false,
+            theme: CelestialTheme.themeData,
+            builder: (context, child) {
+              return MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(posProvider.uiScale),
+                ),
+                child: child!,
+              );
+            },
+            home: const MainWorkstationScaffold(),
+          );
+        },
       ),
     );
   }

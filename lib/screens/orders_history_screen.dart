@@ -7,6 +7,7 @@ import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/customer_order_approval_dialog.dart';
 import '../widgets/receipt_dialog.dart';
+import '../widgets/order_tracking_qr_dialog.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   const OrdersHistoryScreen({super.key});
@@ -280,12 +281,31 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          order.orderType == OrderType.dineIn
-                              ? '${order.orderType.label} • ${order.tableNumber ?? "Table"}'
-                              : order.orderType.label,
-                          style: const TextStyle(fontSize: 10, color: CelestialTheme.goldLight),
-                        ),
+                        if (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                          Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF9F1C).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFFF9F1C).withValues(alpha: 0.6)),
+                            ),
+                            child: const Text(
+                              '🥡 TAKEOUT / TO-GO',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFFFB74D),
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            order.orderType == OrderType.dineIn
+                                ? '${order.orderType.label} • ${order.tableNumber ?? "Table"}'
+                                : order.orderType.label,
+                            style: const TextStyle(fontSize: 10, color: CelestialTheme.goldLight),
+                          ),
                       ],
                     ),
                   ),
@@ -580,6 +600,14 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  IconButton(
+                    onPressed: () => OrderTrackingQrDialog.show(context, order),
+                    icon: const Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 19),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    tooltip: 'Customer Tracking QR',
+                  ),
+                  const SizedBox(width: 4),
                   IconButton(
                     onPressed: () {
                       showDialog(

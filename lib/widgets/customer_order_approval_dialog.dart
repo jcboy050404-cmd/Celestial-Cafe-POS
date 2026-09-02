@@ -252,6 +252,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
         posProvider: posProvider,
       ).catchError((err) {
         debugPrint('Auto-print receipt error: $err');
+        return false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -340,7 +341,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     final isMobile = MediaQuery.of(context).size.width < 650;
     final total = _calculateTotal();
     final discountAmount = _calculateDiscountAmount();
-    final changeDue = (_amountTendered - total).clamp(0.0, double.infinity);
+    final changeDue = double.parse(((_amountTendered - total).clamp(0.0, double.infinity)).toStringAsFixed(2));
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -744,7 +745,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                                     border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.65)),
                                   ),
                                   child: const Text(
-                                    '🍳 KITCHEN',
+                                    'KITCHEN',
                                     style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.w900,
@@ -1079,7 +1080,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                     ),
                     onChanged: (val) {
                       setState(() {
-                        _amountTendered = double.tryParse(val) ?? 0.0;
+                        _amountTendered = double.tryParse(val.trim().replaceAll(',', '.')) ?? 0.0;
                       });
                     },
                   ),
@@ -1453,20 +1454,13 @@ class _PendingCustomerOrdersListDialog extends StatelessWidget {
                                               borderRadius: BorderRadius.circular(4),
                                               border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.6)),
                                             ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Text('🍳', style: TextStyle(fontSize: 9)),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  '${order.kitchenDishCount} Kitchen',
-                                                  style: const TextStyle(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.w900,
-                                                    color: Color(0xFFFF7043),
-                                                  ),
-                                                ),
-                                              ],
+                                            child: Text(
+                                              '${order.kitchenDishCount} Kitchen',
+                                              style: const TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: Color(0xFFFF7043),
+                                              ),
                                             ),
                                           ),
                                         ],

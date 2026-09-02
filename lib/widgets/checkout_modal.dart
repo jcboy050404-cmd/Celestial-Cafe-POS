@@ -50,7 +50,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
     if (_selectedMethod == PaymentMethod.cash && _amountTendered < total) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Tendered amount cannot be less than total due!'),
+          content: Text('Tendered amount cannot be less than total due!'),
           backgroundColor: CelestialTheme.roseAlert,
         ),
       );
@@ -79,6 +79,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
       posProvider: posProvider,
     ).catchError((err) {
       debugPrint('Auto-print receipt error: $err');
+      return false;
     });
 
     // Open Receipt Dialog
@@ -94,7 +95,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
     final total = posProvider.cartGrandTotal;
-    final changeDue = (_amountTendered - total).clamp(0.0, double.infinity);
+    final changeDue = double.parse(((_amountTendered - total).clamp(0.0, double.infinity)).toStringAsFixed(2));
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Dialog(
@@ -227,7 +228,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
         children: [
           Row(
             children: [
-              const Text('✨', style: TextStyle(fontSize: 20)),
+              const Icon(Icons.point_of_sale_rounded, color: CelestialTheme.goldLight, size: 22),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,7 +438,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
                         ),
                         onChanged: (val) {
                           setState(() {
-                            _amountTendered = double.tryParse(val) ?? 0.0;
+                            _amountTendered = double.tryParse(val.trim().replaceAll(',', '.')) ?? 0.0;
                           });
                         },
                         decoration: const InputDecoration(
@@ -595,7 +596,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
   }
 
   Widget _buildMobilePaySection(double total) {
-    final changeDue = (_amountTendered - total).clamp(0.0, double.infinity);
+    final changeDue = double.parse(((_amountTendered - total).clamp(0.0, double.infinity)).toStringAsFixed(2));
     return Column(
       children: [
         Container(

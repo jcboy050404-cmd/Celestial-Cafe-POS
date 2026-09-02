@@ -16,6 +16,12 @@ class PosProvider extends ChangeNotifier {
   static const String _keyStoreName = 'celestial_store_name_v1';
   static const String _keyStoreTagline = 'celestial_store_tagline_v1';
   static const String _keyStoreAddress = 'celestial_store_address_v1';
+  static const String _keyBaristaPin = 'celestial_barista_pin_v1';
+  static const String _keyUiScale = 'celestial_ui_scale_v1';
+
+  // Display & Text Size Scaling (for Cashiers/Baristas accessibility)
+  double _uiScale = 1.0;
+  double get uiScale => _uiScale;
 
   // Store & Branding
   String? _customLogoBase64;
@@ -23,6 +29,8 @@ class PosProvider extends ChangeNotifier {
   String _storeName = 'CELESTIAL CAFE';
   String _storeTagline = 'COFFEE • MILKTEA • CHEESECAKE • BITES';
   String _storeAddress = 'Celestial Cafe Main Branch\nTel: (02) 8721-4900 • TIN #482-901-382-000';
+  String _baristaPin = '1234';
+  String get baristaPin => _baristaPin;
 
   // Hotspot / Local Network KDS Server
   final KdsServerService _kdsServer = KdsServerService();
@@ -79,9 +87,11 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _startKdsServer() async {
+    _kdsServer.setBaristaPin(_baristaPin);
     await _kdsServer.start(
       getOrdersCallback: _getActiveOrdersJson,
       onStatusUpdate: _handleRemoteKdsStatusUpdate,
+      onOrderItemPrepared: setOrderItemPrepared,
       getMenuCallback: getMenuJsonForCustomer,
       onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
       onCustomerChangeOrder: _handleCustomerChangeOrder,
@@ -96,10 +106,12 @@ class PosProvider extends ChangeNotifier {
     if (manualIp != null && manualIp.trim().isNotEmpty) {
       _kdsServer.setManualIp(manualIp);
     }
+    _kdsServer.setBaristaPin(_baristaPin);
     await _kdsServer.stop();
     await _kdsServer.start(
       getOrdersCallback: _getActiveOrdersJson,
       onStatusUpdate: _handleRemoteKdsStatusUpdate,
+      onOrderItemPrepared: setOrderItemPrepared,
       getMenuCallback: getMenuJsonForCustomer,
       onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
       onCustomerChangeOrder: _handleCustomerChangeOrder,
@@ -145,25 +157,34 @@ class PosProvider extends ChangeNotifier {
       final paymentMethodStr = rawOrder['paymentMethod'] as String? ?? 'cash';
       final rawItems = rawOrder['items'] as List<dynamic>? ?? [];
 
+      final orderTypeStr = rawOrder['orderType'] as String? ?? 'dineIn';
+      final isTakeout = orderTypeStr.toLowerCase().contains('take') ||
+          orderTypeStr.toLowerCase().contains('delivery') ||
+          orderTypeStr.toLowerCase() == 'takeaway';
+      final orderType = isTakeout ? OrderType.takeaway : OrderType.dineIn;
+
       final cleanTable = tableNum.trim().toLowerCase().startsWith('table')
           ? tableNum.trim()
           : 'Table ${tableNum.trim()}';
 
-      // Disallow multiple orders on the same table while an order is being prepared
-      final existingActive = _orders.where((o) =>
-          o.tableNumber?.toLowerCase() == cleanTable.toLowerCase() &&
-          (o.status == OrderStatus.pending ||
-              o.status == OrderStatus.confirmed ||
-              o.status == OrderStatus.preparing)).firstOrNull;
+      // Disallow multiple orders on the same table while an order is being prepared (Dine-In only)
+      if (!isTakeout) {
+        final existingActive = _orders.where((o) =>
+            o.orderType == OrderType.dineIn &&
+            o.tableNumber?.toLowerCase() == cleanTable.toLowerCase() &&
+            (o.status == OrderStatus.pending ||
+                o.status == OrderStatus.confirmed ||
+                o.status == OrderStatus.preparing)).firstOrNull;
 
-      if (existingActive != null) {
-        return {
-          'success': false,
-          'error': 'This table already has an order in preparation (${existingActive.orderNumber}). You can order again once it is ready or completed.',
-          'existingOrderId': existingActive.id,
-          'existingOrderNumber': existingActive.orderNumber,
-          'status': existingActive.status.name,
-        };
+        if (existingActive != null) {
+          return {
+            'success': false,
+            'error': 'This table already has an order in preparation (${existingActive.orderNumber}). You can order again once it is ready or completed.',
+            'existingOrderId': existingActive.id,
+            'existingOrderNumber': existingActive.orderNumber,
+            'status': existingActive.status.name,
+          };
+        }
       }
 
       final paymentMethod = paymentMethodStr.toLowerCase().contains('gcash') ||
@@ -211,7 +232,8 @@ class PosProvider extends ChangeNotifier {
       }
 
       final createdOrder = submitCustomerSelfOrder(
-        tableNumber: tableNum,
+        orderType: orderType,
+        tableNumber: isTakeout ? 'Takeout' : tableNum,
         customerName: custName,
         items: orderItems,
         paymentMethod: paymentMethod,
@@ -364,6 +386,7 @@ class PosProvider extends ChangeNotifier {
         'category': i.menuItem.category.name,
         'isKitchen': i.isKitchenDish,
         'notes': i.notes,
+        'isPrepared': i.isPrepared,
         'customizations': i.customizations.map((c) => {
           'optionName': c.optionName,
           'summary': c.summary,
@@ -393,16 +416,46 @@ class PosProvider extends ChangeNotifier {
       // 3. Load Menu items & stock
       final savedMenuJson = prefs.getString(_keyMenuItems);
       if (savedMenuJson != null && savedMenuJson.isNotEmpty) {
-        final decoded = jsonDecode(savedMenuJson) as List<dynamic>;
-        _menuItems = decoded.map((m) => MenuItem.fromJson(m as Map<String, dynamic>)).toList();
+        try {
+          final decoded = jsonDecode(savedMenuJson) as List<dynamic>;
+          final loadedMenu = decoded
+              .map((m) {
+                try {
+                  return MenuItem.fromJson(m as Map<String, dynamic>);
+                } catch (e) {
+                  return null;
+                }
+              })
+              .whereType<MenuItem>()
+              .toList();
+          if (loadedMenu.isNotEmpty) {
+            _menuItems = loadedMenu;
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error parsing stored menu JSON: $e');
+        }
       }
 
       // 4. Load orders
       final savedOrdersJson = prefs.getString(_keyOrders);
       if (savedOrdersJson != null && savedOrdersJson.isNotEmpty) {
-        final decoded = jsonDecode(savedOrdersJson) as List<dynamic>;
-        _orders.clear();
-        _orders.addAll(decoded.map((o) => Order.fromJson(o as Map<String, dynamic>)));
+        try {
+          final decoded = jsonDecode(savedOrdersJson) as List<dynamic>;
+          final loadedOrders = decoded
+              .map((o) {
+                try {
+                  return Order.fromJson(o as Map<String, dynamic>);
+                } catch (e) {
+                  return null;
+                }
+              })
+              .whereType<Order>()
+              .toList();
+          _orders.clear();
+          _orders.addAll(loadedOrders);
+        } catch (e) {
+          if (kDebugMode) print('Error parsing stored orders JSON: $e');
+        }
       }
 
       // 5. Load Custom Logo & Store details
@@ -425,11 +478,36 @@ class PosProvider extends ChangeNotifier {
       if (savedAddress != null && savedAddress.isNotEmpty) {
         _storeAddress = savedAddress;
       }
+      final savedPin = prefs.getString(_keyBaristaPin);
+      if (savedPin != null && savedPin.trim().isNotEmpty) {
+        _baristaPin = savedPin.trim();
+        _kdsServer.setBaristaPin(_baristaPin);
+      }
+      final savedUiScale = prefs.getDouble(_keyUiScale);
+      if (savedUiScale != null && savedUiScale >= 0.80 && savedUiScale <= 1.50) {
+        _uiScale = savedUiScale;
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading from local storage: $e');
       }
     }
+  }
+
+  Future<void> setUiScale(double scale) async {
+    final clamped = scale.clamp(0.85, 1.45);
+    _uiScale = double.parse(clamped.toStringAsFixed(2));
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_keyUiScale, _uiScale);
+    } catch (e) {
+      if (kDebugMode) print('Error saving UI scale: $e');
+    }
+  }
+
+  Future<void> resetUiScale() async {
+    await setUiScale(1.0);
   }
 
   Future<void> _saveMenuToStorage() async {
@@ -530,6 +608,9 @@ class PosProvider extends ChangeNotifier {
           o.status == OrderStatus.confirmed ||
           o.status == OrderStatus.preparing)
       .toList();
+
+  List<Order> get confirmedOrders =>
+      _orders.where((o) => o.status == OrderStatus.confirmed).toList();
 
   List<Order> get readyOrders =>
       _orders.where((o) => o.status == OrderStatus.ready).toList();
@@ -655,7 +736,7 @@ class PosProvider extends ChangeNotifier {
   }) {
     final seqNum = _orderSequence++;
     final orderNum = '#$seqNum';
-    final change = (amountTendered - cartGrandTotal).clamp(0.0, double.infinity);
+    final change = double.parse(((amountTendered - cartGrandTotal).clamp(0.0, double.infinity)).toStringAsFixed(2));
 
     final newOrder = Order(
       id: 'ord_$seqNum',
@@ -708,8 +789,9 @@ class PosProvider extends ChangeNotifier {
     return newOrder;
   }
 
-  // Customer Self-Ordering via Table QR Code
+  // Customer Self-Ordering via Table QR Code or Takeout
   Order submitCustomerSelfOrder({
+    OrderType orderType = OrderType.dineIn,
     required String tableNumber,
     required String customerName,
     required List<OrderItem> items,
@@ -719,16 +801,20 @@ class PosProvider extends ChangeNotifier {
     final seqNum = _orderSequence++;
     final orderNum = '#$seqNum';
     final subtotal = items.fold(0.0, (sum, i) => sum + i.totalPrice);
-    final formattedTable = tableNumber.trim().toLowerCase().startsWith('table')
-        ? tableNumber.trim()
-        : 'Table ${tableNumber.trim()}';
+    final formattedTable = orderType == OrderType.takeaway
+        ? 'Takeout'
+        : (tableNumber.trim().toLowerCase().startsWith('table')
+            ? tableNumber.trim()
+            : 'Table ${tableNumber.trim()}');
 
     final newOrder = Order(
       id: 'ord_$seqNum',
       orderNumber: orderNum,
-      orderType: OrderType.dineIn,
+      orderType: orderType,
       tableNumber: formattedTable,
-      customerName: customerName.trim().isEmpty ? 'Guest ($formattedTable)' : customerName.trim(),
+      customerName: customerName.trim().isEmpty
+          ? (orderType == OrderType.takeaway ? 'Guest (Takeout)' : 'Guest ($formattedTable)')
+          : customerName.trim(),
       items: List.from(items),
       subtotal: subtotal,
       taxAmount: 0.0,
@@ -782,8 +868,9 @@ class PosProvider extends ChangeNotifier {
       double effectiveDiscount = discountAmount > 0
           ? discountAmount
           : existing.subtotal * (discountPercentage / 100);
-      final finalTotal = (existing.subtotal - effectiveDiscount).clamp(0.0, double.infinity);
-      final change = (amountTendered - finalTotal).clamp(0.0, double.infinity);
+      effectiveDiscount = double.parse(effectiveDiscount.clamp(0.0, existing.subtotal).toStringAsFixed(2));
+      final finalTotal = double.parse(((existing.subtotal - effectiveDiscount).clamp(0.0, double.infinity)).toStringAsFixed(2));
+      final change = double.parse(((amountTendered - finalTotal).clamp(0.0, double.infinity)).toStringAsFixed(2));
 
       final updatedOrder = existing.copyWith(
         discountAmount: effectiveDiscount,
@@ -800,6 +887,7 @@ class PosProvider extends ChangeNotifier {
       _orders[index] = updatedOrder;
       _saveOrdersToStorage();
       _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrderStatus(updatedOrder.id, updatedOrder.orderNumber, 'confirmed');
 
       HapticFeedback.heavyImpact();
       notifyListeners();
@@ -934,6 +1022,26 @@ class PosProvider extends ChangeNotifier {
   }
 
   // KDS & Order Status Updates
+  void toggleOrderItemPrepared(String orderId, int itemIndex) {
+    final index = _orders.indexWhere((o) => o.id == orderId);
+    if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
+      _orders[index].items[itemIndex].isPrepared = !_orders[index].items[itemIndex].isPrepared;
+      _saveOrdersToStorage();
+      _kdsServer.broadcastOrders();
+      notifyListeners();
+    }
+  }
+
+  void setOrderItemPrepared(String orderId, int itemIndex, bool isPrepared) {
+    final index = _orders.indexWhere((o) => o.id == orderId);
+    if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
+      _orders[index].items[itemIndex].isPrepared = isPrepared;
+      _saveOrdersToStorage();
+      _kdsServer.broadcastOrders();
+      notifyListeners();
+    }
+  }
+
   void updateOrderStatus(String orderId, OrderStatus newStatus) {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index >= 0) {
@@ -1126,6 +1234,21 @@ class PosProvider extends ChangeNotifier {
       if (kDebugMode) print('Error saving store details: $e');
     }
     notifyListeners();
+  }
+
+  Future<void> updateBaristaPin(String newPin) async {
+    final clean = newPin.trim();
+    if (clean.length >= 4) {
+      _baristaPin = clean;
+      _kdsServer.setBaristaPin(clean);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyBaristaPin, clean);
+      } catch (e) {
+        if (kDebugMode) print('Error saving barista pin: $e');
+      }
+      notifyListeners();
+    }
   }
 
   // Reset All Local Data (e.g. for brand new day/shift or clean reset starting on #1)
