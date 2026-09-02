@@ -524,23 +524,45 @@ class AnalyticsScreen extends StatelessWidget {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: CelestialTheme.bgCard,
-                    content: Text('✨ Shift audit report exported. Revenue today: ₱${provider.todayTotalSales.toStringAsFixed(0)}'),
+            child: Builder(
+              builder: (ctx) {
+                bool isExporting = false;
+                return StatefulBuilder(
+                  builder: (context, setExportState) {
+                    return ElevatedButton.icon(
+                      onPressed: isExporting
+                          ? null
+                          : () async {
+                              setExportState(() => isExporting = true);
+                              await Future.delayed(const Duration(milliseconds: 300));
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: CelestialTheme.bgCard,
+                                    content: Text('✨ Shift audit report exported. Revenue today: ₱${provider.todayTotalSales.toStringAsFixed(0)}'),
+                                  ),
+                                );
+                              }
+                              setExportState(() => isExporting = false);
+                            },
+                  icon: isExporting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                        )
+                      : const Icon(Icons.lock_clock_rounded, size: 15),
+                  label: Text(isExporting ? 'Exporting...' : 'Export Shift Close Report', style: const TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: CelestialTheme.goldPrimary,
+                    foregroundColor: CelestialTheme.bgDark,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
+                    );
+                  },
                 );
               },
-              icon: const Icon(Icons.lock_clock_rounded, size: 15),
-              label: const Text('Export Shift Close Report', style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CelestialTheme.goldPrimary,
-                foregroundColor: CelestialTheme.bgDark,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
             ),
           ),
         ],

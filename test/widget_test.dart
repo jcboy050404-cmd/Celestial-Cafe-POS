@@ -6,6 +6,8 @@ import 'package:celestial_pos/main.dart';
 import 'package:celestial_pos/models/menu_item.dart';
 import 'package:celestial_pos/models/order.dart';
 import 'package:celestial_pos/providers/pos_provider.dart';
+import 'package:celestial_pos/widgets/customization_dialog.dart';
+import 'package:celestial_pos/theme/celestial_theme.dart';
 
 void main() {
   setUp(() {
@@ -232,4 +234,69 @@ void main() {
     expect(menuItemJson['imageBase64'], dummyBase64);
     expect(menuItemJson['imageUrl'], '/api/item-image?id=item_with_photo_1');
   });
+
+  testWidgets('CustomizationDialog renders rich UI and handles temperature, add-ons, quick notes and add to cart', (WidgetTester tester) async {
+    final item = initialCelestialMenu.first; // Americano (₱90)
+    int addedQuantity = 0;
+    List<SelectedCustomization> addedCustomizations = [];
+    String? addedNotes;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: CelestialTheme.themeData,
+        home: Scaffold(
+          body: CustomizationDialog(
+            item: item,
+            onAddToCart: (qty, customs, notes) {
+              addedQuantity = qty;
+              addedCustomizations = customs;
+              addedNotes = notes;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Title, Price Badge and Required Badges
+    expect(find.text('Americano'), findsOneWidget);
+    expect(find.text('₱90'), findsWidgets);
+    expect(find.text('REQUIRED'), findsNWidgets(2)); // Temperature & Sweetness
+
+    // Verify Temperature Section has Hot and Iced
+    expect(find.text('Hot'), findsOneWidget);
+    expect(find.text('Iced'), findsOneWidget);
+
+    // Verify Sweetness Level options: 75% added, 125% removed
+    expect(find.text('Less Sweet (75%)'), findsOneWidget);
+    expect(find.text('Extra Sweet (125%)'), findsNothing);
+
+    // Tap "Hot"
+    await tester.tap(find.text('Hot'));
+    await tester.pumpAndSettle();
+
+    // Toggle an Add-on: "Extra Espresso Shot"
+    expect(find.text('Extra Espresso Shot'), findsOneWidget);
+    expect(find.text('Oat Milk Sub'), findsNothing);
+    await tester.tap(find.text('Extra Espresso Shot'));
+    await tester.pumpAndSettle();
+
+    // Stepper +
+    await tester.tap(find.byKey(const Key('customization_qty_plus')));
+    await tester.pumpAndSettle();
+
+    // Now quantity is 2, total price is ₱230 (115 * 2)
+    expect(find.textContaining('₱230'), findsWidgets);
+
+    // Tap Add to Cart
+    await tester.tap(find.textContaining('Add 2'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(addedQuantity, 2);
+    expect(addedNotes, isNull);
+    expect(addedCustomizations.any((c) => c.optionName == 'Hot'), true);
+    expect(addedCustomizations.any((c) => c.optionName == 'Extra Espresso Shot'), true);
+  });
 }
+

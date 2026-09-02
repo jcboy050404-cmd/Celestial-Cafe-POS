@@ -365,19 +365,25 @@ class PosScreen extends StatelessWidget {
         int crossAxisCount = 2;
         double childAspectRatio = 0.70;
 
-        if (constraints.maxWidth > 1200) {
+        if (constraints.maxWidth > 1600) {
+          crossAxisCount = 6;
+          childAspectRatio = 0.85;
+        } else if (constraints.maxWidth > 1300) {
+          crossAxisCount = 5;
+          childAspectRatio = 0.85;
+        } else if (constraints.maxWidth > 1050) {
           crossAxisCount = 4;
-          childAspectRatio = 1.35;
-        } else if (constraints.maxWidth > 900) {
+          childAspectRatio = 0.82;
+        } else if (constraints.maxWidth > 800) {
           crossAxisCount = 3;
-          childAspectRatio = 1.30;
+          childAspectRatio = 0.80;
         } else if (constraints.maxWidth > 550) {
           crossAxisCount = 2;
-          childAspectRatio = 1.22;
+          childAspectRatio = 0.78;
         } else {
-          // Phones: 2 clean compact columns with tight, sleek proportions
+          // Phones: 2 clean columns
           crossAxisCount = 2;
-          childAspectRatio = 1.12;
+          childAspectRatio = 0.75;
         }
 
         return GridView.builder(

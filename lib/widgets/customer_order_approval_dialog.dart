@@ -7,7 +7,6 @@ import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'customization_dialog.dart';
 import 'receipt_dialog.dart';
-import '../services/receipt_pdf_service.dart';
 
 class CustomerOrderApprovalDialog extends StatefulWidget {
   final Order order;
@@ -42,7 +41,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
   late PaymentMethod _selectedPaymentMethod;
   late List<OrderItem> _items;
   final TextEditingController _cashTenderedController = TextEditingController();
-  final TextEditingController _orderNotesController = TextEditingController();
 
   double _discountPercentage = 0.0;
   double _amountTendered = 0.0;
@@ -54,7 +52,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     _selectedPaymentMethod = widget.order.paymentMethod;
     _discountPercentage = widget.order.discountPercentage;
     _items = widget.order.items.map((i) => i.copyWith()).toList();
-    _orderNotesController.text = widget.order.orderNotes ?? '';
 
     final initialTotal = _calculateTotal();
     _amountTendered = initialTotal;
@@ -64,7 +61,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
   @override
   void dispose() {
     _cashTenderedController.dispose();
-    _orderNotesController.dispose();
     super.dispose();
   }
 
@@ -85,7 +81,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     posProvider.updatePendingOrderItems(
       orderId: widget.order.id,
       newItems: _items,
-      orderNotes: _orderNotesController.text.trim().isNotEmpty ? _orderNotesController.text.trim() : null,
+      orderNotes: widget.order.orderNotes,
     );
     final total = _calculateTotal();
     if (_selectedPaymentMethod == PaymentMethod.cash && _amountTendered < total) {
@@ -227,35 +223,27 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
       return;
     }
 
-    setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
     final posProvider = Provider.of<PosProvider>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    setState(() => _isSubmitting = true);
+    await Future.delayed(const Duration(milliseconds: 280));
+
     final approvedOrder = posProvider.approveAndSettleCustomerOrder(
       orderId: widget.order.id,
       paymentMethod: _selectedPaymentMethod,
       amountTendered: _selectedPaymentMethod == PaymentMethod.cash ? _amountTendered : total,
       discountPercentage: _discountPercentage,
       discountAmount: _calculateDiscountAmount(),
-      orderNotes: _orderNotesController.text.trim().isNotEmpty ? _orderNotesController.text.trim() : null,
+      orderNotes: widget.order.orderNotes,
     );
 
-    setState(() => _isSubmitting = false);
-    Navigator.of(context).pop(); // Close approval dialog
+    if (mounted) setState(() => _isSubmitting = false);
+    navigator.pop(); // Close approval dialog
 
-    if (approvedOrder != null) {
-      // Auto-print thermal receipt to POS printer on confirmation
-      ReceiptPdfService.printReceipt(
-        order: approvedOrder,
-        posProvider: posProvider,
-      ).catchError((err) {
-        debugPrint('Auto-print receipt error: $err');
-        return false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (approvedOrder != null && mounted) {
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           backgroundColor: CelestialTheme.bgCard,
           duration: const Duration(seconds: 3),
@@ -265,7 +253,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Order ${approvedOrder.orderNumber} approved & receipt sent to printer.',
+                  'Order ${approvedOrder.orderNumber} approved & moved to kitchen queue.',
                   style: const TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -285,6 +273,11 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
   }
 
   void _handleDeclineOrder() {
+    bool isDeclining = false;
+    final posProvider = Provider.of<PosProvider>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final approvalDialogNavigator = Navigator.of(context);
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -312,24 +305,37 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx); // Close confirmation
-              final posProvider = Provider.of<PosProvider>(context, listen: false);
-              posProvider.rejectCustomerOrder(widget.order.id, restock: true);
-              Navigator.of(context).pop(); // Close approval dialog
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: CelestialTheme.bgCard,
-                  content: Text('Order ${widget.order.orderNumber} declined and voided.'),
+          StatefulBuilder(
+            builder: (ctx, setDeclineState) {
+              return ElevatedButton(
+                onPressed: isDeclining
+                    ? null
+                    : () async {
+                        setDeclineState(() => isDeclining = true);
+                        await Future.delayed(const Duration(milliseconds: 250));
+                        posProvider.rejectCustomerOrder(widget.order.id, restock: true);
+                        if (ctx.mounted) Navigator.pop(ctx); // Close confirmation
+                        if (mounted) approvalDialogNavigator.pop(); // Close approval dialog
+                        scaffoldMessenger.showSnackBar(
+                          SnackBar(
+                            backgroundColor: CelestialTheme.bgCard,
+                            content: Text('Order ${widget.order.orderNumber} declined and voided.'),
+                          ),
+                        );
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CelestialTheme.roseAlert,
+                  foregroundColor: Colors.white,
                 ),
+                child: isDeclining
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Yes, Decline Order'),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: CelestialTheme.roseAlert,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Yes, Decline Order'),
           ),
         ],
       ),
@@ -427,42 +433,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                       _buildCashTenderCalculator(total, changeDue, isMobile)
                     else
                       _buildDigitalPaymentNotice('GCash Mobile Wallet', Icons.phone_android_rounded, CelestialTheme.blueInfo),
-
-                    const SizedBox(height: 16),
-
-                    // Order Notes / Cashier Memo
-                    Text(
-                      'Order Memo / Table Instructions',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: CelestialTheme.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _orderNotesController,
-                      style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Paid in full, customer requested extra ice...',
-                        hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
-                        filled: true,
-                        fillColor: CelestialTheme.bgCard,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -524,7 +494,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                           border: Border.all(color: CelestialTheme.amberBrewing.withValues(alpha: 0.6)),
                         ),
                         child: Text(
-                          widget.order.tableNumber ?? 'Dine-In',
+                          (widget.order.tableNumber ?? 'Dine-In').replaceAll(RegExp(r'^T+able', caseSensitive: false), 'Table'),
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -1442,7 +1412,7 @@ class _PendingCustomerOrdersListDialog extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          '• ${order.tableNumber ?? "Dine-In"}',
+                                          '• ${(order.tableNumber ?? "Dine-In").replaceAll(RegExp(r"^T+able", caseSensitive: false), "Table")}',
                                           style: const TextStyle(fontSize: 12, color: CelestialTheme.goldLight),
                                         ),
                                         if (order.hasKitchenDishes) ...[

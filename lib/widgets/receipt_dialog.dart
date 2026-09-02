@@ -9,13 +9,21 @@ import '../services/receipt_pdf_service.dart';
 import '../theme/celestial_theme.dart';
 import 'order_tracking_qr_dialog.dart';
 
-class ReceiptDialog extends StatelessWidget {
+class ReceiptDialog extends StatefulWidget {
   final Order order;
 
   const ReceiptDialog({super.key, required this.order});
 
   @override
+  State<ReceiptDialog> createState() => _ReceiptDialogState();
+}
+
+class _ReceiptDialogState extends State<ReceiptDialog> {
+  bool _isPrinting = false;
+
+  @override
   Widget build(BuildContext context) {
+    final order = widget.order;
     final posProvider = Provider.of<PosProvider>(context);
 
     return Dialog(
@@ -155,14 +163,15 @@ class ReceiptDialog extends StatelessWidget {
                         ),
                       ],
                     ),
-                    Row(
-                      children: [
-                        Text(
-                          'Guest: ${order.customerName}',
-                          style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
-                        ),
-                      ],
-                    ),
+                    if (order.customerName.isNotEmpty)
+                      Row(
+                        children: [
+                          Text(
+                            'Customer: ${order.customerName}',
+                            style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
+                          ),
+                        ],
+                      ),
 
                     const SizedBox(height: 12),
                     _buildDashedLine(),
@@ -423,76 +432,108 @@ class ReceiptDialog extends StatelessWidget {
                 color: CelestialTheme.bgSurface,
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
               ),
-              child: Row(
-                children: [
-                  // Show Customer QR Button
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => OrderTrackingQrDialog.show(context, order),
-                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-                      label: const Text('Customer QR'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: CelestialTheme.goldLight,
-                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 360;
+
+                  Widget btnQr = OutlinedButton.icon(
+                    onPressed: () => OrderTrackingQrDialog.show(context, order),
+                    icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                    label: const Text('QR Code'), // Shortened label
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CelestialTheme.goldLight,
+                      side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Print Slip Button
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        try {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Sending thermal slip to POS printer...'),
-                              backgroundColor: CelestialTheme.bgCard,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                          await ReceiptPdfService.printReceipt(
-                            order: order,
-                            posProvider: posProvider,
-                          );
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Printing failed: $e'),
-                                backgroundColor: CelestialTheme.roseAlert,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.print_rounded, size: 18),
-                      label: const Text('Print Slip'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: CelestialTheme.goldLight,
-                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                  );
+
+                  Widget btnPrint = OutlinedButton.icon(
+                    onPressed: _isPrinting
+                        ? null
+                        : () async {
+                            setState(() => _isPrinting = true);
+                            try {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Sending thermal slip to POS printer...'),
+                                  backgroundColor: CelestialTheme.bgCard,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              await ReceiptPdfService.printReceipt(
+                                order: order,
+                                posProvider: posProvider,
+                              );
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Printing failed: $e'),
+                                    backgroundColor: CelestialTheme.roseAlert,
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) setState(() => _isPrinting = false);
+                            }
+                          },
+                    icon: _isPrinting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.goldLight),
+                          )
+                        : const Icon(Icons.print_rounded, size: 18),
+                    label: Text(_isPrinting ? 'Printing...' : 'Print'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CelestialTheme.goldLight,
+                      side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Done / New Order Button
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: const Text('New Order'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.bgDark,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                  );
+
+                  Widget btnNewOrder = ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: const Text('New Order'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CelestialTheme.goldPrimary,
+                      foregroundColor: CelestialTheme.bgDark,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ),
-                ],
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        btnNewOrder,
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: btnQr),
+                            const SizedBox(width: 8),
+                            Expanded(child: btnPrint),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: btnQr),
+                      const SizedBox(width: 8),
+                      Expanded(child: btnPrint),
+                      const SizedBox(width: 8),
+                      Expanded(child: btnNewOrder),
+                    ],
+                  );
+                },
               ),
             ),
           ],

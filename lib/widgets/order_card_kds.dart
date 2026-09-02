@@ -150,19 +150,21 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                                 const Text('🥡', style: TextStyle(fontSize: 11)),
                                 const SizedBox(width: 4),
                               ],
-                              Text(
-                                order.orderType == OrderType.dineIn
-                                    ? '${order.orderType.label} • ${order.tableNumber ?? "Tbl"}'
-                                    : 'TAKEOUT / TO-GO',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
-                                      ? Colors.black
-                                      : CelestialTheme.goldLight,
+                              Flexible(
+                                child: Text(
+                                  order.orderType == OrderType.dineIn
+                                      ? '${order.orderType.label} • ${(order.tableNumber ?? "Table").replaceAll(RegExp(r"^T+able", caseSensitive: false), "Table")}'
+                                      : 'TAKEOUT / TO-GO',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                                        ? Colors.black
+                                        : CelestialTheme.goldLight,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -397,6 +399,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
   Widget _buildOrderItemRow(PosProvider posProvider, Order order, OrderItem item, int idx) {
     final isKitchen = item.isKitchenDish;
     final isPrepared = item.isPrepared;
+    final isPreparing = order.status == OrderStatus.preparing;
     final isItemTakeout = order.orderType == OrderType.takeaway ||
         order.orderType == OrderType.delivery ||
         (item.notes != null && (
@@ -448,10 +451,14 @@ class _OrderCardKdsState extends State<OrderCardKds> {
               height: 20,
               margin: const EdgeInsets.only(right: 7, top: 1.5),
               decoration: BoxDecoration(
-                color: isPrepared ? CelestialTheme.emeraldReady : Colors.white.withValues(alpha: 0.04),
+                color: isPrepared
+                    ? CelestialTheme.emeraldReady
+                    : (isPreparing ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.02)),
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(
-                  color: isPrepared ? CelestialTheme.emeraldReady : Colors.white.withValues(alpha: 0.25),
+                  color: isPrepared
+                      ? CelestialTheme.emeraldReady
+                      : (isPreparing ? Colors.white.withValues(alpha: 0.28) : Colors.white.withValues(alpha: 0.10)),
                   width: 1.4,
                 ),
               ),
@@ -640,12 +647,42 @@ class _OrderCardKdsState extends State<OrderCardKds> {
 
     final interactiveItem = InkWell(
       onTap: () {
+        if (!isPreparing) {
+          HapticFeedback.lightImpact();
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: CelestialTheme.bgCard,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
+              ),
+              duration: const Duration(seconds: 2),
+              content: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: CelestialTheme.amberBrewing, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      order.status == OrderStatus.confirmed || order.status == OrderStatus.pending
+                          ? 'Please tap "Start Brewing / Prep" first before marking items as prepared.'
+                          : 'Order #${order.orderNumber} is already ${order.status.label.toLowerCase()}.',
+                      style: const TextStyle(fontSize: 12.5, color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+          return;
+        }
         HapticFeedback.selectionClick();
         posProvider.toggleOrderItemPrepared(order.id, idx);
       },
       borderRadius: BorderRadius.circular(8),
       child: Opacity(
-        opacity: isPrepared ? 0.58 : 1.0,
+        opacity: isPrepared ? 0.58 : (isPreparing ? 1.0 : 0.82),
         child: isKitchen
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -729,51 +766,100 @@ class _OrderCardKdsState extends State<OrderCardKds> {
               ],
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => CustomerOrderApprovalDialog.show(context, order),
-                  icon: const Icon(Icons.payments_outlined, size: 15, color: CelestialTheme.bgDark),
-                  label: const Text('Review & Pay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              ElevatedButton(
-                onPressed: _isActionLoading
-                    ? null
-                    : () => _confirmStatusTransition(
-                        context,
-                        provider,
-                        order,
-                        OrderStatus.preparing,
-                        title: 'Start Brewing',
-                        actionLabel: 'Brew Now',
-                        color: CelestialTheme.amberBrewing,
-                        icon: Icons.coffee_maker_rounded,
+          widget.isMobileList
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => CustomerOrderApprovalDialog.show(context, order),
+                      icon: const Icon(Icons.payments_outlined, size: 15, color: CelestialTheme.bgDark),
+                      label: const Text('Review & Pay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: CelestialTheme.goldPrimary,
+                        foregroundColor: CelestialTheme.bgDark,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: CelestialTheme.amberBrewing,
-                  foregroundColor: CelestialTheme.bgDark,
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    const SizedBox(height: 6),
+                    ElevatedButton.icon(
+                      onPressed: _isActionLoading
+                          ? null
+                          : () => _confirmStatusTransition(
+                              context,
+                              provider,
+                              order,
+                              OrderStatus.preparing,
+                              title: 'Start Brewing',
+                              actionLabel: 'Brew Now',
+                              color: CelestialTheme.amberBrewing,
+                              icon: Icons.coffee_maker_rounded,
+                            ),
+                      icon: _isActionLoading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 1.8, color: CelestialTheme.bgDark),
+                            )
+                          : const Icon(Icons.coffee_maker_rounded, size: 15, color: CelestialTheme.bgDark),
+                      label: const Text('Brew Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: CelestialTheme.amberBrewing,
+                        foregroundColor: CelestialTheme.bgDark,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => CustomerOrderApprovalDialog.show(context, order),
+                        icon: const Icon(Icons.payments_outlined, size: 15, color: CelestialTheme.bgDark),
+                        label: const Text('Review & Pay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: CelestialTheme.goldPrimary,
+                          foregroundColor: CelestialTheme.bgDark,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isActionLoading
+                            ? null
+                            : () => _confirmStatusTransition(
+                                context,
+                                provider,
+                                order,
+                                OrderStatus.preparing,
+                                title: 'Start Brewing',
+                                actionLabel: 'Brew Now',
+                                color: CelestialTheme.amberBrewing,
+                                icon: Icons.coffee_maker_rounded,
+                              ),
+                        icon: _isActionLoading
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 1.8, color: CelestialTheme.bgDark),
+                              )
+                            : const Icon(Icons.coffee_maker_rounded, size: 15, color: CelestialTheme.bgDark),
+                        label: const Text('Brew Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: CelestialTheme.amberBrewing,
+                          foregroundColor: CelestialTheme.bgDark,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: _isActionLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 1.8, color: CelestialTheme.bgDark),
-                      )
-                    : const Text('Brew Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              ),
-            ],
-          ),
         ],
       );
     } else if (order.status == OrderStatus.preparing) {
@@ -902,7 +988,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                   ),
                   Text(
                     order.orderType == OrderType.dineIn
-                        ? '${order.orderType.label} • ${order.tableNumber ?? "Table"}'
+                        ? '${order.orderType.label} • ${(order.tableNumber ?? "Table").replaceAll(RegExp(r"^T+able", caseSensitive: false), "Table")}'
                         : order.orderType.label,
                     style: const TextStyle(fontSize: 11.5, color: CelestialTheme.textMuted, fontWeight: FontWeight.w600),
                   ),
@@ -1071,7 +1157,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                             setDialogState(() => isSubmitting = true);
                             if (mounted) setState(() => _isActionLoading = true);
                             HapticFeedback.heavyImpact();
-                            await Future.delayed(const Duration(milliseconds: 400));
+                            await Future.delayed(const Duration(milliseconds: 280));
                             provider.updateOrderStatus(order.id, nextStatus);
                             if (ctx.mounted) Navigator.pop(ctx);
                             if (mounted) setState(() => _isActionLoading = false);

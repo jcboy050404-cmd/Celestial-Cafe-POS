@@ -20,69 +20,57 @@ class MenuItemCard extends StatefulWidget {
 class _MenuItemCardState extends State<MenuItemCard> {
   bool _isHovered = false;
 
-  Widget _buildItemMedia(MenuItem item, bool isCompact) {
+  Widget _buildItemMediaCover(MenuItem item, bool isCompact) {
     final bool hasBase64 = item.imageBase64 != null && item.imageBase64!.isNotEmpty;
     final bool hasFile = item.imagePath != null && item.imagePath!.isNotEmpty && File(item.imagePath!).existsSync();
 
-    final size = isCompact ? 36.0 : 42.0;
-
     if (hasBase64 || hasFile) {
       return Container(
-        width: size,
-        height: size,
+        width: double.infinity,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: item.inStock
-                ? CelestialTheme.goldPrimary.withValues(alpha: 0.45)
-                : Colors.white12,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+          border: Border(
+            bottom: BorderSide(
+              color: item.inStock
+                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.25)
+                  : Colors.white12,
             ),
-          ],
+          ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: hasBase64
-              ? Image.memory(
-                  base64Decode(item.imageBase64!),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 16 : 20))),
-                )
-              : Image.file(
-                  File(item.imagePath!),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 16 : 20))),
-                ),
-        ),
+        child: hasBase64
+            ? Image.memory(
+                base64Decode(item.imageBase64!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 34 : 44))),
+              )
+            : Image.file(
+                File(item.imagePath!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 34 : 44))),
+              ),
       );
     }
 
     return Container(
-      width: size,
-      height: size,
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: item.inStock
             ? CelestialTheme.brownGradient
             : const LinearGradient(
                 colors: [Color(0xFF2C2C2C), Color(0xFF1A1A1A)],
               ),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-          color: item.inStock
-              ? CelestialTheme.goldPrimary.withValues(alpha: 0.35)
-              : Colors.white12,
+        border: Border(
+          bottom: BorderSide(
+            color: item.inStock
+                ? CelestialTheme.goldPrimary.withValues(alpha: 0.25)
+                : Colors.white12,
+          ),
         ),
       ),
       child: Center(
         child: Text(
           item.icon,
           style: TextStyle(
-            fontSize: isCompact ? 18 : 22,
+            fontSize: isCompact ? 34 : 44,
             color: item.inStock ? null : Colors.grey,
           ),
         ),
@@ -138,39 +126,6 @@ class _MenuItemCardState extends State<MenuItemCard> {
     );
   }
 
-  void _quickAdd(BuildContext context) {
-    if (!widget.item.inStock) return;
-
-    final posProvider = Provider.of<PosProvider>(context, listen: false);
-    posProvider.addToCart(widget.item);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: CelestialTheme.bgCard,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
-          ),
-        ),
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: CelestialTheme.goldPrimary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Added ${widget.item.name}',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -213,166 +168,106 @@ class _MenuItemCardState extends State<MenuItemCard> {
               ),
               child: Stack(
                 children: [
-                  Padding(
-                    padding: EdgeInsets.all(isCompact ? 9 : 11),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Top Row: Thumbnail & Category Tag
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _buildItemMedia(item, isCompact),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: CelestialTheme.brownWarm.withValues(alpha: 0.35),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    item.tags.isNotEmpty ? item.tags.first : item.category.label,
-                                    style: const TextStyle(
-                                      fontSize: 9.0,
-                                      fontWeight: FontWeight.w600,
-                                      color: CelestialTheme.goldLight,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top Cover Image
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                          child: _buildItemMediaCover(item, isCompact),
                         ),
-
-                        // Item Name & Description
-                        Column(
+                      ),
+                      
+                      // Details & Actions
+                      Padding(
+                        padding: EdgeInsets.all(isCompact ? 10 : 14),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Item Name
                             Text(
                               item.name,
                               style: GoogleFonts.outfit(
-                                fontSize: isCompact ? 13 : 14,
+                                fontSize: isCompact ? 13 : 15,
                                 fontWeight: FontWeight.bold,
-                                color: item.inStock
-                                    ? CelestialTheme.textLight
-                                    : CelestialTheme.textSubtle,
+                                color: item.inStock ? CelestialTheme.textLight : CelestialTheme.textSubtle,
                                 height: 1.15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item.description,
-                              style: GoogleFonts.outfit(
-                                fontSize: isCompact ? 9.5 : 10.5,
-                                color: CelestialTheme.textMuted,
-                                height: 1.2,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
-
-                        // Bottom Row: Price & [+] [Opt] Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
+                            
+                            const SizedBox(height: 8),
+                            
+                            // Bottom Row: Price & Tag
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
                                   '₱${item.price.toStringAsFixed(0)}',
                                   style: GoogleFonts.outfit(
-                                    fontSize: isCompact ? 15 : 17,
-                                    fontWeight: FontWeight.w800,
-                                    color: item.inStock
-                                        ? CelestialTheme.goldLight
-                                        : CelestialTheme.textSubtle,
+                                    fontSize: isCompact ? 16 : 18,
+                                    fontWeight: FontWeight.w900,
+                                    color: item.inStock ? CelestialTheme.goldLight : CelestialTheme.textSubtle, // Gold for price
                                   ),
                                 ),
-                                if (item.inStock && item.stockCount <= 15)
-                                  Text(
-                                    '${item.stockCount} left',
-                                    style: const TextStyle(
-                                      fontSize: 8.0,
-                                      color: CelestialTheme.amberBrewing,
-                                      fontWeight: FontWeight.w600,
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                                    decoration: BoxDecoration(
+                                      color: CelestialTheme.brownWarm.withValues(alpha: 0.35),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      item.tags.isNotEmpty ? item.tags.first : item.category.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: CelestialTheme.goldLight,
+                                      ),
                                     ),
                                   ),
+                                ),
                               ],
                             ),
-
+                            
+                            const SizedBox(height: 12),
+                            
+                            // Full width Add Button
                             if (item.inStock)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Quick Add Button (+)
-                                  InkWell(
-                                    onTap: () => _quickAdd(context),
-                                    borderRadius: BorderRadius.circular(7),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(
-                                        color: CelestialTheme.bgSurface,
-                                        borderRadius: BorderRadius.circular(7),
-                                        border: Border.all(
-                                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.add_rounded,
-                                        size: 15,
-                                        color: CelestialTheme.goldPrimary,
-                                      ),
+                              InkWell(
+                                onTap: () => _openCustomization(context),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.symmetric(vertical: isCompact ? 7 : 9),
+                                  decoration: BoxDecoration(
+                                    color: CelestialTheme.goldPrimary, // Gold background
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    'Add to Order',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: isCompact ? 12.5 : 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black, // Black text
                                     ),
                                   ),
-                                  const SizedBox(width: 5),
-                                  // Customization Option Button (Opt)
-                                  InkWell(
-                                    onTap: () => _openCustomization(context),
-                                    borderRadius: BorderRadius.circular(7),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        gradient: CelestialTheme.goldGradient,
-                                        borderRadius: BorderRadius.circular(7),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Text(
-                                        'Opt',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: CelestialTheme.bgDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
 
                   // Out of Stock Overlay

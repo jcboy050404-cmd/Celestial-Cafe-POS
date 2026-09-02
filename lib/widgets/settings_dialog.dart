@@ -20,6 +20,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late TextEditingController _addressController;
   late TextEditingController _pinController;
   bool _isPickingImage = false;
+  bool _isSavingSettings = false;
 
   @override
   void initState() {
@@ -47,7 +48,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         type: FileType.image,
       );
 
-      if (files.isNotEmpty) {
+      if (files != null && files.isNotEmpty) {
         final file = files.first;
         Uint8List? bytes;
 
@@ -81,7 +82,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
-  void _saveSettings(PosProvider provider) {
+  void _saveSettings(PosProvider provider) async {
+    setState(() => _isSavingSettings = true);
+    await Future.delayed(const Duration(milliseconds: 250));
     provider.updateStoreDetails(
       name: _nameController.text,
       tagline: _taglineController.text,
@@ -90,13 +93,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
     if (_pinController.text.trim().length >= 4) {
       provider.updateBaristaPin(_pinController.text.trim());
     }
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: CelestialTheme.bgCard,
-        content: Text('Store branding and security settings saved!'),
-      ),
-    );
+    if (mounted) setState(() => _isSavingSettings = false);
+    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: CelestialTheme.bgCard,
+          content: Text('Store branding and security settings saved!'),
+        ),
+      );
+    }
   }
 
   @override
@@ -662,9 +668,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton.icon(
-                    onPressed: () => _saveSettings(provider),
-                    icon: const Icon(Icons.check_rounded, size: 16),
-                    label: const Text('Save Changes'),
+                    onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
+                    icon: _isSavingSettings
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                          )
+                        : const Icon(Icons.check_rounded, size: 16),
+                    label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: CelestialTheme.goldPrimary,
                       foregroundColor: CelestialTheme.bgDark,

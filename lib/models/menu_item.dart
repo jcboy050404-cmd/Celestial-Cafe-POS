@@ -144,6 +144,21 @@ class MenuItem {
         'customizationGroups': customizationGroups.map((g) => g.toJson()).toList(),
       };
 
+  /// Lightweight representation specifically for order items (excludes heavy Base64 image blobs)
+  Map<String, dynamic> toOrderJson() => {
+        'id': id,
+        'name': name,
+        'category': category.name,
+        'price': price,
+        'description': description,
+        'icon': icon,
+        'tags': tags,
+        'inStock': inStock,
+        'stockCount': stockCount,
+        'rating': rating,
+        'imagePath': imagePath,
+      };
+
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     final catName = json['category'] as String? ?? 'coffee';
     final cat = ItemCategory.values.firstWhere(
@@ -219,12 +234,12 @@ class MenuItem {
       id: 'sweetness',
       title: 'Sweetness Level',
       isRequired: true,
-      defaultIndex: 2,
+      defaultIndex: 3,
       options: [
         CustomizationOption(name: 'No Sugar (0%)', extraPrice: 0.00),
         CustomizationOption(name: 'Less Sweet (50%)', extraPrice: 0.00),
+        CustomizationOption(name: 'Less Sweet (75%)', extraPrice: 0.00),
         CustomizationOption(name: 'Regular (100%)', extraPrice: 0.00),
-        CustomizationOption(name: 'Extra Sweet (125%)', extraPrice: 0.00),
       ],
     ),
     const CustomizationGroup(
@@ -236,7 +251,6 @@ class MenuItem {
         CustomizationOption(name: 'Caramel Drizzle', extraPrice: 15.00),
         CustomizationOption(name: 'Vanilla Syrup', extraPrice: 15.00),
         CustomizationOption(name: 'Hazelnut Syrup', extraPrice: 15.00),
-        CustomizationOption(name: 'Oat Milk Sub', extraPrice: 20.00),
       ],
     ),
   ];

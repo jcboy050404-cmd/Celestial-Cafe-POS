@@ -101,7 +101,8 @@ class ReceiptPdfService {
                     : order.orderType.label.toUpperCase(),
                 isBold: true,
               ),
-              _buildRow('CUSTOMER', order.customerName.isNotEmpty ? order.customerName : 'Guest'),
+              if (order.customerName.isNotEmpty)
+                _buildRow('CUSTOMER', order.customerName),
               _buildRow('CASHIER', order.cashierName.isNotEmpty ? order.cashierName : 'Main POS'),
               _buildRow('PAYMENT STATUS', order.status == OrderStatus.pending ? 'PENDING' : 'PAID', isBold: true),
 

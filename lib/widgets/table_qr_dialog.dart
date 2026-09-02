@@ -464,7 +464,13 @@ class _TableQrDialogState extends State<TableQrDialog> {
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: _isGeneratingPdf ? null : () => _printSingleTable(provider),
-                                  icon: const Icon(Icons.print_rounded, size: 14),
+                                  icon: _isGeneratingPdf
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.goldLight),
+                                        )
+                                      : const Icon(Icons.print_rounded, size: 14),
                                   label: Text(
                                     _isGeneratingPdf ? 'Generating...' : 'Print Table $_selectedTable (PDF)',
                                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),

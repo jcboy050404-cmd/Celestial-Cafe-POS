@@ -262,18 +262,40 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
       );
     }
 
-    final crossAxisCount = isTablet ? 2 : 3;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount = 3;
+        double childAspectRatio = 0.86;
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(20),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: isTablet ? 0.78 : 0.86,
-      ),
-      itemCount: orders.length,
-      itemBuilder: (ctx, idx) => _buildPendingOrderCard(context, posProvider, orders[idx], isMobile),
+        if (constraints.maxWidth > 1700) {
+          crossAxisCount = 6;
+          childAspectRatio = 0.90;
+        } else if (constraints.maxWidth > 1400) {
+          crossAxisCount = 5;
+          childAspectRatio = 0.88;
+        } else if (constraints.maxWidth > 1100) {
+          crossAxisCount = 4;
+          childAspectRatio = 0.86;
+        } else if (constraints.maxWidth > 800) {
+          crossAxisCount = 3;
+          childAspectRatio = 0.82;
+        } else {
+          crossAxisCount = 2;
+          childAspectRatio = 0.78;
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(20),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: orders.length,
+          itemBuilder: (ctx, idx) => _buildPendingOrderCard(context, posProvider, orders[idx], isMobile),
+        );
+      },
     );
   }
 
@@ -739,6 +761,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
   }
 
   void _confirmDecline(BuildContext context, PosProvider provider, Order order) {
+    bool isDeclining = false;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -766,19 +789,35 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.rejectCustomerOrder(order.id, restock: true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Order ${order.orderNumber} was declined & restocked.'),
-                  backgroundColor: CelestialTheme.bgCard,
-                ),
+          StatefulBuilder(
+            builder: (ctx, setDeclineState) {
+              return ElevatedButton(
+                onPressed: isDeclining
+                    ? null
+                    : () async {
+                        setDeclineState(() => isDeclining = true);
+                        await Future.delayed(const Duration(milliseconds: 250));
+                        provider.rejectCustomerOrder(order.id, restock: true);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Order ${order.orderNumber} was declined & restocked.'),
+                              backgroundColor: CelestialTheme.bgCard,
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: CelestialTheme.roseAlert),
+                child: isDeclining
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Decline & Restock', style: TextStyle(color: Colors.white)),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: CelestialTheme.roseAlert),
-            child: const Text('Decline & Restock', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

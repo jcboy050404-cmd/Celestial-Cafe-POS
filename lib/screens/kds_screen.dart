@@ -54,6 +54,7 @@ class _KdsScreenState extends State<KdsScreen> {
                         separatorBuilder: (ctx, idx) => const SizedBox(height: 14),
                         itemBuilder: (context, index) {
                           return OrderCardKds(
+                            key: ValueKey(filteredOrders[index].id),
                             order: filteredOrders[index],
                             isMobileList: true,
                           );
@@ -64,10 +65,16 @@ class _KdsScreenState extends State<KdsScreen> {
                           int crossAxisCount = 3;
                           double childAspectRatio = 0.75;
 
-                          if (constraints.maxWidth > 1300) {
+                          if (constraints.maxWidth > 1700) {
+                            crossAxisCount = 6;
+                            childAspectRatio = 0.82;
+                          } else if (constraints.maxWidth > 1400) {
+                            crossAxisCount = 5;
+                            childAspectRatio = 0.80;
+                          } else if (constraints.maxWidth > 1100) {
                             crossAxisCount = 4;
                             childAspectRatio = 0.78;
-                          } else if (constraints.maxWidth > 900) {
+                          } else if (constraints.maxWidth > 800) {
                             crossAxisCount = 3;
                             childAspectRatio = 0.75;
                           } else {
@@ -86,6 +93,7 @@ class _KdsScreenState extends State<KdsScreen> {
                             itemCount: filteredOrders.length,
                             itemBuilder: (context, index) {
                               return OrderCardKds(
+                                key: ValueKey(filteredOrders[index].id),
                                 order: filteredOrders[index],
                                 isMobileList: false,
                               );
@@ -385,87 +393,112 @@ class _KdsScreenState extends State<KdsScreen> {
   Widget _buildStatusTab(String title, OrderStatus? status, int count, Color color) {
     final isSelected = _statusFilter == status;
 
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(title),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: isSelected ? color : CelestialTheme.bgSurface,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _statusFilter = status),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.22) : CelestialTheme.bgCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? color : Colors.white.withValues(alpha: 0.1),
+              width: isSelected ? 1.4 : 1,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected ? CelestialTheme.textLight : CelestialTheme.textMuted,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? color : CelestialTheme.bgSurface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      selected: isSelected,
-      selectedColor: color.withValues(alpha: 0.25),
-      backgroundColor: CelestialTheme.bgCard,
-      side: BorderSide(
-        color: isSelected ? color : Colors.white.withValues(alpha: 0.08),
-      ),
-      labelStyle: TextStyle(
-        fontSize: 11,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        color: isSelected ? CelestialTheme.textLight : CelestialTheme.textMuted,
-      ),
-      onSelected: (_) => setState(() => _statusFilter = status),
     );
   }
 
   Widget _buildStationTab(String title, String station, int count, Color color) {
     final isSelected = _stationFilter == station;
 
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(title),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: isSelected ? color : CelestialTheme.bgSurface,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : CelestialTheme.textLight,
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _stationFilter = isSelected ? 'all' : station;
+          });
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.22) : CelestialTheme.bgCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? color : color.withValues(alpha: 0.35),
+              width: isSelected ? 1.4 : 1,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected ? color : CelestialTheme.textLight,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? color : CelestialTheme.bgSurface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : CelestialTheme.textLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      selected: isSelected,
-      selectedColor: color.withValues(alpha: 0.25),
-      backgroundColor: CelestialTheme.bgCard,
-      side: BorderSide(
-        color: isSelected ? color : color.withValues(alpha: 0.35),
-        width: isSelected ? 1.4 : 1,
-      ),
-      labelStyle: TextStyle(
-        fontSize: 11,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-        color: isSelected ? color : CelestialTheme.textLight,
-      ),
-      onSelected: (selected) {
-        setState(() {
-          _stationFilter = selected ? station : 'all';
-        });
-      },
     );
   }
 

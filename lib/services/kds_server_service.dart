@@ -219,7 +219,21 @@ class KdsServerService {
     _isRunning = false;
   }
 
-  void broadcastOrders() {
+  Timer? _broadcastDebounceTimer;
+
+  void broadcastOrders({bool immediate = false}) {
+    if (immediate) {
+      _broadcastDebounceTimer?.cancel();
+      _doBroadcastOrders();
+    } else {
+      _broadcastDebounceTimer?.cancel();
+      _broadcastDebounceTimer = Timer(const Duration(milliseconds: 350), () {
+        _doBroadcastOrders();
+      });
+    }
+  }
+
+  void _doBroadcastOrders() {
     if (getActiveOrdersJson == null) return;
     try {
       final ordersList = getActiveOrdersJson!();
@@ -247,6 +261,37 @@ class KdsServerService {
       }
     } catch (e) {
       if (kDebugMode) print('Error broadcasting KDS orders: $e');
+    }
+  }
+
+  void broadcastItemPrepared(String orderId, int itemIndex, bool isPrepared) {
+    try {
+      final payload = jsonEncode({
+        'type': 'ITEM_PREPARED',
+        'orderId': orderId,
+        'itemIndex': itemIndex,
+        'isPrepared': isPrepared,
+      });
+
+      final deadClients = <WebSocket>[];
+      for (var client in List<WebSocket>.from(_baristaClients)) {
+        if (client.readyState == WebSocket.open) {
+          try {
+            client.add(payload);
+          } catch (_) {
+            deadClients.add(client);
+          }
+        } else {
+          deadClients.add(client);
+        }
+      }
+      for (var dead in deadClients) {
+        _baristaClients.remove(dead);
+        _clients.remove(dead);
+        try { dead.close(); } catch (_) {}
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error broadcasting item prepared event: $e');
     }
   }
 
@@ -419,18 +464,23 @@ class KdsServerService {
       for (var o in activeList) {
         final s = (o['status'] as String? ?? '').toLowerCase();
         final num = o['orderNumber'] as String? ?? '';
-        final table = o['tableNumber'] as String? ?? '';
-        final tableLabel = table.isNotEmpty ? ' · T$table' : '';
-        final bool hasKitchen = o['hasKitchenDishes'] == true || (o['items'] as List?)?.any((item) {
-          final cat = (item['category'] as String? ?? '').toLowerCase();
-          final iname = (item['name'] as String? ?? '').toLowerCase();
-          return item['isKitchen'] == true || cat.contains('street') || cat.contains('pasta') || cat.contains('sandwich') ||
-              iname.contains('buffalo') || iname.contains('wing') || iname.contains('fries') ||
-              iname.contains('stick') || iname.contains('lumpia') || iname.contains('pasta') ||
-              iname.contains('carbonara') || iname.contains('sandwich');
-        }) == true;
-        final stationTag = hasKitchen ? ' · KITCHEN' : '';
-        final chip = num.isNotEmpty ? '$num$tableLabel$stationTag' : '';
+        final rawTable = (o['tableNumber'] as String? ?? '').trim();
+        String displayTable = '';
+        if (rawTable.isNotEmpty) {
+          if (rawTable.toLowerCase() == 'takeout' || rawTable.toLowerCase() == 'takeaway') {
+            displayTable = 'Takeout';
+          } else if (rawTable.toLowerCase().startsWith('ttable')) {
+            displayTable = 'Table ${rawTable.substring(6).trim()}';
+          } else if (rawTable.toLowerCase().startsWith('table')) {
+            displayTable = rawTable;
+          } else if (rawTable.toLowerCase().startsWith('t') && rawTable.length > 1 && int.tryParse(rawTable.substring(1)) != null) {
+            displayTable = 'Table ${rawTable.substring(1).trim()}';
+          } else {
+            displayTable = 'Table $rawTable';
+          }
+        }
+        final tableLabel = displayTable.isNotEmpty ? ' · $displayTable' : '';
+        final chip = num.isNotEmpty ? '$num$tableLabel' : '';
         if (chip.isNotEmpty) {
           if (s == 'preparing' || s == 'brewing' || s == 'kitchen') {
             currentlyPreparing.add(chip);
@@ -567,10 +617,10 @@ class KdsServerService {
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
           ..write(jsonEncode({
-            'success': true,
-            'status': 'pending',
+            'success': cleanId.isEmpty,
+            'status': cleanId.isEmpty ? 'idle' : 'not_found',
             'isPaid': false,
-            'error': 'Order lookup in progress',
+            'error': cleanId.isNotEmpty ? 'Order not found in cafe records' : null,
             'currentlyPreparing': currentlyPreparing,
             'currentlyInQueue': currentlyInQueue,
             'currentlyReady': currentlyReady,
@@ -861,8 +911,6 @@ class KdsServerService {
         onOrderStatusUpdate?.call(orderId, status);
       }
 
-      await Future.delayed(const Duration(milliseconds: 40));
-
       final ordersList = getActiveOrdersJson != null ? getActiveOrdersJson!() : [];
       request.response
         ..headers.contentType = ContentType.json
@@ -901,8 +949,6 @@ class KdsServerService {
       if (orderId != null && itemIndex != null) {
         onOrderItemPrepared?.call(orderId, itemIndex, isPrepared);
       }
-
-      await Future.delayed(const Duration(milliseconds: 30));
 
       final ordersList = getActiveOrdersJson != null ? getActiveOrdersJson!() : [];
       request.response
@@ -1043,13 +1089,16 @@ class KdsServerService {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Celestial Cafe — Barista KDS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #0B080D;
-      --bg-surface: #17131B;
-      --bg-card: #1E1720;
+      --bg-dark: #0A070D;
+      --bg-surface: #140E18;
+      --bg-card: #1A1320;
       --gold-primary: #D4AF37;
-      --gold-light: #F3D079;
+      --gold-light: #F5D780;
       --brown-warm: #432C1D;
       --emerald-ready: #2EC4B6;
       --amber-brewing: #FF9F1C;
@@ -1057,14 +1106,14 @@ class KdsServerService {
       --blue-info: #4CC9F0;
       --text-light: #F7EFE8;
       --text-muted: #AFA399;
-      --text-subtle: #6E645D;
+      --text-subtle: #736962;
       --kds-zoom: 1;
     }
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       -webkit-tap-highlight-color: transparent;
     }
     body {
@@ -1253,37 +1302,58 @@ class KdsServerService {
     }
 
     .ticket {
-      background: var(--bg-card);
-      border-radius: 18px;
-      border: 1.2px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(170deg, #1C1522 0%, #120D17 100%);
+      border-radius: 20px;
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-      transition: border-color 0.2s ease, transform 0.15s ease;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.4, 1);
     }
-    .ticket.pending { border-color: rgba(212, 175, 55, 0.35); }
-    .ticket.preparing { border-color: rgba(255, 159, 28, 0.6); box-shadow: 0 8px 28px rgba(255, 159, 28, 0.15); }
-    .ticket.ready { border-color: rgba(46, 196, 182, 0.6); box-shadow: 0 8px 28px rgba(46, 196, 182, 0.15); }
+    .ticket:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.7);
+    }
+    .ticket.pending {
+      border-color: rgba(212, 175, 55, 0.38);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(212, 175, 55, 0.08);
+    }
+    .ticket.preparing {
+      border-color: rgba(255, 159, 28, 0.65);
+      box-shadow: 0 10px 32px rgba(255, 159, 28, 0.2), 0 0 18px rgba(255, 159, 28, 0.1);
+    }
+    .ticket.ready {
+      border-color: rgba(46, 196, 182, 0.65);
+      box-shadow: 0 10px 32px rgba(46, 196, 182, 0.2), 0 0 18px rgba(46, 196, 182, 0.1);
+    }
 
     .ticket-header {
-      padding: 14px 16px 10px 16px;
-      background: var(--bg-surface);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 14px 16px 11px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .ticket-title-group { display: flex; align-items: center; gap: 8px; }
-    .ticket-number { font-size: 19px; font-weight: 800; color: var(--gold-light); letter-spacing: 0.5px; }
-    .order-type-badge {
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(67, 44, 29, 0.4);
+    .ticket-title-group { display: flex; align-items: center; gap: 9px; }
+    .ticket-number {
+      font-family: 'Cinzel', 'Outfit', serif;
+      font-size: 20px;
+      font-weight: 900;
       color: var(--gold-light);
-      border: 1px solid rgba(212, 175, 55, 0.25);
+      letter-spacing: 0.8px;
+      text-shadow: 0 2px 8px rgba(212, 175, 55, 0.25);
+    }
+    .order-type-badge {
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      background: rgba(67, 44, 29, 0.45);
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.3);
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -1403,6 +1473,16 @@ class KdsServerService {
     .item-row.item-done .item-qty {
       background: rgba(46, 196, 182, 0.35);
       color: #2EC4B6;
+    }
+    .item-row.item-row-locked {
+      cursor: default;
+    }
+    .item-row.item-row-locked:hover {
+      background: transparent;
+    }
+    .item-row.item-row-locked .item-prep-toggle {
+      border-color: rgba(255, 255, 255, 0.12);
+      opacity: 0.55;
     }
 
     .item-prep-toggle {
@@ -1587,22 +1667,43 @@ class KdsServerService {
     }
     .action-btn {
       width: 100%;
-      padding: 12px 8px;
-      border-radius: 10px;
+      padding: 12px 10px;
+      border-radius: 12px;
       border: none;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      transition: transform 0.1s, opacity 0.15s;
+      transition: all 0.16s cubic-bezier(0.2, 0.8, 0.4, 1);
+      letter-spacing: 0.3px;
     }
-    .action-btn:active { opacity: 0.75; transform: scale(0.98); }
-    .btn-brew { background: var(--amber-brewing); color: var(--bg-dark); }
-    .btn-ready { background: var(--emerald-ready); color: var(--bg-dark); }
-    .btn-done { background: #22c55e; color: #ffffff; font-weight: 800; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4); }
+    .action-btn:hover {
+      transform: translateY(-1.5px);
+      filter: brightness(1.08);
+    }
+    .action-btn:active {
+      transform: scale(0.96) translateY(1px);
+      filter: brightness(0.95);
+    }
+    .btn-brew {
+      background: linear-gradient(135deg, #FF9F1C 0%, #D87700 100%);
+      color: #0B080D;
+      box-shadow: 0 4px 16px rgba(255, 159, 28, 0.4);
+    }
+    .btn-ready {
+      background: linear-gradient(135deg, #2EC4B6 0%, #178B81 100%);
+      color: #0B080D;
+      box-shadow: 0 4px 16px rgba(46, 196, 182, 0.4);
+    }
+    .btn-done {
+      background: linear-gradient(135deg, #22C55E 0%, #15803D 100%);
+      color: #FFFFFF;
+      font-weight: 800;
+      box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45);
+    }
 
     .btn-spinner {
       display: inline-block;
@@ -1715,123 +1816,189 @@ class KdsServerService {
       left: 0;
       right: 0;
       bottom: 0;
-      background: radial-gradient(circle at 50% 30%, #1d1624 0%, #0b080d 100%);
+      background: radial-gradient(circle at 50% 32%, rgba(38, 26, 48, 0.94) 0%, rgba(9, 6, 12, 0.98) 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       z-index: 99999;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
+      animation: pinFadeIn 0.25s ease-out;
+    }
+    @keyframes pinFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     .pin-card {
-      background: var(--bg-surface);
-      border: 1.5px solid rgba(212, 175, 55, 0.4);
-      border-radius: 20px;
-      padding: 28px 24px;
-      max-width: 360px;
+      position: relative;
+      background: linear-gradient(170deg, rgba(30, 22, 36, 0.96) 0%, rgba(14, 10, 18, 0.98) 100%);
+      border: 1.5px solid rgba(212, 175, 55, 0.45);
+      border-radius: 28px;
+      padding: 32px 28px 26px 28px;
+      max-width: 375px;
       width: 100%;
       text-align: center;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(212, 175, 55, 0.15);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(212, 175, 55, 0.18);
+      overflow: hidden;
+      animation: pinPopCard 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .pin-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 15%;
+      right: 15%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
+      box-shadow: 0 0 12px var(--gold-primary);
+    }
+    @keyframes pinPopCard {
+      0% { opacity: 0; transform: scale(0.9) translateY(16px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
     }
     .pin-logo-box {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       display: flex;
       justify-content: center;
     }
+    .pin-logo-frame {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(67, 44, 29, 0.4) 100%);
+      border: 1.5px solid rgba(212, 175, 55, 0.55);
+      box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .pin-title {
+      font-family: 'Outfit', sans-serif;
       font-weight: 900;
-      font-size: 16px;
-      letter-spacing: 1.5px;
+      font-size: 17px;
+      letter-spacing: 1.8px;
       color: var(--gold-light);
-      margin-bottom: 2px;
+      margin-bottom: 3px;
+      text-shadow: 0 2px 10px rgba(212, 175, 55, 0.3);
     }
     .pin-sub {
-      display: inline-block;
-      background: rgba(255, 159, 28, 0.15);
-      border: 1px solid rgba(255, 159, 28, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 159, 28, 0.16);
+      border: 1px solid rgba(255, 159, 28, 0.45);
       color: var(--amber-brewing);
       font-size: 10px;
       font-weight: 800;
-      letter-spacing: 0.8px;
+      letter-spacing: 1px;
       text-transform: uppercase;
-      padding: 2px 8px;
-      border-radius: 6px;
-      margin: 6px 0;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin: 6px 0 10px 0;
     }
     .pin-desc {
-      font-size: 12px;
+      font-size: 12.5px;
       color: var(--text-muted);
-      margin-bottom: 16px;
-      line-height: 1.4;
+      margin-bottom: 18px;
+      line-height: 1.45;
     }
     .pin-dots-container {
       display: flex;
       justify-content: center;
-      gap: 14px;
+      gap: 16px;
       margin-bottom: 16px;
+      padding: 6px 0;
     }
     .pin-dot {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      border: 2px solid rgba(212, 175, 55, 0.5);
-      background: transparent;
-      transition: all 0.18s ease;
+      border: 2px solid rgba(212, 175, 55, 0.4);
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+      transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .pin-dot.filled {
-      background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%);
-      border-color: var(--gold-light);
-      box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
-      transform: scale(1.15);
+      background: linear-gradient(135deg, #FFF0B3 0%, var(--gold-primary) 50%, #B89025 100%);
+      border-color: #FFF0B3;
+      box-shadow: 0 0 16px rgba(212, 175, 55, 0.9), 0 0 28px rgba(212, 175, 55, 0.4);
+      transform: scale(1.25);
     }
     .pin-dots-container.shake {
-      animation: shakeDots 0.4s ease;
+      animation: shakeDots 0.45s ease;
     }
     @keyframes shakeDots {
       0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-8px); }
-      40%, 80% { transform: translateX(8px); }
+      15%, 45%, 75% { transform: translateX(-9px); }
+      30%, 60%, 90% { transform: translateX(9px); }
     }
     .pin-error-msg {
-      font-size: 11.5px;
+      font-size: 12px;
       color: var(--rose-alert);
-      font-weight: 700;
-      min-height: 18px;
+      font-weight: 800;
+      min-height: 20px;
       margin-bottom: 14px;
+      letter-spacing: 0.3px;
+      text-shadow: 0 0 10px rgba(231, 29, 54, 0.35);
     }
     .pin-keypad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      max-width: 280px;
+      gap: 11px;
+      max-width: 290px;
       margin: 0 auto;
     }
     .pin-key {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
-      height: 52px;
+      background: linear-gradient(165deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1.2px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      height: 54px;
       color: var(--text-light);
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 21px;
+      font-weight: 800;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.15s ease;
+      transition: all 0.16s cubic-bezier(0.2, 0.8, 0.4, 1);
       user-select: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     }
     .pin-key:hover {
-      background: rgba(212, 175, 55, 0.15);
-      border-color: rgba(212, 175, 55, 0.4);
+      background: linear-gradient(165deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.08) 100%);
+      border-color: rgba(212, 175, 55, 0.6);
       color: var(--gold-light);
+      box-shadow: 0 6px 18px rgba(212, 175, 55, 0.25);
+      transform: translateY(-1.5px);
     }
     .pin-key:active {
-      transform: scale(0.92);
-      background: rgba(212, 175, 55, 0.25);
+      transform: scale(0.92) translateY(1px);
+      background: rgba(212, 175, 55, 0.35);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     }
-    .pin-key-action {
+    .pin-key-clear {
       font-size: 15px;
-      color: var(--text-muted);
+      font-weight: 800;
+      color: var(--amber-brewing);
+      background: rgba(255, 159, 28, 0.1);
+      border-color: rgba(255, 159, 28, 0.3);
+    }
+    .pin-key-clear:hover {
+      background: rgba(255, 159, 28, 0.25);
+      border-color: rgba(255, 159, 28, 0.5);
+      color: #FFB74D;
+    }
+    .pin-key-backspace {
+      font-size: 17px;
+      color: #FF6B6B;
+      background: rgba(231, 29, 54, 0.1);
+      border-color: rgba(231, 29, 54, 0.3);
+    }
+    .pin-key-backspace:hover {
+      background: rgba(231, 29, 54, 0.25);
+      border-color: rgba(231, 29, 54, 0.5);
+      color: #FF8787;
     }
 
     .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); }
@@ -1873,11 +2040,16 @@ class KdsServerService {
   <div id="pinModal" class="pin-modal-overlay" style="display: none;">
     <div class="pin-card">
       <div class="pin-logo-box">
-        <img src="/logo.png" style="height: 46px; width: 46px; border-radius: 10px; object-fit: cover; border: 1.5px solid rgba(212, 175, 55, 0.5); box-shadow: 0 4px 14px rgba(212,175,55,0.3);" alt="Logo" onerror="this.style.display='none'">
+        <div class="pin-logo-frame">
+          <img src="/logo.png" style="height: 42px; width: 42px; border-radius: 12px; object-fit: cover;" alt="Logo" onerror="this.style.display='none'">
+        </div>
       </div>
-      <div class="pin-title">BARISTA & KITCHEN ACCESS</div>
-      <div class="pin-sub">Security PIN Required</div>
-      <div class="pin-desc">Enter 4-digit security PIN to unlock Kitchen Display System.</div>
+      <div class="pin-title">BARISTA & KITCHEN CONSOLE</div>
+      <div class="pin-sub">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        <span>Security PIN Required</span>
+      </div>
+      <div class="pin-desc">Enter 4-digit security PIN to unlock the live kitchen display.</div>
 
       <div class="pin-dots-container" id="pinDots">
         <div class="pin-dot"></div>
@@ -1898,13 +2070,14 @@ class KdsServerService {
         <button type="button" class="pin-key" onclick="handlePinKey('7')">7</button>
         <button type="button" class="pin-key" onclick="handlePinKey('8')">8</button>
         <button type="button" class="pin-key" onclick="handlePinKey('9')">9</button>
-        <button type="button" class="pin-key pin-key-action" onclick="handlePinClear()">C</button>
+        <button type="button" class="pin-key pin-key-clear" onclick="handlePinClear()">C</button>
         <button type="button" class="pin-key" onclick="handlePinKey('0')">0</button>
-        <button type="button" class="pin-key pin-key-action" onclick="handlePinBackspace()">⌫</button>
+        <button type="button" class="pin-key pin-key-backspace" onclick="handlePinBackspace()">⌫</button>
       </div>
 
-      <div style="margin-top: 16px; font-size: 11px; color: var(--text-subtle); text-align: center;">
-        Security protected. Check POS Hotspot Dialog for Barista PIN.
+      <div style="margin-top: 18px; font-size: 11px; color: var(--text-subtle); display: flex; align-items: center; justify-content: center; gap: 5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        <span>Security protected • Check POS Hotspot Dialog for PIN</span>
       </div>
     </div>
   </div>
@@ -1993,6 +2166,11 @@ class KdsServerService {
     let ws;
     let audioContext;
     let activeFilter = 'all';
+    let preparedItemKeys = new Set();
+    try {
+      const savedPrep = JSON.parse(sessionStorage.getItem('celestial_kds_prepared_items') || '[]');
+      if (Array.isArray(savedPrep)) preparedItemKeys = new Set(savedPrep);
+    } catch(e) {}
 
     // Instant local cache restore (0.00s instant ticket render on open/refresh)
     try {
@@ -2016,8 +2194,72 @@ class KdsServerService {
       });
     }
 
+    function playAudioClick(freq, duration) {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const f = freq || 700;
+        const d = duration || 0.035;
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f, audioContext.currentTime);
+        gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + d);
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + d);
+        if (navigator.vibrate) navigator.vibrate(12);
+      } catch(e) {}
+    }
+
+    function playPinSuccess() {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const chord = [523.25, 659.25, 783.99, 1046.50];
+        chord.forEach((freq, idx) => {
+          setTimeout(() => {
+            try {
+              const osc = audioContext.createOscillator();
+              const gain = audioContext.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+              gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.16);
+              osc.connect(gain);
+              gain.connect(audioContext.destination);
+              osc.start();
+              osc.stop(audioContext.currentTime + 0.16);
+            } catch(e) {}
+          }, idx * 55);
+        });
+        if (navigator.vibrate) navigator.vibrate([30, 40, 50]);
+      } catch(e) {}
+    }
+
+    function playPinFailure() {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, audioContext.currentTime);
+        gain.gain.setValueAtTime(0.18, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.22);
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + 0.22);
+        if (navigator.vibrate) navigator.vibrate([60, 50, 60]);
+      } catch(e) {}
+    }
+
     function handlePinKey(digit) {
       if (enteredDigits.length >= 4) return;
+      playAudioClick(650 + (parseInt(digit, 10) * 35), 0.035);
       enteredDigits += digit;
       updatePinDots();
       document.getElementById('pinError').innerText = '';
@@ -2027,6 +2269,7 @@ class KdsServerService {
     }
 
     function handlePinClear() {
+      playAudioClick(400, 0.04);
       enteredDigits = '';
       updatePinDots();
       document.getElementById('pinError').innerText = '';
@@ -2034,6 +2277,7 @@ class KdsServerService {
 
     function handlePinBackspace() {
       if (enteredDigits.length > 0) {
+        playAudioClick(460, 0.035);
         enteredDigits = enteredDigits.slice(0, -1);
         updatePinDots();
         document.getElementById('pinError').innerText = '';
@@ -2072,6 +2316,7 @@ class KdsServerService {
     }
 
     function showPinFailure() {
+      playPinFailure();
       const dotsEl = document.getElementById('pinDots');
       dotsEl.classList.add('shake');
       const errEl = document.getElementById('pinError');
@@ -2079,17 +2324,31 @@ class KdsServerService {
       setTimeout(() => {
         dotsEl.classList.remove('shake');
         handlePinClear();
-      }, 600);
+      }, 550);
     }
 
     function onPinSuccess(validPin) {
+      playPinSuccess();
       authPin = validPin;
       isAuthorized = true;
       try {
         sessionStorage.setItem('celestial_barista_pin', validPin);
         localStorage.setItem('celestial_barista_pin', validPin);
       } catch(e) {}
-      document.getElementById('pinModal').style.display = 'none';
+      const card = document.querySelector('.pin-card');
+      if (card) {
+        card.style.transform = 'scale(1.02)';
+        card.style.borderColor = 'var(--emerald-ready)';
+        card.style.boxShadow = '0 0 50px rgba(46,196,182,0.4)';
+      }
+      setTimeout(() => {
+        document.getElementById('pinModal').style.display = 'none';
+        if (card) {
+          card.style.transform = '';
+          card.style.borderColor = '';
+          card.style.boxShadow = '';
+        }
+      }, 280);
       connectWs();
       fetch('/api/orders?pin=' + encodeURIComponent(validPin))
         .then(res => res.json())
@@ -2128,18 +2387,28 @@ class KdsServerService {
     function playChime() {
       try {
         if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') audioContext.resume();
-        const osc = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-        osc.type = 'triangle';
-        osc.connect(gain);
-        gain.connect(audioContext.destination);
-        osc.frequency.setValueAtTime(659.25, audioContext.currentTime);
-        osc.frequency.setValueAtTime(1046.5, audioContext.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.6, audioContext.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.55);
-        osc.start();
-        osc.stop(audioContext.currentTime + 0.55);
+        const doPlay = () => {
+          if (!audioContext) return;
+          try {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = 'triangle';
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(659.25, audioContext.currentTime);
+            osc.frequency.setValueAtTime(1046.5, audioContext.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.65, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.55);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.55);
+          } catch(_) {}
+        };
+
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().then(doPlay).catch(() => {});
+        } else {
+          doPlay();
+        }
 
         if (navigator.vibrate) {
           navigator.vibrate([400, 150, 400]);
@@ -2173,6 +2442,12 @@ class KdsServerService {
             if (data.type === 'SYNC_ORDERS') {
               currentOrders = data.orders || [];
               renderOrders(currentOrders);
+            } else if (data.type === 'ITEM_PREPARED') {
+              const order = (currentOrders || []).find(o => o.id === data.orderId);
+              if (order && order.items && order.items[data.itemIndex]) {
+                order.items[data.itemIndex].isPrepared = data.isPrepared;
+                renderOrders(currentOrders);
+              }
             }
           } catch (e) { console.error(e); }
         };
@@ -2346,11 +2621,16 @@ class KdsServerService {
           const prepBadgeHtml = isDone ? '<span class="item-prepared-badge">✓ PREPARED</span>' : '';
           const kitchenTag = isKitchen ? '<div class="kitchen-tag">KITCHEN COOK DISH</div>' : '';
 
+          const isPreparing = order.status === 'preparing';
+          const rowTitle = isPreparing ? 'Click to mark as prepared' : '⚠️ Tap "Start Brewing / Prep" first before checking off items';
+          const rowLockedClass = isPreparing ? '' : 'item-row-locked';
+          const toggleContent = isDone ? '✓' : '';
+
           return `
-            <div class="item-row \${isKitchen ? 'kitchen-item-row' : ''} \${doneClass}" onclick="toggleItemPrepared('\${order.id}', \${itemIdx}, event)" title="Click to mark as prepared">
+            <div class="item-row \${isKitchen ? 'kitchen-item-row' : ''} \${doneClass} \${rowLockedClass}" onclick="toggleItemPrepared('\${order.id}', \${itemIdx}, event)" title="\${rowTitle}">
               \${kitchenTag}
               <div class="item-title-row">
-                <span class="item-prep-toggle">\${isDone ? '✓' : ''}</span>
+                <span class="item-prep-toggle">\${toggleContent}</span>
                 <span class="item-qty \${isKitchen ? 'kitchen-qty' : ''}">\${item.quantity}x</span>
                 <span class="item-name \${isKitchen ? 'kitchen-name' : ''}">\${itemName}</span>
                 \${sizeHtml}
@@ -2419,6 +2699,25 @@ class KdsServerService {
       }).join('');
     }
 
+    function showKdsNotification(msg, isWarning) {
+      let toast = document.getElementById('kdsToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'kdsToast';
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#18131E;border:1.5px solid #FF9F1C;color:#FFF;padding:12px 22px;border-radius:12px;font-size:13px;font-weight:700;z-index:99999;box-shadow:0 8px 32px rgba(0,0,0,0.7);transition:opacity 0.25s,transform 0.25s;pointer-events:none;display:flex;align-items:center;gap:8px;';
+        document.body.appendChild(toast);
+      }
+      toast.innerText = msg;
+      toast.style.borderColor = isWarning ? '#FF9F1C' : '#2EC4B6';
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(8px)';
+      }, 2600);
+    }
+
     function toggleItemPrepared(orderId, itemIdx, e) {
       if (e) {
         e.stopPropagation();
@@ -2426,6 +2725,11 @@ class KdsServerService {
       }
       const order = (currentOrders || []).find(o => o.id === orderId);
       if (!order || !order.items || !order.items[itemIdx]) return;
+
+      if (order.status !== 'preparing') {
+        showKdsNotification('⚠️ Please tap "Start Brewing / Prep" first before checking off items', true);
+        return;
+      }
 
       const targetItem = order.items[itemIdx];
       const newPrepared = !(targetItem.isPrepared === true);
@@ -2449,30 +2753,30 @@ class KdsServerService {
             pin: authPin
           }));
         } catch(e) {}
-      }
-
-      // 3. HTTP Fallback sync
-      fetch('/api/orders/item-prep', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Barista-Pin': authPin
-        },
-        body: JSON.stringify({
-          orderId: orderId,
-          itemIndex: itemIdx,
-          isPrepared: newPrepared,
-          pin: authPin
+      } else {
+        // 3. HTTP Fallback sync only when WebSocket is not connected
+        fetch('/api/orders/item-prep', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Barista-Pin': authPin
+          },
+          body: JSON.stringify({
+            orderId: orderId,
+            itemIndex: itemIdx,
+            isPrepared: newPrepared,
+            pin: authPin
+          })
         })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.orders) {
-          currentOrders = data.orders;
-          renderOrders(currentOrders);
-        }
-      })
-      .catch(() => {});
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.orders) {
+            currentOrders = data.orders;
+            renderOrders(currentOrders);
+          }
+        })
+        .catch(() => {});
+      }
     }
 
     let pendingKdsAction = null;
@@ -2713,36 +3017,34 @@ class KdsServerService {
         btn.innerHTML = '<span class="btn-spinner"></span><span>' + actionLabel + '</span>';
       }
 
-      setTimeout(() => {
-        const idx = currentOrders.findIndex(o => o.id === orderId);
-        if (idx >= 0) {
-          if (newStatus === 'completed' || newStatus === 'cancelled') {
-            currentOrders.splice(idx, 1);
-          } else {
-            currentOrders[idx].status = newStatus;
-          }
-          if (newStatus === 'completed' || newStatus === 'cancelled' || newStatus === 'ready') {
-            for (const k of Array.from(preparedItemKeys)) {
-              if (k.startsWith(orderId + '_')) preparedItemKeys.delete(k);
-            }
-            try {
-              sessionStorage.setItem('celestial_kds_prepared_items', JSON.stringify([...preparedItemKeys]));
-            } catch(e) {}
-          }
-          renderOrders(currentOrders);
+      const idx = currentOrders.findIndex(o => o.id === orderId);
+      if (idx >= 0) {
+        if (newStatus === 'completed' || newStatus === 'cancelled') {
+          currentOrders.splice(idx, 1);
+        } else {
+          currentOrders[idx].status = newStatus;
         }
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
+        if (newStatus === 'completed' || newStatus === 'cancelled' || newStatus === 'ready') {
+          for (const k of Array.from(preparedItemKeys)) {
+            if (k.startsWith(orderId + '_')) preparedItemKeys.delete(k);
+          }
           try {
-            ws.send(JSON.stringify({
-              action: 'update_status',
-              orderId: orderId,
-              status: newStatus,
-              pin: authPin
-            }));
-          } catch (e) {}
+            sessionStorage.setItem('celestial_kds_prepared_items', JSON.stringify([...preparedItemKeys]));
+          } catch(e) {}
         }
+        renderOrders(currentOrders);
+      }
 
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            action: 'update_status',
+            orderId: orderId,
+            status: newStatus,
+            pin: authPin
+          }));
+        } catch (e) {}
+      } else {
         fetch('/api/orders/update-status', {
           method: 'POST',
           headers: {
@@ -2760,7 +3062,7 @@ class KdsServerService {
         .catch(err => {
           console.warn('HTTP status sync fallback error:', err);
         });
-      }, 400);
+      }
     }
 
     const kdsConfirmBtn = document.getElementById('btnKdsConfirmAction');
@@ -2791,7 +3093,7 @@ class KdsServerService {
         setTimeout(() => {
           closeKdsConfirmModal();
           if (typeof fn === 'function') fn();
-        }, 320);
+        }, 100);
       };
     }
 
@@ -2836,12 +3138,12 @@ class KdsServerService {
       setKdsZoom(currentKdsZoom + delta);
     }
 
-    // Live automatic sync fallback every 2.5 seconds
+    // Live automatic sync fallback: only poll if WebSocket is not open
     setInterval(() => {
-      if (isAuthorized && authPin) {
+      if (isAuthorized && authPin && (!ws || ws.readyState !== WebSocket.OPEN)) {
         fetchOrdersHttp();
       }
-    }, 2500);
+    }, 3500);
 
     // Initialize display zoom on load
     initKdsZoom();
@@ -3346,36 +3648,39 @@ class KdsServerService {
 
     .item-card-bottom {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
       margin-top: 8px;
       padding-top: 8px;
       border-top: 1px dashed rgba(255, 255, 255, 0.08);
-      gap: 4px;
+      gap: 12px;
+    }
+    .item-card-bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
     .item-price {
-      font-size: 14.5px;
-      font-weight: 800;
+      font-size: 15.5px;
+      font-weight: 900;
       color: var(--gold-light);
       letter-spacing: 0.3px;
-      white-space: nowrap;
     }
     .btn-add-pill {
-      background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%);
-      color: #0D0A0F;
+      background: var(--gold-primary);
+      color: #000000;
+      width: 100%;
+      justify-content: center;
       border: none;
       border-radius: 9px;
-      padding: 6px 11px;
+      padding: 10px 14px;
       font-weight: 800;
-      font-size: 11px;
+      font-size: 13.5px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 3px;
-      box-shadow: 0 2px 8px rgba(212, 175, 55, 0.25);
+      gap: 6px;
       transition: all 0.15s ease;
-      white-space: nowrap;
-      flex-shrink: 0;
     }
     .btn-add-pill:active { transform: scale(0.92); }
 
@@ -3723,7 +4028,7 @@ class KdsServerService {
         <div class="brand-sub">Cozy & Classic</div>
       </div>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="display: flex; align-items: center; gap: 8px;">
       <div class="live-dot-pulse" title="Connected to Cafe Hotspot"></div>
       <div id="tablePill" class="table-pill" onclick="showDiningOptionModal()" title="Tap to switch Dine-In or Takeout"><span>🍽️</span> <span>Table 1</span> <span style="font-size:10px;opacity:0.7;">▼</span></div>
     </div>
@@ -3774,7 +4079,7 @@ class KdsServerService {
       </div>
 
       <!-- Wi-Fi Keep Connected Notice Pill -->
-      <div id="wifiStatusPill" style="display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: rgba(46,196,182,0.12); border: 1px solid rgba(46,196,182,0.35); color: var(--emerald); border-radius: 20px; padding: 6px 14px; font-size: 11.5px; font-weight: 700; margin-bottom: 12px;">
+      <div id="wifiStatusPill" style="display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: rgba(46,196,182,0.12); border: 1px solid rgba(46,196,182,0.35); color: var(--emerald); border-radius: 20px; padding: 6px 14px; font-size: 11.5px; font-weight: 700; margin-bottom: 8px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
         <span>Keep Wi-Fi connected to receive live updates & ready chime</span>
       </div>
@@ -4210,7 +4515,7 @@ class KdsServerService {
 
   <!-- Live Kitchen Activity Pop-Up Modal -->
   <div class="modal-overlay" id="kitchenQueueModal" onclick="if(event.target===this) closeModal('kitchenQueueModal')">
-    <div class="modal-content" style="max-width: 480px; margin: 0 auto; border-top: 2px solid var(--amber-brewing);">
+    <div class="modal-content" style="max-width: 480px; margin: 0 auto; border-top: 2px solid var(--amber-brewing); box-shadow: 0 -10px 40px rgba(0,0,0,0.9), 0 0 30px rgba(255,159,28,0.15);">
       <div class="modal-drag-pill"></div>
       
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
@@ -4219,9 +4524,12 @@ class KdsServerService {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--amber-brewing);"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
             <span>Live Kitchen Activity</span>
           </div>
-          <div class="modal-desc" style="margin-bottom: 0; color: var(--text-muted); font-size: 12px; margin-top: 2px;">Real-time preparation queue from the barista bar</div>
+          <div class="modal-desc" style="margin-bottom: 0; color: var(--text-muted); font-size: 12px; margin-top: 2px;">Real-time preparation queue from the barista bar & kitchen</div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+          <button onclick="refreshLiveQueueModal()" title="Refresh Queue" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; width: 30px; height: 30px; font-size: 13px; color: var(--gold-light); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+            <svg id="queueRefreshIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          </button>
           <div style="display: flex; align-items: center; gap: 5px; background: rgba(46,196,182,0.15); border: 1px solid rgba(46,196,182,0.4); border-radius: 12px; padding: 3px 8px; font-size: 10px; font-weight: 700; color: var(--emerald);">
             <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); display: inline-block; animation: pulse 1.5s infinite;"></span>
             <span>Live Sync</span>
@@ -4230,46 +4538,51 @@ class KdsServerService {
         </div>
       </div>
 
+      <!-- Active Tracked Order Highlight in Modal -->
+      <div id="modalActiveOrderBanner" style="display: none;"></div>
+
       <!-- Now Brewing / Preparing Section -->
-      <div style="background: rgba(255,159,28,0.1); border: 1.5px solid rgba(255,159,28,0.35); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="background: rgba(255,159,28,0.08); border: 1.5px solid rgba(255,159,28,0.35); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--amber-brewing); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--amber-brewing); display: inline-block; animation: pulse 1.2s infinite;"></span>
             <span>Now Brewing / Preparing</span>
           </div>
-          <span id="modalNowPrepCount" style="font-size: 11px; font-weight: 700; color: var(--gold-light);">0 orders</span>
+          <span id="modalNowPrepCount" style="font-size: 11px; font-weight: 800; color: var(--gold-light); background: rgba(255,159,28,0.2); border: 1px solid rgba(255,159,28,0.4); border-radius: 10px; padding: 2px 8px;">0 orders</span>
         </div>
-        <div id="modalNowPreparingChips" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 32px;">
+        <div id="modalNowPreparingChips" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 34px;">
           <span style="font-size: 12px; color: var(--text-muted); font-style: italic;">No orders currently on bar</span>
         </div>
       </div>
 
       <!-- Orders in Queue Section -->
-      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
             <span>Orders In Queue</span>
           </div>
-          <span id="modalInQueueCount" style="font-size: 11px; font-weight: 700; color: var(--text-muted);">0 in queue</span>
+          <span id="modalInQueueCount" style="font-size: 11px; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 2px 8px;">0 tickets</span>
         </div>
-        <div id="modalInQueueChips" style="display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 32px;">
+        <div id="modalInQueueChips" style="display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 34px;">
           <span style="font-size: 12px; color: var(--text-muted);">Queue is currently clear</span>
         </div>
       </div>
 
       <!-- Ready for Pickup Section -->
-      <div style="background: rgba(46,196,182,0.08); border: 1px solid rgba(46,196,182,0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="background: rgba(46,196,182,0.08); border: 1.5px solid rgba(46,196,182,0.3); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="font-size: 11.5px; font-weight: 800; color: var(--emerald); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); display: inline-block;"></span>
             <span>Ready For Pickup</span>
           </div>
-          <span id="modalReadyCount" style="font-size: 11px; font-weight: 700; color: var(--emerald);">0 ready</span>
+          <span id="modalReadyCount" style="font-size: 11px; font-weight: 800; color: var(--emerald); background: rgba(46,196,182,0.18); border: 1px solid rgba(46,196,182,0.4); border-radius: 10px; padding: 2px 8px;">0 ready</span>
         </div>
-        <div id="modalReadyChips" style="display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 28px;">
+        <div id="modalReadyChips" style="display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 32px;">
           <span style="font-size: 12px; color: var(--text-muted);">No orders at pickup counter</span>
         </div>
       </div>
 
-      <button onclick="closeModal('kitchenQueueModal')" style="width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: var(--text-light); border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 13.5px; cursor: pointer;">
+      <button onclick="closeModal('kitchenQueueModal')" style="width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: var(--text-light); border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 13.5px; cursor: pointer; transition: all 0.15s;">
         Close Kitchen Queue
       </button>
     </div>
@@ -4474,38 +4787,146 @@ class KdsServerService {
       } catch(e) {}
     }
 
+    let audioUnlocked = false;
+    let fallbackChimeDataUri = null;
+
+    function getFallbackChimeUri() {
+      if (fallbackChimeDataUri) return fallbackChimeDataUri;
+      try {
+        const sampleRate = 8000;
+        const duration = 0.42;
+        const numSamples = Math.floor(sampleRate * duration);
+        const headerLength = 44;
+        const totalLength = headerLength + numSamples;
+        const buffer = new Uint8Array(totalLength);
+        buffer[0] = 0x52; buffer[1] = 0x49; buffer[2] = 0x46; buffer[3] = 0x46; // RIFF
+        const fileSize = totalLength - 8;
+        buffer[4] = fileSize & 0xff; buffer[5] = (fileSize >> 8) & 0xff;
+        buffer[6] = (fileSize >> 16) & 0xff; buffer[7] = (fileSize >> 24) & 0xff;
+        buffer[8] = 0x57; buffer[9] = 0x41; buffer[10] = 0x56; buffer[11] = 0x45; // WAVE
+        buffer[12] = 0x66; buffer[13] = 0x6d; buffer[14] = 0x74; buffer[15] = 0x20; // fmt
+        buffer[16] = 16; buffer[17] = 0; buffer[18] = 0; buffer[19] = 0;
+        buffer[20] = 1; buffer[21] = 0; // PCM
+        buffer[22] = 1; buffer[23] = 0; // Mono
+        buffer[24] = sampleRate & 0xff; buffer[25] = (sampleRate >> 8) & 0xff;
+        buffer[26] = 0; buffer[27] = 0;
+        buffer[28] = sampleRate & 0xff; buffer[29] = (sampleRate >> 8) & 0xff;
+        buffer[30] = 0; buffer[31] = 0;
+        buffer[32] = 1; buffer[33] = 0;
+        buffer[34] = 8; buffer[35] = 0; // 8-bit
+        buffer[36] = 0x64; buffer[37] = 0x61; buffer[38] = 0x74; buffer[39] = 0x61; // data
+        buffer[40] = numSamples & 0xff; buffer[41] = (numSamples >> 8) & 0xff;
+        buffer[42] = 0; buffer[43] = 0;
+        for (let i = 0; i < numSamples; i++) {
+          const t = i / sampleRate;
+          const freq = (t < 0.18) ? 1046.5 : 1318.5;
+          const decay = Math.max(0, 1 - (t / duration));
+          const val = Math.sin(2 * Math.PI * freq * t) * decay * 0.85;
+          buffer[headerLength + i] = Math.floor((val + 1) * 127.5);
+        }
+        let binary = '';
+        for (let i = 0; i < buffer.length; i++) {
+          binary += String.fromCharCode(buffer[i]);
+        }
+        fallbackChimeDataUri = 'data:audio/wav;base64,' + btoa(binary);
+      } catch(e) {}
+      return fallbackChimeDataUri;
+    }
+
     function initAudio() {
       try {
-        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioContext) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) audioContext = new AudioContextClass();
+        }
         if (audioContext && audioContext.state === 'suspended') {
-          audioContext.resume();
+          return audioContext.resume().then(() => {
+            audioUnlocked = true;
+            updateSoundStatusBadge(true);
+          }).catch(() => {});
+        } else if (audioContext && audioContext.state === 'running') {
+          audioUnlocked = true;
+          updateSoundStatusBadge(true);
         }
       } catch(e) {}
+      return Promise.resolve();
     }
-    document.addEventListener('click', initAudio);
-    document.addEventListener('touchstart', initAudio);
+
+    function testOrEnableSound(e) {
+      if (e) e.stopPropagation();
+      _unlockAudioOnGesture();
+      playAlarmSound();
+    }
+
+    function updateSoundStatusBadge() {}
+
+    // Auto-unlock AudioContext on any first interaction (silent probe)
+    let _audioUnlockDone = false;
+    function _unlockAudioOnGesture() {
+      if (_audioUnlockDone) return;
+      _audioUnlockDone = true;
+      try {
+        if (!audioContext) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) audioContext = new AC();
+        }
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+        // Silent HTML5 probe to satisfy autoplay policy
+        const silentUri = getFallbackChimeUri();
+        if (silentUri) {
+          const probe = new Audio(silentUri);
+          probe.volume = 0;
+          probe.play().catch(() => {});
+        }
+        audioUnlocked = true;
+      } catch(e) {}
+    }
+    ['click','touchstart','touchend','keydown','scroll','pointerdown']
+      .forEach(ev => document.addEventListener(ev, _unlockAudioOnGesture, { once: false, passive: true }));
 
     function playAlarmSound() {
       try {
-        initAudio();
-        if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+        const doSynth = () => {
+          if (!audioContext) return;
+          try {
+            const now = audioContext.currentTime;
+            const notes = [880, 1174.66, 1760, 1174.66, 1760, 2093];
+            notes.forEach((freq, i) => {
+              const osc = audioContext.createOscillator();
+              const gain = audioContext.createGain();
+              osc.type = 'sawtooth';
+              osc.connect(gain);
+              gain.connect(audioContext.destination);
+              osc.frequency.setValueAtTime(freq, now + i * 0.12);
+              gain.gain.setValueAtTime(0.85, now + i * 0.12);
+              gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.38);
+              osc.start(now + i * 0.12);
+              osc.stop(now + i * 0.12 + 0.38);
+            });
+          } catch(_) {}
+        };
 
-        if (audioContext) {
-          const now = audioContext.currentTime;
-          const notes = [880, 1174.66, 1760, 1174.66, 1760, 2093];
-          notes.forEach((freq, i) => {
-            const osc = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            osc.type = 'sawtooth';
-            osc.connect(gain);
-            gain.connect(audioContext.destination);
-            osc.frequency.setValueAtTime(freq, now + i * 0.12);
-            gain.gain.setValueAtTime(0.85, now + i * 0.12);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.38);
-            osc.start(now + i * 0.12);
-            osc.stop(now + i * 0.12 + 0.38);
-          });
-        }
+        // Always try to resume suspended context before playing
+        if (!audioContext) initAudio();
+        const doPlay = () => {
+          if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().then(doSynth).catch(() => {});
+          } else if (audioContext) {
+            doSynth();
+          }
+          // HTML5 Audio fallback — plays regardless of AudioContext state
+          try {
+            const uri = getFallbackChimeUri();
+            if (uri) {
+              const a = new Audio(uri);
+              a.volume = 1.0;
+              a.play().catch(() => {});
+            }
+          } catch(_) {}
+        };
+        doPlay();
       } catch (e) {
         console.warn('Audio play err:', e);
       }
@@ -4553,6 +4974,44 @@ class KdsServerService {
       if (!alarmInterval) {
         alarmInterval = setInterval(playAlarmSound, 2200);
       }
+
+      // AI voice announcement in Filipino
+      speakReadyAnnouncement();
+    }
+
+    function speakReadyAnnouncement() {
+      try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel(); // clear any queued speech
+        const utter = new SpeechSynthesisUtterance(
+          'Ang iyong order ay pwede na i-claim! Pakiharapin na ang counter para kunin ang inyong order.'
+        );
+        // Try to find a Filipino / Tagalog voice, fall back to any available
+        const trySpeak = () => {
+          const voices = window.speechSynthesis.getVoices();
+          const fil = voices.find(v =>
+            v.lang.startsWith('fil') || v.lang.startsWith('tl') ||
+            v.name.toLowerCase().includes('filipino') ||
+            v.name.toLowerCase().includes('tagalog')
+          );
+          if (fil) {
+            utter.voice = fil;
+            utter.lang = fil.lang;
+          } else {
+            utter.lang = 'fil-PH'; // hint to browser even without exact voice match
+          }
+          utter.rate  = 0.88;  // slightly slower for clarity
+          utter.pitch = 1.05;
+          utter.volume = 1.0;
+          window.speechSynthesis.speak(utter);
+        };
+        if (window.speechSynthesis.getVoices().length > 0) {
+          trySpeak();
+        } else {
+          // Voices may not be loaded yet on first call
+          window.speechSynthesis.onvoiceschanged = () => { trySpeak(); window.speechSynthesis.onvoiceschanged = null; };
+        }
+      } catch(e) {}
     }
 
     function stopAlarm() {
@@ -4566,6 +5025,7 @@ class KdsServerService {
         alarmInterval = null;
       }
       stopVibrationLoop();
+      try { window.speechSynthesis.cancel(); } catch(e) {}
       document.body.classList.remove('alarm-active');
       const modal = document.getElementById('readyAlarmModal');
       if (modal) modal.style.display = 'none';
@@ -4609,25 +5069,35 @@ class KdsServerService {
                 }
                 updateTrackerUI(data.status);
               }
-            } else if (data.type === 'SYNC_ORDERS' && (activeTrackedOrderId || activeTrackedOrderNum)) {
-              const cleanId = (activeTrackedOrderId || '').toLowerCase();
-              const cleanNum = (activeTrackedOrderNum || '').toLowerCase();
-              const found = (data.orders || []).find(o => {
-                const oid = (o.id || '').toLowerCase();
-                const onum = (o.orderNumber || '').toLowerCase();
-                return oid === cleanId || onum === cleanNum || onum === cleanId;
-              });
-              if (found && found.status) {
-                updateTrackerUI(found.status);
-              } else if (!found && prevTrackStatus && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
-                // Order is no longer in active KDS queue (completed or cancelled by barista) -> check server status
-                checkOrderStatus();
+            } else if (data.type === 'SYNC_ORDERS') {
+              if (activeTrackedOrderId || activeTrackedOrderNum) {
+                const cleanId = (activeTrackedOrderId || '').toLowerCase();
+                const cleanNum = (activeTrackedOrderNum || '').toLowerCase();
+                const found = (data.orders || []).find(o => {
+                  const oid = (o.id || '').toLowerCase();
+                  const onum = (o.orderNumber || '').toLowerCase();
+                  return oid === cleanId || onum === cleanNum || onum === cleanId;
+                });
+                if (found && found.status) {
+                  updateTrackerUI(found.status);
+                } else if (!found && prevTrackStatus && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
+                  // Order is no longer in active KDS queue (completed or cancelled by barista) -> check server status
+                  checkOrderStatus();
+                }
               }
               // Also update live queue from the broadcast order list
               const orders = data.orders || [];
-              const nowPreparing = orders.filter(o => ['preparing','brewing','kitchen'].includes((o.status||'').toLowerCase())).map(o => o.orderNumber || '');
-              const inQueue = orders.filter(o => ['confirmed','inqueue','queue'].includes((o.status||'').toLowerCase())).map(o => o.orderNumber || '');
-              const nowReady = orders.filter(o => (o.status||'').toLowerCase() === 'ready').map(o => o.orderNumber || '');
+              const formatChip = (o) => {
+                if (!o) return '';
+                const num = o.orderNumber || '';
+                let tbl = (o.tableNumber || '').trim().replace(/^T+able/i, 'Table');
+                const isTakeout = o.orderType === 'takeaway' || o.orderType === 'delivery' || tbl.toLowerCase().includes('take');
+                const tablePart = isTakeout ? ' · Takeout' : (tbl ? (tbl.toLowerCase().startsWith('table') ? ' · ' + tbl : ' · Table ' + tbl) : '');
+                return `\${num}\${tablePart}`;
+              };
+              const nowPreparing = orders.filter(o => ['preparing','brewing','kitchen'].includes((o.status||'').toLowerCase())).map(formatChip);
+              const inQueue = orders.filter(o => ['confirmed','inqueue','queue'].includes((o.status||'').toLowerCase())).map(formatChip);
+              const nowReady = orders.filter(o => (o.status||'').toLowerCase() === 'ready').map(formatChip);
               renderLiveQueue(nowPreparing, inQueue, nowReady);
             }
           } catch(err) {}
@@ -4713,17 +5183,18 @@ class KdsServerService {
           <div class="item-card" onclick="openCustomModal('\${item.id}')">
             \${imageCardHtml}
             <div>
-              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">
+              <div class="item-card-name">\${item.name}</div>
+              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
                 <span class="item-cat-badge">\${item.categoryLabel || item.category}</span>
                 \${kitchenTag}
               </div>
-              <div class="item-card-name">\${item.name}</div>
-              <div class="item-card-desc">\${item.description || ''}</div>
             </div>
             <div class="item-card-bottom">
-              <span class="item-price">₱\${Math.round(item.price)}</span>
+              <div class="item-card-bottom-row">
+                <span class="item-price">₱\${Math.round(item.price)}</span>
+              </div>
               <button class="btn-add-pill" onclick="event.stopPropagation(); openCustomModal('\${item.id}')">
-                + Add
+                Add to Tray
               </button>
             </div>
           </div>
@@ -4827,22 +5298,30 @@ class KdsServerService {
     }
 
     function confirmAddToCart() {
-      const notes = document.getElementById('modalItemNotes').value.trim();
-      const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
+      const btn = document.getElementById('btnAddItemToCart');
+      if (btn) {
+        btn.innerHTML = '<span class="btn-spinner"></span> Adding to Tray...';
+        btn.disabled = true;
+      }
+      setTimeout(() => {
+        const notes = document.getElementById('modalItemNotes').value.trim();
+        const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
 
-      cart.push({
-        id: selectedItem.id,
-        name: selectedItem.name,
-        price: selectedItem.price,
-        extraPrice: extraTotal,
-        unitPrice: selectedItem.price + extraTotal,
-        quantity: modalItemQty,
-        customizations: [...selectedCustomizations],
-        notes: notes
-      });
+        cart.push({
+          id: selectedItem.id,
+          name: selectedItem.name,
+          price: selectedItem.price,
+          extraPrice: extraTotal,
+          unitPrice: selectedItem.price + extraTotal,
+          quantity: modalItemQty,
+          customizations: [...selectedCustomizations],
+          notes: notes
+        });
 
-      closeModal('customModal');
-      updateCartBar();
+        if (btn) btn.disabled = false;
+        closeModal('customModal');
+        updateCartBar();
+      }, 180);
     }
 
     function updateCartBar() {
@@ -5160,6 +5639,9 @@ class KdsServerService {
           _store.setItem('activeOrderItems', JSON.stringify(items));
         }
         _store.removeItem('pendingCart');
+        if (orderNumber) _store.removeItem('alarmDismissed_' + orderNumber);
+        if (orderId) _store.removeItem('alarmDismissed_' + orderId);
+        _store.removeItem('alarmDismissed_#1');
       } catch(e) {}
 
       document.getElementById('controlsWrapper').style.display = 'none';
@@ -5217,6 +5699,18 @@ class KdsServerService {
 
           if (!data) return;
 
+          // Order not found in cafe records (cleared, deleted or invalid)
+          if (data.status === 'not_found' || data.success === false || (data.error && data.error.toLowerCase().includes('not found'))) {
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+            showSuccessModal({
+              title: 'Order Notice',
+              message: 'Order not found in cafe records. Please place a new order.',
+              buttonText: 'OK',
+              onDismiss: () => newOrder(true)
+            });
+            return;
+          }
+
           // Order explicitly cancelled by cashier
           if (data.status === 'cancelled') {
             if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
@@ -5254,9 +5748,107 @@ class KdsServerService {
         });
     }
 
+    function refreshLiveQueueModal() {
+      const qIcon = document.getElementById('queueRefreshIcon');
+      if (qIcon) qIcon.style.animation = 'spin 0.6s linear infinite';
+      fetch('/api/order-status')
+        .then(r => r.json())
+        .then(data => {
+          if (data) {
+            renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (qIcon) {
+            setTimeout(() => { qIcon.style.animation = 'none'; }, 600);
+          }
+        });
+    }
+
     function openKitchenQueueModal() {
       const modal = document.getElementById('kitchenQueueModal');
       if (modal) modal.style.display = 'flex';
+      refreshLiveQueueModal();
+    }
+
+    function parseChipItem(raw) {
+      if (typeof raw === 'object' && raw !== null) {
+        const num = raw.orderNumber || '';
+        let tbl = (raw.tableNumber || '').trim();
+        tbl = tbl.replace(/^T+able/i, 'Table');
+        const isTakeout = raw.orderType === 'takeaway' || raw.orderType === 'delivery' || tbl.toLowerCase().includes('take');
+        return {
+          orderNum: num,
+          tableText: isTakeout ? 'Takeout' : (tbl ? (tbl.toLowerCase().startsWith('table') ? tbl : 'Table ' + tbl) : ''),
+          isTakeout: isTakeout
+        };
+      }
+
+      const str = String(raw || '').trim();
+      const parts = str.split(' ·').map(s => s.trim());
+      const num = parts[0] || '';
+      let tbl = '';
+
+      for (let i = 1; i < parts.length; i++) {
+        const p = parts[i];
+        if (p.toUpperCase() !== 'KITCHEN' && p) {
+          tbl = p.replace(/^T+able/i, 'Table');
+        }
+      }
+
+      const isTakeout = tbl.toLowerCase().includes('take');
+      if (tbl && !isTakeout && !tbl.toLowerCase().startsWith('table')) {
+        tbl = 'Table ' + tbl;
+      }
+
+      return {
+        orderNum: num,
+        tableText: tbl,
+        isTakeout: isTakeout
+      };
+    }
+
+    function renderChipHtml(chip, statusType, currentNum) {
+      const cleanChipNum = (chip.orderNum || '').toLowerCase();
+      const cleanMyNum = (currentNum || '').toLowerCase();
+      const isMine = cleanMyNum && (
+        cleanChipNum === cleanMyNum ||
+        cleanChipNum.replace('#','').trim() === cleanMyNum.replace('#','').trim()
+      );
+
+      let badgeColor = 'var(--amber-brewing)';
+      let bgStyle = 'background: rgba(255,159,28,0.12);';
+      let borderStyle = 'border: 1.5px solid rgba(255,159,28,0.4);';
+
+      if (isMine) {
+        badgeColor = 'var(--gold-light)';
+        bgStyle = 'background: rgba(212,175,55,0.18);';
+        borderStyle = 'border: 1.5px solid var(--gold-primary);';
+      } else if (statusType === 'ready') {
+        badgeColor = 'var(--emerald)';
+        bgStyle = 'background: rgba(46,196,182,0.12);';
+        borderStyle = 'border: 1.5px solid rgba(46,196,182,0.4);';
+      } else if (statusType === 'queue') {
+        badgeColor = 'var(--text-light)';
+        bgStyle = 'background: rgba(255,255,255,0.05);';
+        borderStyle = 'border: 1px solid rgba(255,255,255,0.15);';
+      }
+
+      const tableBadge = chip.tableText
+        ? `<span style="font-size: 11px; font-weight: 700; color: \${isMine ? 'var(--gold-light)' : 'var(--text-muted)'}; display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.28); padding: 2px 7px; border-radius: 6px;">
+            \${chip.isTakeout ? '🥡' : '🍽️'} \${chip.tableText}
+           </span>`
+        : '';
+
+      return `
+        <div style="\${bgStyle} \${borderStyle} border-radius: 12px; padding: 7px 12px; display: inline-flex; align-items: center; gap: 7px;">
+          <span style="font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 13.5px; color: \${isMine ? 'var(--gold-light)' : badgeColor}; letter-spacing: 0.3px;">
+            \${chip.orderNum}
+          </span>
+          \${tableBadge}
+        </div>
+      `;
     }
 
     function renderLiveQueue(preparingList, queueList, readyList) {
@@ -5267,65 +5859,73 @@ class KdsServerService {
       const inQueueCount = document.getElementById('modalInQueueCount');
       const readyCount = document.getElementById('modalReadyCount');
       const summaryBadge = document.getElementById('trackerQueueSummaryBadge');
+      const headerQueueText = document.getElementById('headerQueueText');
 
       const currentNum = (activeTrackedOrderNum || _store.getItem('activeOrderNum') || '').trim();
-      const preps = Array.isArray(preparingList) ? preparingList : [];
-      const queue = Array.isArray(queueList) ? queueList : [];
-      const ready = Array.isArray(readyList) ? readyList : [];
+      const preps = (Array.isArray(preparingList) ? preparingList : []).map(parseChipItem).filter(c => c.orderNum);
+      const queue = (Array.isArray(queueList) ? queueList : []).map(parseChipItem).filter(c => c.orderNum);
+      const ready = (Array.isArray(readyList) ? readyList : []).map(parseChipItem).filter(c => c.orderNum);
 
       if (summaryBadge) {
         summaryBadge.innerText = `\${preps.length} brewing • \${queue.length} in queue`;
       }
+      if (headerQueueText) {
+        headerQueueText.innerText = preps.length > 0 ? `\${preps.length} Brewing` : (queue.length > 0 ? `\${queue.length} in Queue` : 'Kitchen Queue');
+      }
       if (nowPrepCount) nowPrepCount.innerText = `\${preps.length} order\${preps.length !== 1 ? 's' : ''}`;
-      if (inQueueCount) inQueueCount.innerText = `\${queue.length} in queue`;
+      if (inQueueCount) inQueueCount.innerText = `\${queue.length} ticket\${queue.length !== 1 ? 's' : ''}`;
       if (readyCount) readyCount.innerText = `\${ready.length} ready`;
+
+      // Customer Active Order Hero Highlight inside Modal
+      const activeBanner = document.getElementById('modalActiveOrderBanner');
+      if (activeBanner) {
+        if (currentNum) {
+          const isPrep = preps.some(p => p.orderNum.toLowerCase() === currentNum.toLowerCase() || p.orderNum.replace('#','').trim() === currentNum.replace('#','').trim());
+          const isQ = queue.some(p => p.orderNum.toLowerCase() === currentNum.toLowerCase() || p.orderNum.replace('#','').trim() === currentNum.replace('#','').trim());
+          const isR = ready.some(p => p.orderNum.toLowerCase() === currentNum.toLowerCase() || p.orderNum.replace('#','').trim() === currentNum.replace('#','').trim());
+          
+          let myStatusLabel = 'Awaiting Cashier Confirmation';
+          let myStatusColor = 'var(--gold-primary)';
+          if (isPrep) { myStatusLabel = 'Now Brewing & Preparing'; myStatusColor = 'var(--amber-brewing)'; }
+          else if (isR) { myStatusLabel = 'Ready for Pickup Counter!'; myStatusColor = 'var(--emerald)'; }
+          else if (isQ) { myStatusLabel = 'In Kitchen Preparation Queue'; myStatusColor = 'var(--gold-light)'; }
+
+          activeBanner.style.display = 'block';
+          activeBanner.innerHTML = `
+            <div style="background: rgba(212,175,55,0.14); border: 1.5px solid var(--gold-primary); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: var(--gold-primary); text-transform: uppercase; letter-spacing: 0.5px;">Your Tracked Ticket</div>
+                <div style="font-size: 15px; font-weight: 900; color: var(--gold-light); font-family: 'Cinzel', serif;">\${currentNum}</div>
+              </div>
+              <span style="font-size: 11px; font-weight: 800; color: \${myStatusColor}; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); padding: 4px 10px; border-radius: 10px;">\${myStatusLabel}</span>
+            </div>
+          `;
+        } else {
+          activeBanner.style.display = 'none';
+        }
+      }
 
       if (nowPrepContainer) {
         if (preps.length === 0) {
-          nowPrepContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">No orders currently on bar</span>';
+          nowPrepContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">☕</span> <span>Barista station is standing by for new items</span></div>';
         } else {
-          nowPrepContainer.innerHTML = preps.map(num => {
-            const chipBase = num.split(' ·')[0].trim();
-            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
-            const isKitchenChip = num.includes('KITCHEN');
-            if (isMine) {
-              return `<span style="background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; padding: 6px 12px; border-radius: 14px; font-weight: 800; font-size: 12.5px; box-shadow: 0 0 14px rgba(212,175,55,0.7); display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 10px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 6px; border-radius: 6px;">Your Order!</span></span>`;
-            }
-            if (isKitchenChip) {
-              return `<span style="background: rgba(255,87,34,0.18); border: 1.2px solid #FF5722; color: #FF7043; padding: 5px 10px; border-radius: 10px; font-weight: 800; font-size: 12px; box-shadow: 0 2px 8px rgba(255,87,34,0.25); display: inline-flex; align-items: center; gap: 4px;">\${num}</span>`;
-            }
-            return `<span style="background: rgba(255,159,28,0.2); border: 1.2px solid var(--amber-brewing); color: var(--amber-brewing); padding: 5px 10px; border-radius: 10px; font-weight: 700; font-size: 12px;">\${num}</span>`;
-          }).join('');
+          nowPrepContainer.innerHTML = preps.map(item => renderChipHtml(item, 'preparing', currentNum)).join('');
         }
       }
 
       if (inQueueContainer) {
         if (queue.length === 0) {
-          inQueueContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">Queue is currently clear</span>';
+          inQueueContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">✨</span> <span>Queue is clear — orders start prep immediately!</span></div>';
         } else {
-          inQueueContainer.innerHTML = queue.map(num => {
-            const chipBase = num.split(' ·')[0].trim();
-            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
-            if (isMine) {
-              return `<span style="background: rgba(46,196,182,0.25); border: 1.2px solid var(--emerald); color: var(--emerald); padding: 5px 11px; border-radius: 10px; font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 9.5px; background: rgba(46,196,182,0.35); padding: 1px 5px; border-radius: 4px;">Your Ticket</span></span>`;
-            }
-            return `<span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-light); padding: 4px 9px; border-radius: 8px; font-weight: 600; font-size: 11.5px;">\${num}</span>`;
-          }).join('');
+          inQueueContainer.innerHTML = queue.map(item => renderChipHtml(item, 'queue', currentNum)).join('');
         }
       }
 
       if (readyContainer) {
         if (ready.length === 0) {
-          readyContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">No orders at pickup counter</span>';
+          readyContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">🛎️</span> <span>All prepared orders have been collected</span></div>';
         } else {
-          readyContainer.innerHTML = ready.map(num => {
-            const chipBase = num.split(' ·')[0].trim();
-            const isMine = currentNum && (chipBase.toLowerCase() === currentNum.toLowerCase() || chipBase.replaceAll('#','').trim() === currentNum.replaceAll('#','').trim());
-            if (isMine) {
-              return `<span style="background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); color: #000; padding: 5px 11px; border-radius: 10px; font-weight: 900; font-size: 12px; box-shadow: 0 0 12px var(--emerald-glow); display: inline-flex; align-items: center; gap: 5px;"><span>\${num}</span> <span style="font-size: 9.5px; background: rgba(0,0,0,0.3); color: #fff; padding: 1px 5px; border-radius: 4px;">Ready Now!</span></span>`;
-            }
-            return `<span style="background: rgba(46,196,182,0.18); border: 1px solid var(--emerald); color: var(--emerald); padding: 4px 9px; border-radius: 8px; font-weight: 700; font-size: 11.5px;">\${num}</span>`;
-          }).join('');
+          readyContainer.innerHTML = ready.map(item => renderChipHtml(item, 'ready', currentNum)).join('');
         }
       }
     }
@@ -5578,12 +6178,10 @@ class KdsServerService {
         step2.className = 'status-step completed';
         step3.className = 'status-step active';
 
-        // Only start repeating alarm if live transitioning from kitchen into ready
-        if (prevTrackStatus === 'preparing' || prevTrackStatus === 'brewing' || prevTrackStatus === 'confirmed' || prevTrackStatus === 'inqueue') {
-          const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-          if (_store.getItem('alarmDismissed_' + orderKey) !== 'true') {
-            startRepeatingAlarm();
-          }
+        // Trigger alarm if order is ready and not yet dismissed
+        const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
+        if (_store.getItem('alarmDismissed_' + orderKey) !== 'true') {
+          startRepeatingAlarm();
         }
       } else if (s === 'completed') {
         if (headerTag) headerTag.innerText = 'ORDER COMPLETED • ENJOY!';
@@ -5717,12 +6315,15 @@ class KdsServerService {
               });
             } else {
               const errMsg = (data && data.error) ? data.error : 'Cannot cancel order at this time. Please speak with the cashier directly.';
+              const isNotFound = errMsg.toLowerCase().includes('not found');
               showSuccessModal({
-                title: 'Cancellation Notice',
-                message: errMsg,
+                title: isNotFound ? 'Order Notice' : 'Cancellation Notice',
+                message: isNotFound ? 'Order not found in cafe records. Returning to menu.' : errMsg,
                 buttonText: 'OK',
                 onDismiss: () => {
-                  if (btn) {
+                  if (isNotFound) {
+                    newOrder(true);
+                  } else if (btn) {
                     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
                     btn.disabled = false;
                   }
@@ -5839,6 +6440,13 @@ class KdsServerService {
       updateCartBar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        url.searchParams.delete('orderId');
+        url.searchParams.delete('order');
+        window.history.replaceState({}, document.title, url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+      } catch(e) {}
+      try {
         sessionStorage.removeItem('celestial_dining_chosen');
       } catch(e) {}
       setTimeout(showDiningOptionModal, 250);
@@ -5885,6 +6493,13 @@ class KdsServerService {
                 } else if (data.status === 'completed') {
                   showOrderCompletedModal();
                 }
+              } else if (!data || data.success === false || data.status === 'not_found' || (data.error && data.error.toLowerCase().includes('not found'))) {
+                showSuccessModal({
+                  title: 'Order Notice',
+                  message: 'Order not found in cafe records. Please select your items from the menu.',
+                  buttonText: 'OK',
+                  onDismiss: () => newOrder(true)
+                });
               }
             })
             .catch(err => {
@@ -5906,7 +6521,7 @@ class KdsServerService {
                 showOrderCompletedModal();
                 return;
               }
-              if (!data || data.success === false || data.status === 'cancelled') {
+              if (!data || data.success === false || data.status === 'cancelled' || data.status === 'not_found' || (data.error && data.error.toLowerCase().includes('not found'))) {
                 // If cancelled or doesn't exist, reset to menu directly!
                 newOrder(true);
                 return;

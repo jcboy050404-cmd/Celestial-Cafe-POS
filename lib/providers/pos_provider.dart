@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -49,7 +50,7 @@ class PosProvider extends ChangeNotifier {
   final List<OrderItem> _cart = [];
   OrderType _orderType = OrderType.dineIn;
   String _tableNumber = 'Table 01';
-  String _customerName = 'Guest Patron';
+  String _customerName = '';
   double _discountPercentage = 0.0;
   double _customDiscountAmount = 0.0;
   final double _taxRate = 0.0; // All menu prices are inclusive of tax
@@ -163,9 +164,14 @@ class PosProvider extends ChangeNotifier {
           orderTypeStr.toLowerCase() == 'takeaway';
       final orderType = isTakeout ? OrderType.takeaway : OrderType.dineIn;
 
-      final cleanTable = tableNum.trim().toLowerCase().startsWith('table')
-          ? tableNum.trim()
-          : 'Table ${tableNum.trim()}';
+      final rawT = tableNum.trim();
+      final cleanTable = rawT.toLowerCase().startsWith('ttable')
+          ? 'Table ${rawT.substring(6).trim()}'
+          : (rawT.toLowerCase().startsWith('table')
+              ? rawT
+              : (rawT.toLowerCase().startsWith('t') && rawT.length > 1 && int.tryParse(rawT.substring(1)) != null
+                  ? 'Table ${rawT.substring(1).trim()}'
+                  : 'Table $rawT'));
 
       // Disallow multiple orders on the same table while an order is being prepared (Dine-In only)
       if (!isTakeout) {
@@ -375,24 +381,38 @@ class PosProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> _getActiveOrdersJson() {
     return activeKdsOrders.map((o) {
-      final json = o.toJson();
-      json['hasKitchenDishes'] = o.hasKitchenDishes;
-      json['kitchenDishCount'] = o.kitchenDishCount;
-      json['hasBaristaDrinks'] = o.hasBaristaDrinks;
-      json['baristaDrinkCount'] = o.baristaDrinkCount;
-      json['items'] = o.items.map((i) => {
-        'name': i.menuItem.name,
-        'quantity': i.quantity,
-        'category': i.menuItem.category.name,
-        'isKitchen': i.isKitchenDish,
-        'notes': i.notes,
-        'isPrepared': i.isPrepared,
-        'customizations': i.customizations.map((c) => {
-          'optionName': c.optionName,
-          'summary': c.summary,
+      return {
+        'id': o.id,
+        'orderNumber': o.orderNumber,
+        'orderType': o.orderType.name,
+        'tableNumber': o.tableNumber,
+        'customerName': o.customerName,
+        'subtotal': o.subtotal,
+        'taxAmount': o.taxAmount,
+        'taxRate': o.taxRate,
+        'discountAmount': o.discountAmount,
+        'totalAmount': o.totalAmount,
+        'status': o.status.name,
+        'createdAt': o.createdAt.toIso8601String(),
+        'paymentMethod': o.paymentMethod.name,
+        'orderNotes': o.orderNotes,
+        'hasKitchenDishes': o.hasKitchenDishes,
+        'kitchenDishCount': o.kitchenDishCount,
+        'hasBaristaDrinks': o.hasBaristaDrinks,
+        'baristaDrinkCount': o.baristaDrinkCount,
+        'items': o.items.map((i) => {
+          'name': i.menuItem.name,
+          'quantity': i.quantity,
+          'category': i.menuItem.category.name,
+          'isKitchen': i.isKitchenDish,
+          'notes': i.notes,
+          'isPrepared': i.isPrepared,
+          'customizations': i.customizations.map((c) => {
+            'optionName': c.optionName,
+            'summary': c.summary,
+          }).toList(),
         }).toList(),
-      }).toList();
-      return json;
+      };
     }).toList();
   }
 
@@ -429,6 +449,54 @@ class PosProvider extends ChangeNotifier {
               .whereType<MenuItem>()
               .toList();
           if (loadedMenu.isNotEmpty) {
+            // Normalize sweetness options (migrate 125% to 75% if found in cached storage)
+            for (var idx = 0; idx < loadedMenu.length; idx++) {
+              final item = loadedMenu[idx];
+              if (item.category == ItemCategory.coffee) {
+                final newGroups = <CustomizationGroup>[];
+                bool modified = false;
+                for (var group in item.customizationGroups) {
+                  if (group.id == 'sweetness' && group.options.any((o) => o.name.contains('125%'))) {
+                    modified = true;
+                    final newOptions = group.options.where((o) => !o.name.contains('125%')).toList();
+                    if (!newOptions.any((o) => o.name.contains('75%'))) {
+                      final regIdx = newOptions.indexWhere((o) => o.name.contains('100%'));
+                      const opt75 = CustomizationOption(name: 'Less Sweet (75%)', extraPrice: 0.00);
+                      if (regIdx >= 0) {
+                        newOptions.insert(regIdx, opt75);
+                      } else {
+                        newOptions.add(opt75);
+                      }
+                    }
+                    final newDefIdx = newOptions.indexWhere((o) => o.name.contains('100%'));
+                    newGroups.add(CustomizationGroup(
+                      id: group.id,
+                      title: group.title,
+                      isRequired: group.isRequired,
+                      isMultiSelect: group.isMultiSelect,
+                      defaultIndex: newDefIdx >= 0 ? newDefIdx : group.defaultIndex,
+                      options: newOptions,
+                    ));
+                  } else if (group.id == 'coffee_addons' && group.options.any((o) => o.name.toLowerCase().contains('oat milk'))) {
+                    modified = true;
+                    final newOptions = group.options.where((o) => !o.name.toLowerCase().contains('oat milk')).toList();
+                    newGroups.add(CustomizationGroup(
+                      id: group.id,
+                      title: group.title,
+                      isRequired: group.isRequired,
+                      isMultiSelect: group.isMultiSelect,
+                      defaultIndex: group.defaultIndex,
+                      options: newOptions,
+                    ));
+                  } else {
+                    newGroups.add(group);
+                  }
+                }
+                if (modified) {
+                  loadedMenu[idx] = item.copyWith(customizationGroups: newGroups);
+                }
+              }
+            }
             _menuItems = loadedMenu;
           }
         } catch (e) {
@@ -518,6 +586,15 @@ class PosProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print('Error saving menu to storage: $e');
     }
+  }
+
+  Timer? _saveOrdersDebounceTimer;
+
+  void _scheduleSaveOrders() {
+    _saveOrdersDebounceTimer?.cancel();
+    _saveOrdersDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _saveOrdersToStorage();
+    });
   }
 
   Future<void> _saveOrdersToStorage() async {
@@ -702,7 +779,7 @@ class PosProvider extends ChangeNotifier {
     _cart.clear();
     _discountPercentage = 0.0;
     _customDiscountAmount = 0.0;
-    _customerName = 'Guest Patron';
+    _customerName = '';
     _tableNumber = 'Table 01';
     notifyListeners();
   }
@@ -718,7 +795,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void setCustomerName(String name) {
-    _customerName = name.trim().isEmpty ? 'Guest Patron' : name.trim();
+    _customerName = name.trim();
     notifyListeners();
   }
 
@@ -801,11 +878,16 @@ class PosProvider extends ChangeNotifier {
     final seqNum = _orderSequence++;
     final orderNum = '#$seqNum';
     final subtotal = items.fold(0.0, (sum, i) => sum + i.totalPrice);
+    final rawTbl = tableNumber.trim();
     final formattedTable = orderType == OrderType.takeaway
         ? 'Takeout'
-        : (tableNumber.trim().toLowerCase().startsWith('table')
-            ? tableNumber.trim()
-            : 'Table ${tableNumber.trim()}');
+        : (rawTbl.toLowerCase().startsWith('ttable')
+            ? 'Table ${rawTbl.substring(6).trim()}'
+            : (rawTbl.toLowerCase().startsWith('table')
+                ? rawTbl
+                : (rawTbl.toLowerCase().startsWith('t') && rawTbl.length > 1 && int.tryParse(rawTbl.substring(1)) != null
+                    ? 'Table ${rawTbl.substring(1).trim()}'
+                    : 'Table $rawTbl')));
 
     final newOrder = Order(
       id: 'ord_$seqNum',
@@ -1025,30 +1107,55 @@ class PosProvider extends ChangeNotifier {
   void toggleOrderItemPrepared(String orderId, int itemIndex) {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
-      _orders[index].items[itemIndex].isPrepared = !_orders[index].items[itemIndex].isPrepared;
-      _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
+      // Must be actively in preparing status to mark items prepared
+      if (_orders[index].status != OrderStatus.preparing) return;
+
+      final newPrepared = !_orders[index].items[itemIndex].isPrepared;
+      _orders[index].items[itemIndex].isPrepared = newPrepared;
+
+      // 1. Notify immediately for 60 FPS responsive UI
       notifyListeners();
+
+      // 2. Debounced background storage write (no UI lag or stutter)
+      _scheduleSaveOrders();
+
+      // 3. Fast targeted websocket broadcast + debounced full sync
+      _kdsServer.broadcastItemPrepared(orderId, itemIndex, newPrepared);
+      _kdsServer.broadcastOrders();
     }
   }
 
   void setOrderItemPrepared(String orderId, int itemIndex, bool isPrepared) {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
+      // Must be actively in preparing status to mark items prepared
+      if (_orders[index].status != OrderStatus.preparing) return;
+      if (_orders[index].items[itemIndex].isPrepared == isPrepared) return;
+
       _orders[index].items[itemIndex].isPrepared = isPrepared;
-      _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
+
+      // 1. Notify immediately for 60 FPS responsive UI
       notifyListeners();
+
+      // 2. Debounced background storage write (no UI lag or stutter)
+      _scheduleSaveOrders();
+
+      // 3. Fast targeted websocket broadcast + debounced full sync
+      _kdsServer.broadcastItemPrepared(orderId, itemIndex, isPrepared);
+      _kdsServer.broadcastOrders();
     }
   }
 
   void updateOrderStatus(String orderId, OrderStatus newStatus) {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index >= 0) {
+      if (_orders[index].status == newStatus) return;
       _orders[index].status = newStatus;
       final targetOrder = _orders[index];
-      _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
+
+      notifyListeners();
+      _scheduleSaveOrders();
+      _kdsServer.broadcastOrders(immediate: true);
       _kdsServer.broadcastOrderStatus(targetOrder.id, targetOrder.orderNumber, newStatus.name);
 
       // Haptic pulse on every status change
@@ -1067,8 +1174,6 @@ class PosProvider extends ChangeNotifier {
         default:
           break;
       }
-
-      notifyListeners();
     }
   }
 

@@ -5,7 +5,6 @@ import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'receipt_dialog.dart';
-import '../services/receipt_pdf_service.dart';
 
 class CheckoutModal extends StatefulWidget {
   const CheckoutModal({super.key});
@@ -17,7 +16,6 @@ class CheckoutModal extends StatefulWidget {
 class _CheckoutModalState extends State<CheckoutModal> {
   PaymentMethod _selectedMethod = PaymentMethod.cash;
   final TextEditingController _cashTenderedController = TextEditingController();
-  final TextEditingController _notesController = TextEditingController();
   double _amountTendered = 0.0;
   bool _isProcessing = false;
 
@@ -32,7 +30,6 @@ class _CheckoutModalState extends State<CheckoutModal> {
   @override
   void dispose() {
     _cashTenderedController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
@@ -58,29 +55,16 @@ class _CheckoutModalState extends State<CheckoutModal> {
     }
 
     setState(() => _isProcessing = true);
-
-    // Simulate quick processing delay for realistic UX
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 320));
 
     final createdOrder = posProvider.completeCheckout(
       paymentMethod: _selectedMethod,
       amountTendered: _selectedMethod == PaymentMethod.cash ? _amountTendered : total,
-      specialOrderNotes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
     );
 
-    setState(() => _isProcessing = false);
+    if (mounted) setState(() => _isProcessing = false);
+    if (!mounted) return;
     Navigator.pop(context); // Close checkout modal
-
-    // Auto-print thermal receipt to POS printer
-    ReceiptPdfService.printReceipt(
-      order: createdOrder,
-      posProvider: posProvider,
-    ).catchError((err) {
-      debugPrint('Auto-print receipt error: $err');
-      return false;
-    });
 
     // Open Receipt Dialog
     showDialog(
@@ -162,42 +146,6 @@ class _CheckoutModalState extends State<CheckoutModal> {
                       _buildCashSection(total, changeDue, isMobile)
                     else
                       _buildMobilePaySection(total),
-
-                    const SizedBox(height: 16),
-
-                    // Order Notes
-                    Text(
-                      'Order Memo / Table Instructions',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: CelestialTheme.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _notesController,
-                      style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. VIP guest, take out separate bag, extra napkins...',
-                        hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
-                        filled: true,
-                        fillColor: CelestialTheme.bgCard,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

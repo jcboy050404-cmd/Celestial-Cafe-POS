@@ -41,7 +41,7 @@ class TableQrPdfService {
               tableText: 'TABLE $cleanTable',
               tableUrl: tableUrl,
               logoImage: logoImage,
-              width: 320,
+              width: 270,
             ),
           );
         },
@@ -173,7 +173,7 @@ class TableQrPdfService {
     }
   }
 
-  /// Internal Widget for Table Card Tent
+  /// Internal Widget for Table Card Tent (matched 1:1 to preview & image)
   static pw.Widget _buildTableCardWidget({
     required String storeName,
     required String tagline,
@@ -183,126 +183,133 @@ class TableQrPdfService {
     double? width,
     bool isCompactGrid = false,
   }) {
-    final primaryGold = PdfColor.fromHex('#C5A059');
     final darkBrown = PdfColor.fromHex('#1E1720');
-    final bgWarm = PdfColor.fromHex('#FDFBF7');
     final accentBrown = PdfColor.fromHex('#432C1D');
+    final goldText = PdfColor.fromHex('#F5D77F');
+    final instructionGrey = PdfColor.fromHex('#4A4A4A');
+    final cardBorder = PdfColor.fromHex('#E2DCD5');
+
+    const coffeeCupSvg = '''<svg viewBox="0 0 24 24" width="16" height="16">
+      <path d="M2 19h18v2H2z" fill="#1E1720"/>
+      <path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 5h-2V5h2v3z" fill="#1E1720"/>
+    </svg>''';
+
+    final cleanTable = tableText.replaceAll('TABLE', '').replaceAll('Table', '').trim();
+    final displayTable = 'TABLE $cleanTable';
 
     return pw.Container(
       width: width,
       padding: pw.EdgeInsets.symmetric(
         horizontal: isCompactGrid ? 14 : 20,
-        vertical: isCompactGrid ? 14 : 20,
+        vertical: isCompactGrid ? 14 : 18,
       ),
       decoration: pw.BoxDecoration(
-        color: bgWarm,
+        color: PdfColors.white,
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(16)),
-        border: pw.Border.all(color: primaryGold, width: 2),
+        border: pw.Border.all(color: cardBorder, width: 1),
       ),
       child: pw.Column(
+        mainAxisSize: pw.MainAxisSize.min,
         mainAxisAlignment: pw.MainAxisAlignment.center,
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // Cafe Logo / Title
-          if (logoImage != null)
-            pw.Container(
-              height: isCompactGrid ? 38 : 48,
-              width: isCompactGrid ? 38 : 48,
-              margin: const pw.EdgeInsets.only(bottom: 6),
-              child: pw.Image(logoImage),
-            ),
-
-          pw.Text(
-            storeName.toUpperCase(),
-            style: pw.TextStyle(
-              fontSize: isCompactGrid ? 13 : 16,
-              fontWeight: pw.FontWeight.bold,
-              color: darkBrown,
-              letterSpacing: 2,
-            ),
-            textAlign: pw.TextAlign.center,
+          // Header: Coffee cup icon + Store Name
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Container(
+                width: isCompactGrid ? 13 : 15,
+                height: isCompactGrid ? 13 : 15,
+                margin: const pw.EdgeInsets.only(right: 5),
+                child: pw.SvgImage(svg: coffeeCupSvg),
+              ),
+              pw.Text(
+                storeName.toUpperCase(),
+                style: pw.TextStyle(
+                  font: pw.Font.timesBold(),
+                  fontSize: isCompactGrid ? 12 : 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: darkBrown,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
           ),
 
-          if (tagline.isNotEmpty)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 2, bottom: 8),
-              child: pw.Text(
-                tagline.toUpperCase(),
+          pw.SizedBox(height: 3),
+
+          // Table Number Badge: Pill shape with dark brown background and gold text
+          pw.Container(
+            padding: pw.EdgeInsets.symmetric(
+              horizontal: isCompactGrid ? 12 : 14,
+              vertical: isCompactGrid ? 2.5 : 3.5,
+            ),
+            decoration: pw.BoxDecoration(
+              color: accentBrown,
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(14)),
+            ),
+            child: pw.Text(
+              displayTable,
+              style: pw.TextStyle(
+                font: pw.Font.helveticaBold(),
+                fontSize: isCompactGrid ? 11 : 13,
+                fontWeight: pw.FontWeight.bold,
+                color: goldText,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+
+          pw.SizedBox(height: isCompactGrid ? 10 : 12),
+
+          // QR Code: High contrast, clean without outer grey box
+          pw.BarcodeWidget(
+            barcode: pw.Barcode.qrCode(),
+            data: tableUrl,
+            width: isCompactGrid ? 125 : 155,
+            height: isCompactGrid ? 125 : 155,
+            color: darkBrown,
+          ),
+
+          pw.SizedBox(height: isCompactGrid ? 8 : 10),
+
+          // 3-Step Scan Instructions matching image
+          pw.Column(
+            children: [
+              pw.Text(
+                '1. Connect to Cafe Hotspot',
                 style: pw.TextStyle(
-                  fontSize: isCompactGrid ? 7 : 8,
+                  font: pw.Font.helvetica(),
+                  fontSize: isCompactGrid ? 8.5 : 10,
                   fontWeight: pw.FontWeight.bold,
-                  color: primaryGold,
-                  letterSpacing: 1.2,
+                  color: instructionGrey,
                 ),
                 textAlign: pw.TextAlign.center,
               ),
-            ),
-
-          // Table Number Badge
-          pw.Container(
-            padding: pw.EdgeInsets.symmetric(
-              horizontal: isCompactGrid ? 14 : 20,
-              vertical: isCompactGrid ? 4 : 6,
-            ),
-            margin: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: pw.BoxDecoration(
-              color: accentBrown,
-              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
-            ),
-            child: pw.Text(
-              tableText,
-              style: pw.TextStyle(
-                fontSize: isCompactGrid ? 14 : 18,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.white,
-                letterSpacing: 1.5,
+              pw.SizedBox(height: 2),
+              pw.Text(
+                '2. Scan QR code with Phone Camera',
+                style: pw.TextStyle(
+                  font: pw.Font.helvetica(),
+                  fontSize: isCompactGrid ? 8.5 : 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: instructionGrey,
+                ),
+                textAlign: pw.TextAlign.center,
               ),
-            ),
-          ),
-
-          pw.SizedBox(height: isCompactGrid ? 8 : 12),
-
-          // QR Code Container
-          pw.Container(
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.white,
-              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
-              border: pw.Border.all(color: PdfColors.grey300, width: 1),
-            ),
-            child: pw.BarcodeWidget(
-              barcode: pw.Barcode.qrCode(),
-              data: tableUrl,
-              width: isCompactGrid ? 105 : 135,
-              height: isCompactGrid ? 105 : 135,
-            ),
-          ),
-
-          pw.SizedBox(height: isCompactGrid ? 8 : 12),
-
-          // 3-Step Scan Instructions
-          pw.Container(
-            padding: const pw.EdgeInsets.all(6),
-            decoration: pw.BoxDecoration(
-              color: PdfColor.fromHex('#F4EFEA'),
-              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-            ),
-            child: pw.Column(
-              children: [
-                pw.Text(
-                  '1. Connect to Cafe Wi-Fi / Hotspot',
-                  style: pw.TextStyle(fontSize: isCompactGrid ? 7.5 : 8.5, color: darkBrown, fontWeight: pw.FontWeight.bold),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                '3. Order & Phone Buzzes when Ready!',
+                style: pw.TextStyle(
+                  font: pw.Font.helvetica(),
+                  fontSize: isCompactGrid ? 8.5 : 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: instructionGrey,
                 ),
-                pw.Text(
-                  '2. Scan QR code with Phone Camera',
-                  style: pw.TextStyle(fontSize: isCompactGrid ? 7.5 : 8.5, color: darkBrown, fontWeight: pw.FontWeight.bold),
-                ),
-                pw.Text(
-                  '3. Order & Phone buzzes when ready!',
-                  style: pw.TextStyle(fontSize: isCompactGrid ? 7.5 : 8.5, color: primaryGold, fontWeight: pw.FontWeight.bold),
-                ),
-              ],
-            ),
+                textAlign: pw.TextAlign.center,
+              ),
+            ],
           ),
         ],
       ),

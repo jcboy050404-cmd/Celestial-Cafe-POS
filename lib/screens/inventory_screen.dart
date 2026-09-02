@@ -82,6 +82,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void _showQuickPriceDialog(BuildContext context, PosProvider provider, MenuItem item) {
     final priceController = TextEditingController(text: item.price.toStringAsFixed(0));
     double tempPrice = item.price;
+    bool isSavingPrice = false;
 
     showDialog(
       context: context,
@@ -245,24 +246,36 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    final finalPrice = double.tryParse(priceController.text.trim()) ?? tempPrice;
-                    if (finalPrice >= 0) {
-                      provider.updateItemPrice(item.id, finalPrice);
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: CelestialTheme.bgCard,
-                          content: Text('✨ Updated price for ${item.name} to ₱${finalPrice.toStringAsFixed(0)}'),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: isSavingPrice
+                      ? null
+                      : () async {
+                          final finalPrice = double.tryParse(priceController.text.trim()) ?? tempPrice;
+                          if (finalPrice >= 0) {
+                            setDialogState(() => isSavingPrice = true);
+                            await Future.delayed(const Duration(milliseconds: 200));
+                            provider.updateItemPrice(item.id, finalPrice);
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: CelestialTheme.bgCard,
+                                  content: Text('✨ Updated price for ${item.name} to ₱${finalPrice.toStringAsFixed(0)}'),
+                                ),
+                              );
+                            }
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
                     foregroundColor: CelestialTheme.bgDark,
                   ),
-                  child: const Text('Save Price', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: isSavingPrice
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                        )
+                      : const Text('Save Price', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -397,6 +410,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     String? currentImagePath = editItem?.imagePath;
     String? currentImageBase64 = editItem?.imageBase64;
+    bool isSaving = false;
 
     showDialog(
       context: context,
@@ -483,7 +497,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               onPressed: () async {
                                 try {
                                   final files = await FilePickerPlatform.instance.pickFiles(type: FileType.image);
-                                  if (files.isNotEmpty) {
+                                  if (files != null && files.isNotEmpty) {
                                     final file = files.first;
                                     if (file.path != null) {
                                       final bytes = await File(file.path!).readAsBytes();
@@ -644,82 +658,93 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    final name = nameController.text.trim();
-                    final rawPrice = priceController.text.trim().replaceAll(',', '.');
-                    final price = double.tryParse(rawPrice) ?? 0.0;
-                    final stock = int.tryParse(stockController.text.trim()) ?? 0;
-                    final desc = descController.text.trim();
-                    final icon = iconController.text.trim().isNotEmpty ? iconController.text.trim() : '✨';
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final name = nameController.text.trim();
+                          final rawPrice = priceController.text.trim().replaceAll(',', '.');
+                          final price = double.tryParse(rawPrice) ?? 0.0;
+                          final stock = int.tryParse(stockController.text.trim()) ?? 0;
+                          final desc = descController.text.trim();
+                          final icon = iconController.text.trim().isNotEmpty ? iconController.text.trim() : '✨';
 
-                    if (name.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('⚠️ Please enter an item name.'),
-                          backgroundColor: CelestialTheme.roseAlert,
-                        ),
-                      );
-                      return;
-                    }
+                          if (name.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('⚠️ Please enter an item name.'),
+                                backgroundColor: CelestialTheme.roseAlert,
+                              ),
+                            );
+                            return;
+                          }
 
-                    if (price <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('⚠️ Please enter a valid price greater than ₱0.'),
-                          backgroundColor: CelestialTheme.roseAlert,
-                        ),
-                      );
-                      return;
-                    }
+                          if (price <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('⚠️ Please enter a valid price greater than ₱0.'),
+                                backgroundColor: CelestialTheme.roseAlert,
+                              ),
+                            );
+                            return;
+                          }
 
-                    if (isEditing) {
-                      final updated = editItem.copyWith(
-                        name: name,
-                        price: price,
-                        category: selectedCategory,
-                        description: desc,
-                        icon: icon,
-                        stockCount: stock,
-                        inStock: stock > 0,
-                        imagePath: currentImagePath,
-                        imageBase64: currentImageBase64,
-                      );
-                      provider.updateMenuItem(updated);
-                    } else {
-                      final newItem = MenuItem(
-                        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-                        name: name,
-                        category: selectedCategory,
-                        price: price,
-                        description: desc.isNotEmpty ? desc : 'Artisanal recipe crafted by Celestial Cafe.',
-                        icon: icon,
-                        tags: ['House Special'],
-                        stockCount: stock,
-                        inStock: stock > 0,
-                        imagePath: currentImagePath,
-                        imageBase64: currentImageBase64,
-                        customizationGroups: selectedCategory == ItemCategory.milktea
-                            ? MenuItem.defaultMilkteaCustomizations
-                            : selectedCategory == ItemCategory.cheesecakeSeries
-                                ? MenuItem.getCheesecakeCustomizations()
-                                : selectedCategory == ItemCategory.frappe
-                                    ? MenuItem.defaultFrappeCustomizations
-                                    : (selectedCategory == ItemCategory.streetBites ||
-                                            selectedCategory == ItemCategory.pastaDishes ||
-                                            selectedCategory == ItemCategory.sandwich)
-                                        ? MenuItem.defaultFoodCustomizations
-                                        : MenuItem.defaultCoffeeCustomizations,
-                      );
-                      provider.addNewMenuItem(newItem);
-                    }
+                          setDialogState(() => isSaving = true);
+                          await Future.delayed(const Duration(milliseconds: 250));
 
-                    Navigator.pop(ctx);
-                  },
+                          if (isEditing) {
+                            final updated = editItem.copyWith(
+                              name: name,
+                              price: price,
+                              category: selectedCategory,
+                              description: desc,
+                              icon: icon,
+                              stockCount: stock,
+                              inStock: stock > 0,
+                              imagePath: currentImagePath,
+                              imageBase64: currentImageBase64,
+                            );
+                            provider.updateMenuItem(updated);
+                          } else {
+                            final newItem = MenuItem(
+                              id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+                              name: name,
+                              category: selectedCategory,
+                              price: price,
+                              description: desc.isNotEmpty ? desc : 'Artisanal recipe crafted by Celestial Cafe.',
+                              icon: icon,
+                              tags: ['House Special'],
+                              stockCount: stock,
+                              inStock: stock > 0,
+                              imagePath: currentImagePath,
+                              imageBase64: currentImageBase64,
+                              customizationGroups: selectedCategory == ItemCategory.milktea
+                                  ? MenuItem.defaultMilkteaCustomizations
+                                  : selectedCategory == ItemCategory.cheesecakeSeries
+                                      ? MenuItem.getCheesecakeCustomizations()
+                                      : selectedCategory == ItemCategory.frappe
+                                          ? MenuItem.defaultFrappeCustomizations
+                                          : (selectedCategory == ItemCategory.streetBites ||
+                                                  selectedCategory == ItemCategory.pastaDishes ||
+                                                  selectedCategory == ItemCategory.sandwich)
+                                              ? MenuItem.defaultFoodCustomizations
+                                              : MenuItem.defaultCoffeeCustomizations,
+                            );
+                            provider.addNewMenuItem(newItem);
+                          }
+
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
                     foregroundColor: CelestialTheme.bgDark,
                   ),
-                  child: Text(isEditing ? 'Save Changes' : 'Create Item'),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                        )
+                      : Text(isEditing ? 'Save Changes' : 'Create Item'),
                 ),
               ],
             );

@@ -93,7 +93,7 @@ class OrderItem {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'menuItem': menuItem.toJson(),
+        'menuItem': menuItem.toOrderJson(),
         'quantity': quantity,
         'customizations': customizations.map((c) => c.toJson()).toList(),
         'notes': notes,
@@ -219,7 +219,7 @@ class Order {
       orderNumber: json['orderNumber'] as String? ?? '#1',
       orderType: oType,
       tableNumber: json['tableNumber'] as String?,
-      customerName: json['customerName'] as String? ?? 'Guest Patron',
+      customerName: json['customerName'] as String? ?? '',
       items: (json['items'] as List<dynamic>?)
               ?.map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
               .toList() ??
