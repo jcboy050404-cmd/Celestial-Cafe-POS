@@ -3804,6 +3804,432 @@ class KdsServerService {
       box-shadow: 0 2px 8px var(--gold-glow);
     }
 
+    /* ── POS Customization Dialog Replica Styles ── */
+    #customModal {
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    @media (max-width: 600px) {
+      #customModal {
+        align-items: flex-end;
+        padding: 0;
+      }
+    }
+    .custom-dialog-card {
+      background: #1C1622;
+      border: 1.5px solid rgba(212, 175, 55, 0.35);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(212, 175, 55, 0.12);
+      overflow: hidden;
+      animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    @media (max-width: 600px) {
+      .custom-dialog-card {
+        border-radius: 24px 24px 0 0;
+        max-height: 92vh;
+      }
+    }
+
+    .cust-dlg-header {
+      padding: 16px 18px;
+      background: linear-gradient(135deg, #251B29 0%, #1A131E 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .cust-dlg-thumb {
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      border: 1.5px solid rgba(212, 175, 55, 0.5);
+      overflow: hidden;
+      background: #140E18;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 16px rgba(212, 175, 55, 0.15);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cust-dlg-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .cust-dlg-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .cust-dlg-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .cust-dlg-name {
+      font-size: 18.5px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      color: #FFFFFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.2px;
+    }
+    .cust-dlg-price-badge {
+      background: rgba(212, 175, 55, 0.15);
+      border: 1px solid rgba(212, 175, 55, 0.5);
+      color: var(--gold-light);
+      font-size: 13.5px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      padding: 3px 10px;
+      border-radius: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .cust-dlg-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .cust-dlg-close:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+    }
+    .cust-dlg-tags {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .cust-dlg-tag {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cust-dlg-tag.gold {
+      background: rgba(212, 175, 55, 0.12);
+      color: var(--gold-light);
+      border: 0.5px solid rgba(212, 175, 55, 0.3);
+    }
+    .cust-dlg-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .cust-dlg-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .cust-group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .cust-group-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(212, 175, 55, 0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--gold-primary);
+    }
+    .cust-group-title {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      color: #FFFFFF;
+      letter-spacing: 0.2px;
+    }
+    .cust-badge-required {
+      background: rgba(212, 175, 55, 0.15);
+      border: 1px solid var(--gold-primary);
+      color: var(--gold-light);
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cust-badge-required::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--gold-primary);
+      display: inline-block;
+    }
+    .cust-badge-optional {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-subtle);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 8px;
+    }
+
+    .cust-opt-grid-2col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .cust-opt-card {
+      background: #17111C;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+    }
+    .cust-opt-card:active {
+      transform: scale(0.97);
+    }
+    .cust-opt-card.selected {
+      background: rgba(212, 175, 55, 0.12);
+      border: 1.6px solid var(--gold-primary);
+      box-shadow: 0 0 14px rgba(212, 175, 55, 0.15);
+    }
+
+    .cust-temp-card {
+      padding: 10px 12px;
+    }
+    .cust-temp-icon-box {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      background: rgba(255, 255, 255, 0.06);
+      flex-shrink: 0;
+    }
+    .cust-opt-card.selected .cust-temp-icon-box.hot {
+      background: rgba(255, 122, 69, 0.2);
+    }
+    .cust-opt-card.selected .cust-temp-icon-box.iced {
+      background: rgba(76, 201, 240, 0.2);
+    }
+
+    .cust-opt-text-col {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .cust-opt-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-family: 'Outfit', sans-serif;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cust-opt-card.selected .cust-opt-label {
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+    .cust-opt-sublabel {
+      font-size: 10px;
+      color: var(--text-subtle);
+      margin-top: 1px;
+    }
+    .cust-opt-card.selected .cust-opt-sublabel {
+      color: var(--gold-light);
+    }
+
+    .cust-radio-circle {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .cust-opt-card.selected .cust-radio-circle {
+      border-color: var(--gold-primary);
+    }
+    .cust-opt-card.selected .cust-radio-circle::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gold-primary);
+      box-shadow: 0 0 6px var(--gold-primary);
+    }
+
+    .cust-check-box {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1.2px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--text-subtle);
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .cust-opt-card.selected .cust-check-box {
+      border-color: var(--gold-primary);
+      background: var(--gold-primary);
+      color: #0D0A0F;
+    }
+
+    .cust-price-pill {
+      background: rgba(212, 175, 55, 0.18);
+      border: 0.8px solid rgba(212, 175, 55, 0.4);
+      color: var(--gold-light);
+      font-size: 11px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      padding: 2px 7px;
+      border-radius: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .cust-notes-input {
+      width: 100%;
+      background: #17111C;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #FFFFFF;
+      font-size: 13px;
+      font-family: 'Outfit', sans-serif;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .cust-notes-input:focus {
+      border-color: var(--gold-primary);
+    }
+    .cust-notes-input::placeholder {
+      color: var(--text-subtle);
+    }
+
+    .cust-dlg-footer {
+      padding: 14px 18px 18px 18px;
+      background: #17111C;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cust-stepper {
+      height: 48px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+    .cust-stepper-btn {
+      width: 34px;
+      height: 36px;
+      background: none;
+      border: none;
+      color: var(--gold-primary);
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s ease;
+    }
+    .cust-stepper-btn:active {
+      transform: scale(0.88);
+    }
+    .cust-stepper-val {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      color: #FFFFFF;
+      min-width: 24px;
+      text-align: center;
+    }
+    .cust-add-btn {
+      flex: 1;
+      height: 48px;
+      background: linear-gradient(135deg, #D4AF37 0%, #C49822 100%);
+      color: #0D0A0F;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 900;
+      font-family: 'Outfit', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4);
+      transition: all 0.15s ease;
+    }
+    .cust-add-btn:active {
+      transform: scale(0.97);
+    }
+
     /* Quantity Stepper Control in Customization Modal */
     .qty-stepper-row {
       display: flex;
@@ -4183,37 +4609,53 @@ class KdsServerService {
     </button>
   </div>
 
-  <!-- Customization Modal (Bottom Sheet) -->
-  <div class="modal-overlay" id="customModal">
-    <div class="modal-content">
-      <div class="modal-drag-pill"></div>
-      <div id="modalImageContainer"></div>
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+  <!-- Customization Modal (Exact POS Dialog Replica for Customer Phone) -->
+  <div class="modal-overlay" id="customModal" onclick="if(event.target===this) closeModal('customModal')">
+    <div class="custom-dialog-card">
+      <!-- Header -->
+      <div class="cust-dlg-header">
+        <div class="cust-dlg-thumb" id="modalThumbBox">
+          <img src="" id="modalThumbImg" alt="Item" onerror="this.style.display='none'; document.getElementById('modalThumbIcon').style.display='block';">
+          <span id="modalThumbIcon" style="font-size: 26px; display: none;">☕</span>
+        </div>
+        <div class="cust-dlg-info">
+          <div class="cust-dlg-title-row">
+            <div class="cust-dlg-name" id="modalItemName">Americano</div>
+            <div class="cust-dlg-price-badge" id="modalBasePriceBadge">₱90</div>
+            <button class="cust-dlg-close" onclick="closeModal('customModal')">✕</button>
+          </div>
+          <div class="cust-dlg-tags" id="modalTagsRow"></div>
+          <div class="cust-dlg-desc" id="modalItemDesc"></div>
+        </div>
+      </div>
+
+      <!-- Scrollable Body with Group Options -->
+      <div class="cust-dlg-body">
+        <div id="customGroupContainer"></div>
+        
+        <!-- Special Instructions -->
         <div>
-          <div class="modal-title" id="modalItemName">Item Name</div>
-          <div class="modal-desc" id="modalItemDesc">Description</div>
-        </div>
-        <button onclick="closeModal('customModal')" style="background: rgba(255,255,255,0.08); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 14px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
-      </div>
-
-      <div id="customGroupContainer"></div>
-
-      <!-- Quantity Stepper inside Customization Modal -->
-      <div class="qty-stepper-row">
-        <span style="font-weight: 700; font-size: 13px; color: var(--text-light);">Quantity</span>
-        <div class="qty-controls">
-          <button class="btn-qty" onclick="changeModalQty(-1)">−</button>
-          <span class="qty-display" id="modalQtyDisplay">1</span>
-          <button class="btn-qty" onclick="changeModalQty(1)">+</button>
+          <div class="cust-group-header" style="margin-bottom: 8px;">
+            <div class="cust-group-icon">✏️</div>
+            <div class="cust-group-title">Special Instructions</div>
+            <span class="cust-badge-optional">OPTIONAL</span>
+          </div>
+          <input type="text" id="modalItemNotes" class="cust-notes-input" placeholder="e.g. Less sweet, extra hot, no sauce...">
         </div>
       </div>
 
-      <div class="opt-group-title">Special Instructions (Optional)</div>
-      <input type="text" id="modalItemNotes" placeholder="e.g. Less sweet, extra hot, no sauce..." style="width: 100%; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; color: var(--text-light); font-size: 13px; margin-bottom: 18px; outline: none;">
-
-      <button id="btnAddItemToCart" onclick="confirmAddToCart()" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; border: none; border-radius: var(--radius-md); padding: 15px; font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 4px 16px rgba(212, 175, 55, 0.35);">
-        Add to Tray (₱0)
-      </button>
+      <!-- Footer Bar with Stepper & Add to Order Button -->
+      <div class="cust-dlg-footer">
+        <div class="cust-stepper">
+          <button class="cust-stepper-btn" onclick="changeModalQty(-1)">−</button>
+          <span class="cust-stepper-val" id="modalQtyDisplay">1</span>
+          <button class="cust-stepper-btn" onclick="changeModalQty(1)">+</button>
+        </div>
+        <button class="cust-add-btn" id="btnAddItemToCart" onclick="confirmAddToCart()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+          <span id="modalAddBtnText">Add to Order • ₱90</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -5210,42 +5652,155 @@ class KdsServerService {
       modalItemQty = 1;
       document.getElementById('modalQtyDisplay').innerText = modalItemQty;
       selectedCustomizations = [];
-      
+
+      // Item Media / Photo Thumbnail
       const imgUrl = selectedItem.imageBase64 ? ('data:image/png;base64,' + selectedItem.imageBase64) : (selectedItem.imageUrl || (selectedItem.imagePath ? `/api/item-image?id=\${selectedItem.id}` : ''));
-      document.getElementById('modalImageContainer').innerHTML = imgUrl ? `
-        <div style="width: 100%; height: 150px; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 14px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-gold);">
-          <img src="\${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.style.display='none'">
-        </div>
-      ` : '';
+      const thumbImg = document.getElementById('modalThumbImg');
+      const thumbIcon = document.getElementById('modalThumbIcon');
+      if (imgUrl) {
+        thumbImg.src = imgUrl;
+        thumbImg.style.display = 'block';
+        thumbIcon.style.display = 'none';
+      } else {
+        thumbImg.style.display = 'none';
+        thumbIcon.innerText = selectedItem.icon || '☕';
+        thumbIcon.style.display = 'block';
+      }
 
       document.getElementById('modalItemName').innerText = selectedItem.name;
+      document.getElementById('modalBasePriceBadge').innerText = `₱\${Math.round(selectedItem.price)}`;
       document.getElementById('modalItemDesc').innerText = selectedItem.description || '';
       document.getElementById('modalItemNotes').value = '';
 
+      // Tags Row
+      const tagsRow = document.getElementById('modalTagsRow');
+      const catLabel = selectedItem.categoryLabel || selectedItem.category;
+      let tagsHtml = `<span class="cust-dlg-tag">\${selectedItem.icon || '☕'} \${catLabel}</span>`;
+      if (selectedItem.tags && Array.isArray(selectedItem.tags)) {
+        selectedItem.tags.forEach(t => {
+          if (t && t !== 'All') {
+            tagsHtml += `<span class="cust-dlg-tag gold">\${t}</span>`;
+          }
+        });
+      }
+      tagsRow.innerHTML = tagsHtml;
+
+      // Customization Groups
       const container = document.getElementById('customGroupContainer');
       const groups = selectedItem.customizations || [];
 
       container.innerHTML = groups.map((g, gIdx) => {
+        const titleLower = (g.groupTitle || '').toLowerCase();
+        const idLower = (g.id || '').toLowerCase();
+        const isTemp = titleLower.includes('temp') || idLower.includes('temp');
+        const isSweet = titleLower.includes('sweet') || idLower.includes('sweet') || titleLower.includes('sugar');
+        const isMulti = g.isMultiSelect === true;
+        const isRequired = g.isRequired !== false && !isMulti;
+
+        // Group Icon
+        let gIcon = '⚙️';
+        if (isTemp) gIcon = '🌡️';
+        else if (isSweet) gIcon = '💧';
+        else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) gIcon = '✨';
+        else if (titleLower.includes('size') || titleLower.includes('cup')) gIcon = '☕';
+        else if (titleLower.includes('prep') || titleLower.includes('cook')) gIcon = '🍽️';
+
+        const badgeHtml = isRequired
+          ? `<span class="cust-badge-required">REQUIRED</span>`
+          : `<span class="cust-badge-optional">\${isMulti ? 'OPTIONAL' : 'CHOOSE ONE'}</span>`;
+
+        let optionsHtml = '';
+
+        if (isTemp && g.options.length === 2) {
+          // Temperature specialized 2-card layout (Hot vs Iced)
+          optionsHtml = `
+            <div class="cust-opt-grid-2col">
+              \${g.options.map((opt, oIdx) => {
+                const optLower = opt.name.toLowerCase();
+                const isHot = optLower.includes('hot');
+                const isIced = optLower.includes('ice');
+                const isDefault = oIdx === (g.defaultIndex || 0);
+                if (isDefault) {
+                  selectedCustomizations.push({
+                    groupTitle: g.groupTitle,
+                    optionName: opt.name,
+                    extraPrice: opt.priceAdjustment || 0,
+                    isMulti: false
+                  });
+                }
+                const subLabel = isHot ? 'Steamed & Fresh' : (isIced ? 'Chilled with Ice' : '');
+                const iconSymbol = isHot ? '🔥' : '❄️';
+                const iconClass = isHot ? 'hot' : 'iced';
+                return `
+                  <div class="cust-opt-card cust-temp-card \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
+                    <div class="cust-temp-icon-box \${iconClass}">\${iconSymbol}</div>
+                    <div class="cust-opt-text-col">
+                      <div class="cust-opt-label">\${opt.name}</div>
+                      \${subLabel ? `<div class="cust-opt-sublabel">\${subLabel}</div>` : ''}
+                    </div>
+                    <div class="cust-radio-circle"></div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else if (isMulti) {
+          // Multi-Select Add-ons with checkbox + price badge (+₱25)
+          optionsHtml = `
+            <div class="cust-opt-grid-2col">
+              \${g.options.map((opt, oIdx) => {
+                const extraPrice = opt.priceAdjustment || 0;
+                const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
+                return `
+                  <div class="cust-opt-card" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
+                    <div class="cust-check-box">+</div>
+                    <div class="cust-opt-text-col">
+                      <div class="cust-opt-label">\${opt.name}</div>
+                    </div>
+                    \${priceBadge}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          // Sweetness / Cup Size / Standard Single-Select (2-Column Radio Cards)
+          optionsHtml = `
+            <div class="cust-opt-grid-2col">
+              \${g.options.map((opt, oIdx) => {
+                const isDefault = oIdx === (g.defaultIndex || 0);
+                if (isDefault) {
+                  selectedCustomizations.push({
+                    groupTitle: g.groupTitle,
+                    optionName: opt.name,
+                    extraPrice: opt.priceAdjustment || 0,
+                    isMulti: false
+                  });
+                }
+                const extraPrice = opt.priceAdjustment || 0;
+                const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
+                return `
+                  <div class="cust-opt-card \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
+                    <div class="cust-radio-circle"></div>
+                    <div class="cust-opt-text-col">
+                      <div class="cust-opt-label">\${opt.name}</div>
+                    </div>
+                    \${priceBadge}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
+
         return `
-          <div class="opt-group-title">\${g.groupTitle}</div>
-          <div class="opt-grid">
-            \${g.options.map((opt, oIdx) => {
-              const isDefault = opt.isDefault || (!g.isMultiSelect && oIdx === 0);
-              const extraText = opt.priceAdjustment > 0 ? ` (+₱\${Math.round(opt.priceAdjustment)})` : '';
-              if (isDefault) {
-                selectedCustomizations.push({
-                  groupTitle: g.groupTitle,
-                  optionName: opt.name,
-                  extraPrice: opt.priceAdjustment || 0,
-                  isMulti: g.isMultiSelect
-                });
-              }
-              return `
-                <div class="opt-chip \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                  \${opt.name}\${extraText}
-                </div>
-              `;
-            }).join('')}
+          <div>
+            <div class="cust-group-header">
+              <div class="cust-group-icon">\${gIcon}</div>
+              <div class="cust-group-title">\${g.groupTitle}</div>
+              \${badgeHtml}
+            </div>
+            \${optionsHtml}
           </div>
         `;
       }).join('');
@@ -5265,7 +5820,7 @@ class KdsServerService {
       const opt = group.options[oIdx];
 
       if (!group.isMultiSelect) {
-        el.parentElement.querySelectorAll('.opt-chip').forEach(c => c.classList.remove('selected'));
+        el.parentElement.querySelectorAll('.cust-opt-card').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
         selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
         selectedCustomizations.push({
@@ -5276,7 +5831,9 @@ class KdsServerService {
         });
       } else {
         el.classList.toggle('selected');
+        const checkEl = el.querySelector('.cust-check-box');
         if (el.classList.contains('selected')) {
+          if (checkEl) checkEl.innerText = '✓';
           selectedCustomizations.push({
             groupTitle: group.groupTitle,
             optionName: opt.name,
@@ -5284,6 +5841,7 @@ class KdsServerService {
             isMulti: true
           });
         } else {
+          if (checkEl) checkEl.innerText = '+';
           selectedCustomizations = selectedCustomizations.filter(c => !(c.groupTitle === group.groupTitle && c.optionName === opt.name));
         }
       }
@@ -5294,13 +5852,17 @@ class KdsServerService {
       const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
       const unitTotal = selectedItem.price + extraTotal;
       const grandTotal = unitTotal * modalItemQty;
-      document.getElementById('btnAddItemToCart').innerText = `Add to Tray (₱\${Math.round(grandTotal)})`;
+      const btnText = document.getElementById('modalAddBtnText');
+      if (btnText) {
+        btnText.innerText = `Add to Order • ₱\${Math.round(grandTotal)}`;
+      }
     }
 
     function confirmAddToCart() {
       const btn = document.getElementById('btnAddItemToCart');
+      const btnText = document.getElementById('modalAddBtnText');
       if (btn) {
-        btn.innerHTML = '<span class="btn-spinner"></span> Adding to Tray...';
+        if (btnText) btnText.innerText = 'Adding to Order...';
         btn.disabled = true;
       }
       setTimeout(() => {
@@ -5321,7 +5883,7 @@ class KdsServerService {
         if (btn) btn.disabled = false;
         closeModal('customModal');
         updateCartBar();
-      }, 180);
+      }, 160);
     }
 
     function updateCartBar() {

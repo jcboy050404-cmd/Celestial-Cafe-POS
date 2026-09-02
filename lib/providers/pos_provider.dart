@@ -1091,9 +1091,11 @@ class PosProvider extends ChangeNotifier {
       'stockCount': item.stockCount,
       'tags': item.tags,
       'customizations': item.customizationGroups.map((cg) => {
+        'id': cg.id,
         'groupTitle': cg.title,
         'isRequired': cg.isRequired,
         'isMultiSelect': cg.isMultiSelect,
+        'defaultIndex': cg.defaultIndex,
         'options': cg.options.map((opt) => {
           'name': opt.name,
           'priceAdjustment': opt.extraPrice,
