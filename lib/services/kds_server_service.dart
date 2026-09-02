@@ -5430,7 +5430,7 @@ class KdsServerService {
         }
         window.speechSynthesis.cancel(); // clear any queued speech
         const utter = new SpeechSynthesisUtterance(
-          'Ang iyong order ay pwede na i-claim! Pakiharapin na ang counter para kunin ang inyong order.'
+          'Your order is ready to claim!'
         );
         // Fire onEnd callback when TTS finishes (or errors)
         utter.onend  = () => { if (onEnd) onEnd(); };
@@ -5439,19 +5439,16 @@ class KdsServerService {
         // Try to find a Filipino / Tagalog voice, fall back to any available
         const trySpeak = () => {
           const voices = window.speechSynthesis.getVoices();
-          const fil = voices.find(v =>
-            v.lang.startsWith('fil') || v.lang.startsWith('tl') ||
-            v.name.toLowerCase().includes('filipino') ||
-            v.name.toLowerCase().includes('tagalog')
-          );
-          if (fil) {
-            utter.voice = fil;
-            utter.lang = fil.lang;
+          const eng = voices.find(v => v.lang === 'en-US') ||
+                      voices.find(v => v.lang.startsWith('en'));
+          if (eng) {
+            utter.voice = eng;
+            utter.lang  = eng.lang;
           } else {
-            utter.lang = 'fil-PH'; // hint to browser even without exact voice match
+            utter.lang = 'en-US';
           }
-          utter.rate  = 0.88;  // slightly slower for clarity
-          utter.pitch = 1.05;
+          utter.rate   = 0.92;
+          utter.pitch  = 1.0;
           utter.volume = 1.0;
           window.speechSynthesis.speak(utter);
         };
