@@ -5383,7 +5383,6 @@ class KdsServerService {
       const modal = document.getElementById('readyAlarmModal');
       if (modal) modal.style.display = 'flex';
 
-      playAlarmSound();
       startVibrationLoop();
 
       try {
@@ -5403,21 +5402,40 @@ class KdsServerService {
         }
       } catch(e) {}
 
-      if (!alarmInterval) {
-        alarmInterval = setInterval(playAlarmSound, 2200);
-      }
+      // ── Sequence: alarm → TTS → alarm ──
+      // Step 1: Play alarm immediately
+      playAlarmSound();
 
-      // AI voice announcement in Filipino
-      speakReadyAnnouncement();
+      // Step 2: After alarm sound finishes (~0.9s), speak TTS
+      setTimeout(() => {
+        speakReadyAnnouncement(() => {
+          // Step 3: After TTS finishes, play alarm again
+          playAlarmSound();
+
+          // Step 4: After that final burst, start the repeating interval
+          setTimeout(() => {
+            if (!alarmInterval) {
+              alarmInterval = setInterval(playAlarmSound, 3500);
+            }
+          }, 1200);
+        });
+      }, 900);
     }
 
-    function speakReadyAnnouncement() {
+    function speakReadyAnnouncement(onEnd) {
       try {
-        if (!('speechSynthesis' in window)) return;
+        if (!('speechSynthesis' in window)) {
+          if (onEnd) onEnd();
+          return;
+        }
         window.speechSynthesis.cancel(); // clear any queued speech
         const utter = new SpeechSynthesisUtterance(
           'Ang iyong order ay pwede na i-claim! Pakiharapin na ang counter para kunin ang inyong order.'
         );
+        // Fire onEnd callback when TTS finishes (or errors)
+        utter.onend  = () => { if (onEnd) onEnd(); };
+        utter.onerror = () => { if (onEnd) onEnd(); };
+
         // Try to find a Filipino / Tagalog voice, fall back to any available
         const trySpeak = () => {
           const voices = window.speechSynthesis.getVoices();
@@ -5443,7 +5461,9 @@ class KdsServerService {
           // Voices may not be loaded yet on first call
           window.speechSynthesis.onvoiceschanged = () => { trySpeak(); window.speechSynthesis.onvoiceschanged = null; };
         }
-      } catch(e) {}
+      } catch(e) {
+        if (onEnd) onEnd();
+      }
     }
 
     function stopAlarm() {
