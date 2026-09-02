@@ -497,7 +497,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               onPressed: () async {
                                 try {
                                   final files = await FilePickerPlatform.instance.pickFiles(type: FileType.image);
-                                  if (files != null && files.isNotEmpty) {
+                                  if (files.isNotEmpty) {
                                     final file = files.first;
                                     if (file.path != null) {
                                       final bytes = await File(file.path!).readAsBytes();

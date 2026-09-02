@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
-import 'receipt_dialog.dart';
 
 class CheckoutModal extends StatefulWidget {
   const CheckoutModal({super.key});
@@ -64,15 +63,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
 
     if (mounted) setState(() => _isProcessing = false);
     if (!mounted) return;
-    Navigator.pop(context); // Close checkout modal
-
-    // Open Receipt Dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.8),
-      builder: (ctx) => ReceiptDialog(order: createdOrder),
-    );
+    Navigator.pop(context, createdOrder); // Close checkout modal returning created order
   }
 
   @override

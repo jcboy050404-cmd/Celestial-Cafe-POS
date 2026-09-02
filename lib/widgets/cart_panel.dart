@@ -5,6 +5,7 @@ import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'checkout_modal.dart';
+import 'receipt_dialog.dart';
 
 class CartPanel extends StatelessWidget {
   final bool isMobileModal;
@@ -705,16 +706,26 @@ class CartPanel extends StatelessWidget {
             child: ElevatedButton(
               onPressed: provider.cart.isEmpty
                   ? null
-                  : () {
+                  : () async {
                       if (isMobileModal) {
                         Navigator.pop(context); // Close bottom sheet before opening checkout modal
                       }
-                      showDialog(
+                      final createdOrder = await showDialog<Order>(
                         context: context,
                         barrierDismissible: false,
                         barrierColor: Colors.black.withValues(alpha: 0.8),
                         builder: (ctx) => const CheckoutModal(),
                       );
+
+                      if (createdOrder != null && context.mounted) {
+                        // Open Receipt Dialog directly on host app
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          barrierColor: Colors.black.withValues(alpha: 0.8),
+                          builder: (ctx) => ReceiptDialog(order: createdOrder),
+                        );
+                      }
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,

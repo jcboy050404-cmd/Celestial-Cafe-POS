@@ -17,12 +17,41 @@ class CustomerOrderApprovalDialog extends StatefulWidget {
   });
 
   static Future<void> show(BuildContext context, Order order) async {
-    return showDialog(
+    final approvedOrder = await showDialog<Order>(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black.withValues(alpha: 0.8),
       builder: (ctx) => CustomerOrderApprovalDialog(order: order),
     );
+
+    if (approvedOrder != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: CelestialTheme.bgCard,
+          duration: const Duration(seconds: 3),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: CelestialTheme.emeraldReady, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Order ${approvedOrder.orderNumber} approved & moved to kitchen queue.',
+                  style: const TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Open receipt review & print dialog directly on host app
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withValues(alpha: 0.8),
+        builder: (ctx) => ReceiptDialog(order: approvedOrder),
+      );
+    }
   }
 
   static Future<void> showPendingList(BuildContext context) async {
@@ -224,8 +253,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     }
 
     final posProvider = Provider.of<PosProvider>(context, listen: false);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
 
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 280));
@@ -240,36 +267,8 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     );
 
     if (mounted) setState(() => _isSubmitting = false);
-    navigator.pop(); // Close approval dialog
-
-    if (approvedOrder != null && mounted) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          backgroundColor: CelestialTheme.bgCard,
-          duration: const Duration(seconds: 3),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: CelestialTheme.emeraldReady, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Order ${approvedOrder.orderNumber} approved & moved to kitchen queue.',
-                  style: const TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      // Open receipt review & print dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: 0.8),
-        builder: (ctx) => ReceiptDialog(order: approvedOrder),
-      );
-    }
+    if (!mounted) return;
+    Navigator.pop(context, approvedOrder); // Close approval dialog returning approved order
   }
 
   void _handleDeclineOrder() {

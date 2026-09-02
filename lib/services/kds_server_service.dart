@@ -3845,8 +3845,8 @@ class KdsServerService {
       gap: 14px;
     }
     .cust-dlg-thumb {
-      width: 62px;
-      height: 62px;
+      width: 64px;
+      height: 64px;
       border-radius: 16px;
       border: 1.5px solid rgba(212, 175, 55, 0.5);
       overflow: hidden;
@@ -3873,18 +3873,19 @@ class KdsServerService {
       gap: 8px;
     }
     .cust-dlg-name {
-      font-size: 18.5px;
+      font-size: 19px;
       font-weight: 800;
       font-family: 'Outfit', sans-serif;
       color: #FFFFFF;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-height: 1.25;
       letter-spacing: 0.2px;
     }
     .cust-dlg-price-badge {
-      background: rgba(212, 175, 55, 0.15);
-      border: 1px solid rgba(212, 175, 55, 0.5);
+      background: rgba(212, 175, 55, 0.16);
+      border: 1px solid rgba(212, 175, 55, 0.55);
       color: var(--gold-light);
       font-size: 13.5px;
       font-weight: 800;
@@ -3918,7 +3919,7 @@ class KdsServerService {
       align-items: center;
       flex-wrap: wrap;
       gap: 6px;
-      margin-top: 4px;
+      margin-top: 5px;
     }
     .cust-dlg-tag {
       background: rgba(255, 255, 255, 0.06);
@@ -3940,20 +3941,18 @@ class KdsServerService {
       font-size: 11.5px;
       color: var(--text-muted);
       margin-top: 5px;
-      line-height: 1.35;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      line-height: 1.4;
+      display: block;
     }
 
     .cust-dlg-body {
       padding: 16px 18px;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 18px;
     }
     
     .cust-group-header {
@@ -4012,10 +4011,17 @@ class KdsServerService {
       border-radius: 8px;
     }
 
+    /* Single-select & binary 2-column option grid */
     .cust-opt-grid-2col {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 8px;
+    }
+    @media (max-width: 360px) {
+      .cust-opt-grid-2col {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
     }
 
     .cust-opt-card {
@@ -4027,17 +4033,23 @@ class KdsServerService {
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      min-height: 50px;
       cursor: pointer;
       transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
       user-select: none;
+      box-sizing: border-box;
+    }
+    .cust-opt-card:hover {
+      border-color: rgba(212, 175, 55, 0.35);
+      background: #1F1726;
     }
     .cust-opt-card:active {
       transform: scale(0.97);
     }
     .cust-opt-card.selected {
-      background: rgba(212, 175, 55, 0.12);
+      background: rgba(212, 175, 55, 0.14);
       border: 1.6px solid var(--gold-primary);
-      box-shadow: 0 0 14px rgba(212, 175, 55, 0.15);
+      box-shadow: 0 0 14px rgba(212, 175, 55, 0.2);
     }
 
     .cust-temp-card {
@@ -4055,10 +4067,10 @@ class KdsServerService {
       flex-shrink: 0;
     }
     .cust-opt-card.selected .cust-temp-icon-box.hot {
-      background: rgba(255, 122, 69, 0.2);
+      background: rgba(255, 122, 69, 0.25);
     }
     .cust-opt-card.selected .cust-temp-icon-box.iced {
-      background: rgba(76, 201, 240, 0.2);
+      background: rgba(76, 201, 240, 0.25);
     }
 
     .cust-opt-text-col {
@@ -4070,30 +4082,33 @@ class KdsServerService {
     .cust-opt-label {
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--text-light);
       font-family: 'Outfit', sans-serif;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-height: 1.3;
+      display: block;
     }
     .cust-opt-card.selected .cust-opt-label {
       font-weight: 700;
       color: #FFFFFF;
     }
     .cust-opt-sublabel {
-      font-size: 10px;
+      font-size: 10.5px;
       color: var(--text-subtle);
       margin-top: 1px;
+      line-height: 1.2;
     }
     .cust-opt-card.selected .cust-opt-sublabel {
       color: var(--gold-light);
     }
 
     .cust-radio-circle {
-      width: 17px;
-      height: 17px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      border: 1.5px solid rgba(255, 255, 255, 0.25);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -4105,45 +4120,117 @@ class KdsServerService {
     }
     .cust-opt-card.selected .cust-radio-circle::after {
       content: '';
-      width: 8px;
-      height: 8px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--gold-primary);
       box-shadow: 0 0 6px var(--gold-primary);
     }
 
+    /* ── Dedicated Full-Width Add-on Cards for Multi-Select & Extras (Guarantees Full Text Readability) ── */
+    .cust-addon-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .cust-addon-card {
+      background: #17111C;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      cursor: pointer;
+      transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .cust-addon-card:hover {
+      border-color: rgba(212, 175, 55, 0.4);
+      background: #1F1726;
+    }
+    .cust-addon-card:active {
+      transform: scale(0.98);
+    }
+    .cust-addon-card.selected {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.16) 0%, rgba(153, 122, 21, 0.08) 100%);
+      border: 1.6px solid var(--gold-primary);
+      box-shadow: 0 0 16px rgba(212, 175, 55, 0.2);
+    }
+    .cust-addon-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+    .cust-addon-text-col {
+      flex: 1;
+      min-width: 0;
+    }
+    .cust-addon-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-light);
+      font-family: 'Outfit', sans-serif;
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-height: 1.35;
+      letter-spacing: 0.1px;
+    }
+    .cust-addon-card.selected .cust-addon-label {
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
     .cust-check-box {
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      border: 1.2px solid rgba(255, 255, 255, 0.2);
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 1.5px solid rgba(255, 255, 255, 0.25);
       background: rgba(255, 255, 255, 0.05);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: bold;
       color: var(--text-subtle);
       flex-shrink: 0;
       transition: all 0.15s ease;
     }
+    .cust-addon-card.selected .cust-check-box,
     .cust-opt-card.selected .cust-check-box {
       border-color: var(--gold-primary);
       background: var(--gold-primary);
       color: #0D0A0F;
+      box-shadow: 0 0 8px var(--gold-glow);
     }
 
     .cust-price-pill {
       background: rgba(212, 175, 55, 0.18);
-      border: 0.8px solid rgba(212, 175, 55, 0.4);
+      border: 1px solid rgba(212, 175, 55, 0.45);
       color: var(--gold-light);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 800;
       font-family: 'Outfit', sans-serif;
-      padding: 2px 7px;
-      border-radius: 6px;
+      padding: 3px 10px;
+      border-radius: 8px;
       white-space: nowrap;
       flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .cust-addon-card.selected .cust-price-pill,
+    .cust-opt-card.selected .cust-price-pill {
+      background: var(--gold-primary);
+      border-color: var(--gold-primary);
+      color: #0D0A0F;
+      box-shadow: 0 0 10px var(--gold-glow);
     }
 
     .cust-notes-input {
@@ -4440,6 +4527,15 @@ class KdsServerService {
       }
       .no-print { display: none !important; }
     }
+
+    @keyframes eqBounce {
+      0%, 100% { height: 6px; }
+      50% { height: 24px; }
+    }
+    @keyframes custVolGlow {
+      0% { box-shadow: 0 0 15px rgba(212,175,55,0.3); transform: scale(0.98); }
+      100% { box-shadow: 0 0 35px rgba(212,175,55,0.85); transform: scale(1.02); }
+    }
   </style>
 </head>
 <body>
@@ -4505,7 +4601,7 @@ class KdsServerService {
       </div>
 
       <!-- Wi-Fi Keep Connected Notice Pill -->
-      <div id="wifiStatusPill" style="display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: rgba(46,196,182,0.12); border: 1px solid rgba(46,196,182,0.35); color: var(--emerald); border-radius: 20px; padding: 6px 14px; font-size: 11.5px; font-weight: 700; margin-bottom: 8px;">
+      <div id="wifiStatusPill" style="display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: rgba(46,196,182,0.12); border: 1px solid rgba(46,196,182,0.35); color: var(--emerald); border-radius: 20px; padding: 6px 14px; font-size: 11.5px; font-weight: 700; margin-bottom: 10px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
         <span>Keep Wi-Fi connected to receive live updates & ready chime</span>
       </div>
@@ -4537,6 +4633,13 @@ class KdsServerService {
       <div id="brewingNotice" style="display: none; background: rgba(255,159,28,0.15); border: 1.5px solid var(--amber-brewing); border-radius: var(--radius-md); padding: 16px 14px; margin-top: 14px; text-align: center;">
         <div style="font-weight: 800; font-size: 14.5px; font-family: 'Cinzel', serif; color: var(--gold-light); letter-spacing: 0.5px;">NOW BREWING & PREPARING</div>
         <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">The barista is actively preparing your handcrafted items now.</div>
+      </div>
+
+      <!-- Ready for Pickup Banner -->
+      <div id="readyNotice" style="display: none; background: rgba(46,196,182,0.14); border: 1.5px solid var(--emerald); border-radius: var(--radius-md); padding: 18px 14px; margin-top: 14px; text-align: center; box-shadow: 0 4px 20px rgba(46,196,182,0.25);">
+        <div style="font-weight: 800; font-size: 15px; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 0.5px;">ORDER READY FOR PICKUP!</div>
+        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">Your order is ready! Please proceed to the <b>Pickup Counter</b> to claim your order.</div>
+        <div style="font-size: 11.5px; color: var(--gold-light); margin-top: 8px; font-weight: 700;">Claim Ticket: <span id="readyNoticeOrderNum" style="color: var(--emerald);">#1</span></div>
       </div>
 
       <!-- Completed / Served Banner -->
@@ -4905,7 +5008,7 @@ class KdsServerService {
         Your handcrafted drinks & food are freshly prepared. Please proceed to the <b>Pickup Counter</b> to claim your order.
       </div>
 
-      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm()" style="width: 100%; background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); border: none; color: #000000; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 20px var(--emerald-glow); margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm(event)" ontouchstart="stopAlarm(event)" style="width: 100%; background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); border: none; color: #000000; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 20px var(--emerald-glow); margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         <span>Silence Alarm & Claim Order</span>
       </button>
@@ -5020,6 +5123,65 @@ class KdsServerService {
     </div>
   </div>
 
+  <!-- Customer Turn Up Volume Pop-Up Modal (Triggered when Cashier Confirms Payment) -->
+  <div class="modal-overlay" id="customerVolumeModal" style="display: none; align-items: center; justify-content: center; padding: 18px; z-index: 999999;">
+    <div class="modal-content" style="max-width: 410px; border-radius: 24px; border: 2px solid var(--gold-primary); background: #161219; padding: 26px 20px; text-align: center; margin: auto; position: relative; box-shadow: 0 0 45px rgba(212,175,55,0.38), 0 20px 60px rgba(0,0,0,0.95); animation: custVolGlow 1.5s infinite alternate;">
+      
+      <!-- Animated Center Speaker Icon -->
+      <div id="custVolumeIconBox" style="width: 74px; height: 74px; border-radius: 50%; background: rgba(212,175,55,0.16); border: 2.2px solid var(--gold-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; color: var(--gold-light); box-shadow: 0 0 26px rgba(212,175,55,0.4); transition: all 0.25s ease;">
+        <svg id="custVolumeSvg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+      </div>
+
+      <!-- Animated Equalizer Bars -->
+      <div id="custVolumeEqualizer" style="display: flex; justify-content: center; align-items: flex-end; gap: 4px; height: 26px; margin-bottom: 12px;">
+        <span class="vol-eq-bar" style="width: 4px; height: 10px; background: var(--gold-primary); border-radius: 2px; animation: eqBounce 0.9s ease-in-out infinite;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 22px; background: var(--amber-brewing); border-radius: 2px; animation: eqBounce 1.1s ease-in-out infinite 0.15s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 16px; background: var(--gold-light); border-radius: 2px; animation: eqBounce 0.8s ease-in-out infinite 0.3s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 24px; background: var(--gold-primary); border-radius: 2px; animation: eqBounce 1.2s ease-in-out infinite 0.1s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 14px; background: var(--amber-brewing); border-radius: 2px; animation: eqBounce 0.95s ease-in-out infinite 0.25s;"></span>
+      </div>
+
+      <div style="font-size: 10.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold-primary); margin-bottom: 5px;">
+        AUDIO VOLUME REQUIRED • LIVE CHIME READY
+      </div>
+
+      <div class="modal-title" id="custVolumeModalTitle" style="font-size: 21px; font-family: 'Cinzel', serif; font-weight: 800; color: var(--gold-light); letter-spacing: 0.5px; line-height: 1.25;">
+        Please Turn Up Your Volume
+      </div>
+
+      <div id="custVolumeModalDesc" style="font-size: 13px; color: var(--text-light); line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(212,175,55,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(212,175,55,0.3);">
+        Payment confirmed! Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alarm and voice announcement when your order is ready!
+      </div>
+
+      <!-- Physical Hardware Volume Key Instruction -->
+      <div id="custVolumeKeyBox" style="margin-top: 14px; background: rgba(0,0,0,0.52); border: 1.5px dashed var(--gold-primary); border-radius: 16px; padding: 14px 12px; user-select: none;">
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(212,175,55,0.18); border: 1.2px solid var(--gold-primary); border-radius: 8px; padding: 6px 12px; color: var(--gold-light); font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            <span>VOL UP [ ▲ ]</span>
+          </div>
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">or</span>
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(212,175,55,0.18); border: 1.2px solid var(--gold-primary); border-radius: 8px; padding: 6px 12px; color: var(--gold-light); font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+            <span>VOL DOWN [ ▼ ]</span>
+          </div>
+        </div>
+        <div style="font-size: 12px; font-weight: 600; color: #FFFFFF; line-height: 1.4;">
+          Turn up your phone volume or tap Okay below to continue.
+        </div>
+      </div>
+
+      <!-- Okay Confirmation Button -->
+      <button type="button" onclick="handleCustVolumeAction('button')" id="btnCustVolumeConfirm" style="margin-top: 15px; width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; border: none; border-radius: var(--radius-md); padding: 14px 18px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4); transition: all 0.15s ease;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Okay, Got It!</span>
+      </button>
+    </div>
+  </div>
+
   <script>
     /*__INITIAL_MENU_DATA__*/
 
@@ -5063,11 +5225,41 @@ class KdsServerService {
     let activeTrackedOrderNum = null;
     let alarmInterval = null;
     let isAlarmRunning = false;
+    let isAlarmPermanentlyDismissed = false;
+    let dismissedOrderNumber = null;
+    let dismissedOrderId = null;
+    let alarmMasterGainNode = null;
+    let activeAlarmOscillators = [];
+    let fallbackChimeTimeout = null;
+    let ttsVoiceTimeout = null;
+    let activeSpeechUtterance = null;
     let alarmLoopTimeout = null;
     let currentAlarmAudio = null;
     let audioContext = null;
+
+    function isOrderAlarmDismissed() {
+      if (isAlarmPermanentlyDismissed) return true;
+      if (_store.getItem('alarmDismissed_global') === 'true') return true;
+
+      const currentNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '';
+      const currentId = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
+      const cleanNum = String(currentNum).replace('#', '').trim();
+      const cleanId = String(currentId).replace('#', '').trim();
+
+      if (dismissedOrderNumber && (cleanNum === dismissedOrderNumber || currentNum === dismissedOrderNumber)) return true;
+      if (dismissedOrderId && (cleanId === dismissedOrderId || currentId === dismissedOrderId)) return true;
+
+      if (cleanNum && (_store.getItem('alarmDismissed_' + cleanNum) === 'true' || _store.getItem('alarmDismissed_#' + cleanNum) === 'true')) return true;
+      if (currentNum && _store.getItem('alarmDismissed_' + currentNum) === 'true') return true;
+      if (cleanId && _store.getItem('alarmDismissed_' + cleanId) === 'true') return true;
+      if (currentId && _store.getItem('alarmDismissed_' + currentId) === 'true') return true;
+
+      return false;
+    }
     let custWs = null;
     let pollInterval = null;
+    let isCustVolumeModalOpen = false;
+    let isCustVolumeDismissing = false;
     let activeReceiptData = null;
     try {
       const savedReceipt = _store.getItem('activeReceiptData');
@@ -5340,72 +5532,99 @@ class KdsServerService {
       .forEach(ev => document.addEventListener(ev, _unlockAudioOnGesture, { once: false, passive: true }));
 
     function playAlarmSound() {
-      if (!isAlarmRunning) return;
+      if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
       let playedViaWebAudio = false;
 
       try {
         if (!audioContext) initAudio();
-        const doSynth = () => {
-          if (!audioContext || !isAlarmRunning) return;
-          try {
-            const now = audioContext.currentTime;
-            // 4-tone crystalline cafe chime: C6 -> E6 -> G6 -> C7
-            const chordNotes = [
-              { freq: 1046.50, time: 0.00, dur: 0.35, vol: 0.65 },
-              { freq: 1318.51, time: 0.14, dur: 0.35, vol: 0.70 },
-              { freq: 1567.98, time: 0.28, dur: 0.40, vol: 0.75 },
-              { freq: 2093.00, time: 0.42, dur: 0.55, vol: 0.80 }
-            ];
+        if (audioContext) {
+          // Dedicated master gain node for clean, instantaneous muting
+          if (!alarmMasterGainNode) {
+            try {
+              alarmMasterGainNode = audioContext.createGain();
+              alarmMasterGainNode.connect(audioContext.destination);
+            } catch(_) {}
+          }
 
-            chordNotes.forEach(n => {
-              const startT = now + n.time;
-              const endT = startT + n.dur;
+          const doSynth = () => {
+            if (!audioContext || !isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+            try {
+              const now = audioContext.currentTime;
+              if (alarmMasterGainNode) {
+                alarmMasterGainNode.gain.cancelScheduledValues(now);
+                alarmMasterGainNode.gain.setValueAtTime(1.0, now);
+              }
 
-              // Primary pure sine wave tone
-              const osc1 = audioContext.createOscillator();
-              const gain1 = audioContext.createGain();
-              osc1.type = 'sine';
-              osc1.frequency.setValueAtTime(n.freq, startT);
-              gain1.gain.setValueAtTime(n.vol, startT);
-              gain1.gain.exponentialRampToValueAtTime(0.001, endT);
-              osc1.connect(gain1);
-              gain1.connect(audioContext.destination);
-              osc1.start(startT);
-              osc1.stop(endT);
+              // 4-tone crystalline cafe chime: C6 -> E6 -> G6 -> C7
+              const chordNotes = [
+                { freq: 1046.50, time: 0.00, dur: 0.35, vol: 0.65 },
+                { freq: 1318.51, time: 0.14, dur: 0.35, vol: 0.70 },
+                { freq: 1567.98, time: 0.28, dur: 0.40, vol: 0.75 },
+                { freq: 2093.00, time: 0.42, dur: 0.55, vol: 0.80 }
+              ];
 
-              // Gentle harmonic overtone (triangle)
-              const osc2 = audioContext.createOscillator();
-              const gain2 = audioContext.createGain();
-              osc2.type = 'triangle';
-              osc2.frequency.setValueAtTime(n.freq * 2, startT);
-              gain2.gain.setValueAtTime(n.vol * 0.2, startT);
-              gain2.gain.exponentialRampToValueAtTime(0.001, startT + n.dur * 0.6);
-              osc2.connect(gain2);
-              gain2.connect(audioContext.destination);
-              osc2.start(startT);
-              osc2.stop(startT + n.dur * 0.6);
-            });
-            playedViaWebAudio = true;
-          } catch(_) {}
-        };
+              chordNotes.forEach(n => {
+                if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+                const startT = now + n.time;
+                const endT = startT + n.dur;
 
-        if (audioContext && audioContext.state === 'suspended') {
-          audioContext.resume().then(doSynth).catch(() => {});
-        } else if (audioContext && audioContext.state === 'running') {
-          doSynth();
+                // Primary pure sine wave tone
+                const osc1 = audioContext.createOscillator();
+                const gain1 = audioContext.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(n.freq, startT);
+                gain1.gain.setValueAtTime(n.vol, startT);
+                gain1.gain.exponentialRampToValueAtTime(0.001, endT);
+                osc1.connect(gain1);
+                if (alarmMasterGainNode) {
+                  gain1.connect(alarmMasterGainNode);
+                } else {
+                  gain1.connect(audioContext.destination);
+                }
+                osc1.start(startT);
+                osc1.stop(endT);
+                activeAlarmOscillators.push(osc1);
+
+                // Gentle harmonic overtone (triangle)
+                const osc2 = audioContext.createOscillator();
+                const gain2 = audioContext.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(n.freq * 2, startT);
+                gain2.gain.setValueAtTime(n.vol * 0.2, startT);
+                gain2.gain.exponentialRampToValueAtTime(0.001, startT + n.dur * 0.6);
+                osc2.connect(gain2);
+                if (alarmMasterGainNode) {
+                  gain2.connect(alarmMasterGainNode);
+                } else {
+                  gain2.connect(audioContext.destination);
+                }
+                osc2.start(startT);
+                osc2.stop(startT + n.dur * 0.6);
+                activeAlarmOscillators.push(osc2);
+              });
+              playedViaWebAudio = true;
+            } catch(_) {}
+          };
+
+          if (audioContext.state === 'suspended') {
+            audioContext.resume().then(doSynth).catch(() => {});
+          } else if (audioContext.state === 'running') {
+            doSynth();
+          }
         }
       } catch (e) {
         console.warn('Audio play err:', e);
       }
 
       // Fallback: If Web Audio is unavailable or blocked, use HTML5 Audio chime
-      setTimeout(() => {
-        if (!playedViaWebAudio && isAlarmRunning) {
+      if (fallbackChimeTimeout) clearTimeout(fallbackChimeTimeout);
+      fallbackChimeTimeout = setTimeout(() => {
+        if (!playedViaWebAudio && isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
           try {
             const uri = getFallbackChimeUri();
             if (uri) {
               if (currentAlarmAudio) {
-                try { currentAlarmAudio.pause(); } catch(_) {}
+                try { currentAlarmAudio.pause(); currentAlarmAudio.src = ''; } catch(_) {}
               }
               currentAlarmAudio = new Audio(uri);
               currentAlarmAudio.volume = 1.0;
@@ -5415,27 +5634,29 @@ class KdsServerService {
         }
       }, 50);
 
-      if (isAlarmRunning) doVibrate();
+      if (isAlarmRunning && !isAlarmPermanentlyDismissed) doVibrate();
     }
 
     // Loop sequence: Play Alarm -> Stop/Pause -> TTS (reads all text) -> Pause -> Repeat Loop
     function runAlarmSequenceLoop() {
-      if (!isAlarmRunning) return;
+      if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
       // Step 1: Play Alarm Sound
       playAlarmSound();
 
       // Step 2: Wait for alarm notes to finish (~800ms) + 400ms pause
+      if (alarmLoopTimeout) clearTimeout(alarmLoopTimeout);
       alarmLoopTimeout = setTimeout(() => {
-        if (!isAlarmRunning) return;
+        if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
         // Step 3: Text to Speech (speaks and reads all text completely)
         speakReadyAnnouncement(() => {
-          if (!isAlarmRunning) return;
+          if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
           // Step 4: After speech is completely done, pause 800ms
+          if (alarmLoopTimeout) clearTimeout(alarmLoopTimeout);
           alarmLoopTimeout = setTimeout(() => {
-            if (!isAlarmRunning) return;
+            if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
             // Step 5: Loop back to play alarm again
             runAlarmSequenceLoop();
@@ -5445,13 +5666,7 @@ class KdsServerService {
     }
 
     function startRepeatingAlarm() {
-      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-      const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
-      if (_store.getItem('alarmDismissed_' + orderKey) === 'true' ||
-          (orderIdKey && _store.getItem('alarmDismissed_' + orderIdKey) === 'true') ||
-          _store.getItem('alarmDismissed_global') === 'true') {
-        return;
-      }
+      if (isOrderAlarmDismissed()) return;
       if (prevTrackStatus === 'completed' || _store.getItem('orderCompleted') === 'true') {
         return;
       }
@@ -5492,7 +5707,7 @@ class KdsServerService {
     }
 
     function speakReadyAnnouncement(onEnd) {
-      if (!isAlarmRunning) {
+      if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) {
         if (onEnd) onEnd();
         return;
       }
@@ -5506,12 +5721,16 @@ class KdsServerService {
         const utter = new SpeechSynthesisUtterance(
           'Your order is ready to claim! Please proceed to the pickup counter.'
         );
+        activeSpeechUtterance = utter;
 
         let ended = false;
         const finish = () => {
           if (!ended) {
             ended = true;
-            if (isAlarmRunning && onEnd) onEnd();
+            activeSpeechUtterance = null;
+            if (isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed() && onEnd) {
+              onEnd();
+            }
           }
         };
 
@@ -5520,7 +5739,7 @@ class KdsServerService {
         utter.onerror = finish;
 
         const trySpeak = () => {
-          if (!isAlarmRunning) return;
+          if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
           const voices = window.speechSynthesis.getVoices();
           const eng = voices.find(v => v.lang === 'en-US') ||
                       voices.find(v => v.lang && v.lang.startsWith('en'));
@@ -5541,10 +5760,13 @@ class KdsServerService {
         } else {
           window.speechSynthesis.onvoiceschanged = () => {
             window.speechSynthesis.onvoiceschanged = null;
-            if (isAlarmRunning) trySpeak();
+            if (isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
+              trySpeak();
+            }
           };
-          setTimeout(() => {
-            if (!ended && !window.speechSynthesis.speaking && isAlarmRunning) {
+          if (ttsVoiceTimeout) clearTimeout(ttsVoiceTimeout);
+          ttsVoiceTimeout = setTimeout(() => {
+            if (!ended && !window.speechSynthesis.speaking && isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
               trySpeak();
             }
           }, 300);
@@ -5554,9 +5776,14 @@ class KdsServerService {
       }
     }
 
-    function stopAlarm() {
-      // 1. Immediately flag alarm as stopped
+    function stopAlarm(e) {
+      if (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
+      }
+
+      // 1. Immediately flag alarm as stopped & permanently dismissed
       isAlarmRunning = false;
+      isAlarmPermanentlyDismissed = true;
 
       // 2. Clear any pending timeouts and intervals in the sequence loop
       if (alarmLoopTimeout) {
@@ -5567,40 +5794,87 @@ class KdsServerService {
         clearInterval(alarmInterval);
         alarmInterval = null;
       }
+      if (fallbackChimeTimeout) {
+        clearTimeout(fallbackChimeTimeout);
+        fallbackChimeTimeout = null;
+      }
+      if (ttsVoiceTimeout) {
+        clearTimeout(ttsVoiceTimeout);
+        ttsVoiceTimeout = null;
+      }
 
-      // 3. Immediately stop audio & cancel speech synthesis
+      // 3. Immediately silence Web Audio (zero gain & stop active oscillators)
+      try {
+        if (audioContext && alarmMasterGainNode) {
+          alarmMasterGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+          alarmMasterGainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        }
+      } catch(_) {}
+
+      if (activeAlarmOscillators && activeAlarmOscillators.length > 0) {
+        activeAlarmOscillators.forEach(osc => {
+          try { osc.stop(); osc.disconnect(); } catch(_) {}
+        });
+        activeAlarmOscillators = [];
+      }
+
+      // 4. Immediately stop HTML5 audio
       if (currentAlarmAudio) {
         try {
           currentAlarmAudio.pause();
           currentAlarmAudio.currentTime = 0;
+          currentAlarmAudio.src = '';
         } catch(_) {}
         currentAlarmAudio = null;
       }
+
+      // 5. Immediately cancel speech synthesis and drop handlers
       try {
         if ('speechSynthesis' in window) {
+          window.speechSynthesis.onvoiceschanged = null;
+          if (activeSpeechUtterance) {
+            activeSpeechUtterance.onend = null;
+            activeSpeechUtterance.onerror = null;
+            activeSpeechUtterance = null;
+          }
+          window.speechSynthesis.pause();
           window.speechSynthesis.cancel();
         }
       } catch(e) {}
 
-      // 4. Stop vibration
+      // 6. Stop vibration
       stopVibrationLoop();
 
-      // 5. Persist dismissed state for this order
+      // 7. Persist dismissed state across all key formats
       const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
       const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
+      const cleanNum = String(orderKey).replace('#', '').trim();
+      const cleanId = String(orderIdKey).replace('#', '').trim();
+
+      dismissedOrderNumber = cleanNum;
+      dismissedOrderId = cleanId;
+
       try {
-        _store.setItem('alarmDismissed_' + orderKey, 'true');
-        if (orderIdKey) _store.setItem('alarmDismissed_' + orderIdKey, 'true');
-        _store.setItem('alarmDismissed_#1', 'true');
         _store.setItem('alarmDismissed_global', 'true');
+        _store.setItem('alarmDismissed_' + orderKey, 'true');
+        _store.setItem('alarmDismissed_' + cleanNum, 'true');
+        _store.setItem('alarmDismissed_#' + cleanNum, 'true');
+        if (orderIdKey) {
+          _store.setItem('alarmDismissed_' + orderIdKey, 'true');
+          _store.setItem('alarmDismissed_' + cleanId, 'true');
+        }
       } catch(e) {}
 
-      // 6. Hide modal and remove active styles
+      // 8. Hide modal and remove active styles
       document.body.classList.remove('alarm-active');
       const modal = document.getElementById('readyAlarmModal');
       if (modal) modal.style.display = 'none';
-      const box = document.getElementById('readyAlarmBox');
-      if (box) box.style.display = 'none';
+
+      // Update button text for immediate touch feedback
+      const btn = document.getElementById('btnDismissReadyAlarmModal');
+      if (btn) {
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Silenced ✓ (Claim at Counter)</span>';
+      }
 
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       if (orderAnotherBtn) {
@@ -5831,6 +6105,7 @@ class KdsServerService {
         else if (isSweet) gIcon = '💧';
         else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) gIcon = '✨';
         else if (titleLower.includes('size') || titleLower.includes('cup')) gIcon = '☕';
+        else if (titleLower.includes('whip') || titleLower.includes('cream')) gIcon = '🍦';
         else if (titleLower.includes('prep') || titleLower.includes('cook')) gIcon = '🍽️';
 
         const badgeHtml = isRequired
@@ -5873,17 +6148,19 @@ class KdsServerService {
             </div>
           `;
         } else if (isMulti) {
-          // Multi-Select Add-ons with checkbox + price badge (+₱25)
+          // Multi-Select Add-ons (Full-Width list guaranteeing full unabbreviated text readability)
           optionsHtml = `
-            <div class="cust-opt-grid-2col">
+            <div class="cust-addon-list">
               \${g.options.map((opt, oIdx) => {
                 const extraPrice = opt.priceAdjustment || 0;
                 const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
                 return `
-                  <div class="cust-opt-card" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                    <div class="cust-check-box">+</div>
-                    <div class="cust-opt-text-col">
-                      <div class="cust-opt-label">\${opt.name}</div>
+                  <div class="cust-addon-card" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
+                    <div class="cust-addon-left">
+                      <div class="cust-check-box">+</div>
+                      <div class="cust-addon-text-col">
+                        <div class="cust-addon-label">\${opt.name}</div>
+                      </div>
                     </div>
                     \${priceBadge}
                   </div>
@@ -5892,9 +6169,13 @@ class KdsServerService {
             </div>
           `;
         } else {
-          // Sweetness / Cup Size / Standard Single-Select (2-Column Radio Cards)
+          // Single-Select: Whipped Cream, Sugar levels, Cup sizes, Preparation, etc.
+          const hasLongText = g.options.some(o => (o.name || '').length > 18);
+          const gridClass = (hasLongText && g.options.length > 2) ? 'cust-addon-list' : 'cust-opt-grid-2col';
+          const cardClass = (hasLongText && g.options.length > 2) ? 'cust-addon-card' : 'cust-opt-card';
+
           optionsHtml = `
-            <div class="cust-opt-grid-2col">
+            <div class="\${gridClass}">
               \${g.options.map((opt, oIdx) => {
                 const isDefault = oIdx === (g.defaultIndex || 0);
                 if (isDefault) {
@@ -5908,10 +6189,12 @@ class KdsServerService {
                 const extraPrice = opt.priceAdjustment || 0;
                 const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
                 return `
-                  <div class="cust-opt-card \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                    <div class="cust-radio-circle"></div>
-                    <div class="cust-opt-text-col">
-                      <div class="cust-opt-label">\${opt.name}</div>
+                  <div class="\${cardClass} \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                      <div class="cust-radio-circle"></div>
+                      <div class="cust-opt-text-col">
+                        <div class="cust-opt-label">\${opt.name}</div>
+                      </div>
                     </div>
                     \${priceBadge}
                   </div>
@@ -5948,7 +6231,7 @@ class KdsServerService {
       const opt = group.options[oIdx];
 
       if (!group.isMultiSelect) {
-        el.parentElement.querySelectorAll('.cust-opt-card').forEach(c => c.classList.remove('selected'));
+        el.parentElement.querySelectorAll('.cust-opt-card, .cust-addon-card').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
         selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
         selectedCustomizations.push({
@@ -6041,20 +6324,23 @@ class KdsServerService {
       const total = cart.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
 
       list.innerHTML = cart.map((item, idx) => {
-        const customsText = item.customizations.map(c => c.optionName).join(', ');
+        const customsBadges = (item.customizations || []).map(c => {
+          const priceTxt = (c.extraPrice && c.extraPrice > 0) ? ` (+₱\${Math.round(c.extraPrice)})` : '';
+          return `<span style="display: inline-block; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.3); color: var(--gold-light); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-right: 4px; margin-top: 3px;">\${c.optionName}\${priceTxt}</span>`;
+        }).join('');
         const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich') ||
           ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => (item.name || '').toLowerCase().includes(k));
         const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.2);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:5px;">KITCHEN</span>' : '';
 
         return `
-          <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="flex: 1; padding-right: 8px;">
-              <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center;">\${item.name}\${kitchenBadge}</div>
-              \${customsText ? `<div style="font-size: 11.5px; color: var(--gold-light); margin-top: 2px;">› \${customsText}</div>` : ''}
-              \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 2px;">Note: "\${item.notes}"</div>` : ''}
-              <div style="font-weight: 800; font-size: 14.5px; color: var(--gold-light); margin-top: 4px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
+          <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div style="flex: 1; min-width: 0; padding-right: 4px;">
+              <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center; flex-wrap: wrap;">\${item.name}\${kitchenBadge}</div>
+              \${customsBadges ? `<div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">\${customsBadges}</div>` : ''}
+              \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 4px;">Note: "\${item.notes}"</div>` : ''}
+              <div style="font-weight: 800; font-size: 14.5px; color: var(--gold-light); margin-top: 5px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
               <div style="display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
                 <button onclick="changeTrayItemQty(\${idx}, -1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer;">−</button>
                 <span style="font-size: 13px; font-weight: 800; color: var(--gold-light); min-width: 20px; text-align: center;">\${item.quantity}</span>
@@ -6166,6 +6452,160 @@ class KdsServerService {
       const el = document.getElementById(modalId);
       if (el) el.style.display = 'none';
     }
+
+    let _custVolProbeAudio = null;
+
+    function _startCustVolumeProbe() {
+      try {
+        if (!_custVolProbeAudio) {
+          _custVolProbeAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+          _custVolProbeAudio.loop = true;
+          _custVolProbeAudio.volume = 0.5;
+          _custVolProbeAudio.addEventListener('volumechange', function() {
+            if (isCustVolumeModalOpen && !isCustVolumeDismissing) {
+              handleCustVolumeAction('hardware');
+            }
+          });
+        }
+        _custVolProbeAudio.play().catch(() => {});
+      } catch(_) {}
+    }
+
+    function _stopCustVolumeProbe() {
+      try {
+        if (_custVolProbeAudio) {
+          _custVolProbeAudio.pause();
+        }
+      } catch(_) {}
+    }
+
+    function showCustomerVolumeModal(force = false) {
+      const targetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
+      const cleanKey = targetId ? String(targetId).replace('#','').trim() : 'active_order';
+      if (!force) {
+        if (_store.getItem('custVolumeSeen_' + cleanKey) === 'true') {
+          return; // Already seen and acknowledged for this order
+        }
+      }
+
+      const modal = document.getElementById('customerVolumeModal');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      isCustVolumeModalOpen = true;
+      isCustVolumeDismissing = false;
+
+      // Reset icon and title to default state if previously dismissed
+      const iconBox = document.getElementById('custVolumeIconBox');
+      const titleEl = document.getElementById('custVolumeModalTitle');
+      if (iconBox) {
+        iconBox.style.background = 'rgba(212,175,55,0.16)';
+        iconBox.style.borderColor = 'var(--gold-primary)';
+        iconBox.style.color = 'var(--gold-light)';
+        iconBox.style.boxShadow = '0 0 26px rgba(212,175,55,0.4)';
+        iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+      }
+      if (titleEl) {
+        titleEl.innerText = 'Please Turn Up Your Volume';
+        titleEl.style.color = 'var(--gold-light)';
+      }
+
+      // Pre-initialize / unlock Web Audio API on customer phone
+      initAudio();
+      _startCustVolumeProbe();
+    }
+
+    function handleCustVolumeAction(actionType) {
+      if (!isCustVolumeModalOpen || isCustVolumeDismissing) return;
+      isCustVolumeDismissing = true;
+      _stopCustVolumeProbe();
+
+      const targetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
+      const cleanKey = targetId ? String(targetId).replace('#','').trim() : 'active_order';
+      try {
+        _store.setItem('custVolumeSeen_' + cleanKey, 'true');
+        _store.setItem('custVolumeSeen_current', cleanKey);
+      } catch(_) {}
+
+      // Audio feedback tone
+      try {
+        initAudio();
+        const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx) {
+          if (ctx.state === 'suspended') ctx.resume();
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(actionType === 'down' ? 659.25 : 880, now);
+          osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.18);
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        }
+      } catch(_) {}
+
+      // Visual success acknowledgment
+      const iconBox = document.getElementById('custVolumeIconBox');
+      const titleEl = document.getElementById('custVolumeModalTitle');
+      if (iconBox) {
+        iconBox.style.background = 'rgba(46,196,182,0.2)';
+        iconBox.style.borderColor = 'var(--emerald)';
+        iconBox.style.color = 'var(--emerald)';
+        iconBox.style.boxShadow = '0 0 30px var(--emerald-glow)';
+        iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      }
+      if (titleEl) {
+        if (actionType === 'up') {
+          titleEl.innerText = 'Volume Up Detected [ ▲ ]';
+        } else if (actionType === 'down') {
+          titleEl.innerText = 'Volume Down Detected [ ▼ ]';
+        } else if (actionType === 'close') {
+          titleEl.innerText = 'Volume Alert Acknowledged ✓';
+        } else {
+          titleEl.innerText = 'Volume Ready & Chime Active ✓';
+        }
+        titleEl.style.color = 'var(--emerald)';
+      }
+
+      setTimeout(() => {
+        const modal = document.getElementById('customerVolumeModal');
+        if (modal) modal.style.display = 'none';
+        isCustVolumeModalOpen = false;
+        isCustVolumeDismissing = false;
+      }, 380);
+    }
+
+    // Global physical volume button event listener (hardware keydown + keyup)
+    function _handlePhysicalVolumeKeyEvent(e) {
+      if (!isCustVolumeModalOpen || isCustVolumeDismissing) return;
+      const k = e.key || '';
+      const code = e.code || '';
+      const kc = e.keyCode || e.which || 0;
+
+      const isVolUp = k === 'AudioVolumeUp' || code === 'AudioVolumeUp' || kc === 175 ||
+                      k === 'VolumeUp' || k === 'ArrowUp' || k === '+' || k === '=';
+      const isVolDown = k === 'AudioVolumeDown' || code === 'AudioVolumeDown' || kc === 174 ||
+                        k === 'VolumeDown' || k === 'ArrowDown' || k === '-' || k === '_';
+      const isVolMute = k === 'AudioVolumeMute' || code === 'AudioVolumeMute' || kc === 173 ||
+                        k === 'VolumeMute' || k.toLowerCase() === 'v';
+
+      if (isVolUp) {
+        try { e.preventDefault(); } catch(_) {}
+        handleCustVolumeAction('up');
+      } else if (isVolDown) {
+        try { e.preventDefault(); } catch(_) {}
+        handleCustVolumeAction('down');
+      } else if (isVolMute) {
+        try { e.preventDefault(); } catch(_) {}
+        handleCustVolumeAction('hardware');
+      }
+    }
+
+    window.addEventListener('keydown', _handlePhysicalVolumeKeyEvent, true);
+    window.addEventListener('keyup', _handlePhysicalVolumeKeyEvent, true);
 
     async function submitOrderToKitchen() {
       if (!cart || cart.length === 0) {
@@ -6320,6 +6760,31 @@ class KdsServerService {
         activeTrackedItems = items;
       }
 
+      // Only reset alarm dismissal if this is a genuinely new/different order
+      const newCleanId = String(orderId || '').replace('#', '').trim();
+      const newCleanNum = String(orderNumber || '').replace('#', '').trim();
+      const isDifferentOrder = (activeTrackedOrderId && newCleanId && newCleanId !== String(activeTrackedOrderId).replace('#', '').trim()) ||
+                              (activeTrackedOrderNum && newCleanNum && newCleanNum !== String(activeTrackedOrderNum).replace('#', '').trim());
+
+      if (isDifferentOrder || !activeTrackedOrderId) {
+        isAlarmPermanentlyDismissed = false;
+        dismissedOrderNumber = null;
+        dismissedOrderId = null;
+        try {
+          _store.removeItem('alarmDismissed_global');
+          if (orderNumber) {
+            _store.removeItem('alarmDismissed_' + orderNumber);
+            _store.removeItem('alarmDismissed_' + newCleanNum);
+            _store.removeItem('alarmDismissed_#' + newCleanNum);
+          }
+          if (orderId) {
+            _store.removeItem('alarmDismissed_' + orderId);
+            _store.removeItem('alarmDismissed_' + newCleanId);
+          }
+          _store.removeItem('alarmDismissed_#1');
+        } catch(e) {}
+      }
+
       try {
         _store.setItem('activeOrderId', orderId);
         _store.setItem('activeOrderNum', orderNumber);
@@ -6329,10 +6794,15 @@ class KdsServerService {
           _store.setItem('activeOrderItems', JSON.stringify(items));
         }
         _store.removeItem('pendingCart');
-        _store.removeItem('alarmDismissed_global');
-        if (orderNumber) _store.removeItem('alarmDismissed_' + orderNumber);
-        if (orderId) _store.removeItem('alarmDismissed_' + orderId);
-        _store.removeItem('alarmDismissed_#1');
+        if (orderNumber) {
+          _store.removeItem('custVolumeSeen_' + String(orderNumber).replace('#','').trim());
+        }
+        if (orderId) {
+          _store.removeItem('custVolumeSeen_' + String(orderId).replace('#','').trim());
+        }
+        _store.removeItem('custVolumeSeen_current');
+        _store.removeItem('custVolumeSeen_1');
+        _store.removeItem('custVolumeSeen_active_order');
       } catch(e) {}
 
       document.getElementById('controlsWrapper').style.display = 'none';
@@ -6354,6 +6824,12 @@ class KdsServerService {
 
       renderTrackedItemsList(activeTrackedItems, total);
       updateTrackerUI(statusToUse);
+
+      // Do NOT show volume modal on initial order placement while pending cashier payment.
+      // It will forcefully pop up when the cashier confirms and settles payment!
+      if (statusToUse === 'confirmed' || statusToUse === 'inqueue' || statusToUse === 'queue' || statusToUse === 'preparing' || statusToUse === 'brewing') {
+        setTimeout(() => showCustomerVolumeModal(true), 300);
+      }
 
       if (pollInterval) clearInterval(pollInterval);
       if (statusToUse !== 'completed' && statusToUse !== 'cancelled') {
@@ -6825,6 +7301,13 @@ class KdsServerService {
         step1.className = 'status-step completed';
         step2.className = 'status-step'; // Awaiting barista to tap Start Brewing
         step3.className = 'status-step';
+
+        // Force pop up Customer Turn Up Volume modal when cashier approves and settles payment
+        if (prevTrackStatus === 'pending' || !prevTrackStatus) {
+          showCustomerVolumeModal(true);
+        } else {
+          showCustomerVolumeModal(false);
+        }
       } else if (s === 'preparing' || s === 'brewing' || s === 'kitchen') {
         if (headerTag) headerTag.innerText = 'NOW BREWING & PREPARING';
         if (pendingNotice) pendingNotice.style.display = 'none';
@@ -6837,7 +7320,8 @@ class KdsServerService {
         step2.className = 'status-step active'; // Step 2 lights up now!
         step3.className = 'status-step';
 
-        if (prevTrackStatus === 'pending' || prevTrackStatus === 'confirmed') {
+        if (prevTrackStatus === 'pending' || prevTrackStatus === 'confirmed' || !prevTrackStatus) {
+          showCustomerVolumeModal(true);
           try {
             const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
@@ -6858,6 +7342,12 @@ class KdsServerService {
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'none';
+        const readyNotice = document.getElementById('readyNotice');
+        if (readyNotice) {
+          readyNotice.style.display = 'block';
+          const readyNum = document.getElementById('readyNoticeOrderNum');
+          if (readyNum) readyNum.innerText = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
+        }
         const compNotice = document.getElementById('completedNotice');
         if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
@@ -6870,8 +7360,7 @@ class KdsServerService {
         step3.className = 'status-step active';
 
         // Trigger alarm if order is ready and not yet dismissed
-        const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-        if (_store.getItem('alarmDismissed_' + orderKey) !== 'true') {
+        if (!isOrderAlarmDismissed()) {
           startRepeatingAlarm();
         }
       } else if (s === 'completed') {
@@ -7069,9 +7558,12 @@ class KdsServerService {
         const keys = [];
         for (let i = 0; i < _store.length; i++) {
           const k = _store.key(i);
-          if (k && k.startsWith('alarmDismissed_')) keys.push(k);
+          if (k && (k.startsWith('alarmDismissed_') || k.startsWith('custVolumeSeen_'))) keys.push(k);
         }
         keys.forEach(k => _store.removeItem(k));
+        _store.removeItem('custVolumeSeen_current');
+        _store.removeItem('custVolumeSeen_1');
+        _store.removeItem('custVolumeSeen_active_order');
         _store.removeItem('activeOrderId');
         _store.removeItem('activeOrderNum');
         _store.removeItem('activeOrderTotal');
@@ -7124,6 +7616,9 @@ class KdsServerService {
       closeModal('readyAlarmModal');
       closeModal('kitchenQueueModal');
       closeModal('orderCompletedModal');
+      closeModal('customerVolumeModal');
+      isCustVolumeModalOpen = false;
+      _stopCustVolumeProbe();
 
       document.getElementById('trackerView').style.display = 'none';
       document.getElementById('controlsWrapper').style.display = 'block';
@@ -7179,7 +7674,7 @@ class KdsServerService {
                 } catch(_) {}
                 initAudio();
 
-                if (data.status === 'ready') {
+                if (data.status === 'ready' && !isOrderAlarmDismissed()) {
                   startRepeatingAlarm();
                 } else if (data.status === 'completed') {
                   showOrderCompletedModal();

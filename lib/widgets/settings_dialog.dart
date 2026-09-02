@@ -48,7 +48,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         type: FileType.image,
       );
 
-      if (files != null && files.isNotEmpty) {
+      if (files.isNotEmpty) {
         final file = files.first;
         Uint8List? bytes;
 
