@@ -5062,6 +5062,9 @@ class KdsServerService {
     let activeTrackedOrderId = null;
     let activeTrackedOrderNum = null;
     let alarmInterval = null;
+    let isAlarmRunning = false;
+    let alarmLoopTimeout = null;
+    let currentAlarmAudio = null;
     let audioContext = null;
     let custWs = null;
     let pollInterval = null;
@@ -5319,9 +5322,10 @@ class KdsServerService {
       .forEach(ev => document.addEventListener(ev, _unlockAudioOnGesture, { once: false, passive: true }));
 
     function playAlarmSound() {
+      if (!isAlarmRunning) return;
       try {
         const doSynth = () => {
-          if (!audioContext) return;
+          if (!audioContext || !isAlarmRunning) return;
           try {
             const now = audioContext.currentTime;
             const notes = [880, 1174.66, 1760, 1174.66, 1760, 2093];
@@ -5340,39 +5344,71 @@ class KdsServerService {
           } catch(_) {}
         };
 
-        // Always try to resume suspended context before playing
         if (!audioContext) initAudio();
-        const doPlay = () => {
-          if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume().then(doSynth).catch(() => {});
-          } else if (audioContext) {
-            doSynth();
-          }
-          // HTML5 Audio fallback — plays regardless of AudioContext state
-          try {
-            const uri = getFallbackChimeUri();
-            if (uri) {
-              const a = new Audio(uri);
-              a.volume = 1.0;
-              a.play().catch(() => {});
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().then(doSynth).catch(() => {});
+        } else if (audioContext) {
+          doSynth();
+        }
+
+        // HTML5 Audio fallback
+        try {
+          const uri = getFallbackChimeUri();
+          if (uri && isAlarmRunning) {
+            if (currentAlarmAudio) {
+              try { currentAlarmAudio.pause(); } catch(_) {}
             }
-          } catch(_) {}
-        };
-        doPlay();
+            currentAlarmAudio = new Audio(uri);
+            currentAlarmAudio.volume = 1.0;
+            currentAlarmAudio.play().catch(() => {});
+          }
+        } catch(_) {}
       } catch (e) {
         console.warn('Audio play err:', e);
       }
-      doVibrate();
+      if (isAlarmRunning) doVibrate();
+    }
+
+    // Loop sequence: Play Alarm -> Stop/Pause -> TTS (reads all text) -> Pause -> Repeat Loop
+    function runAlarmSequenceLoop() {
+      if (!isAlarmRunning) return;
+
+      // Step 1: Play Alarm Sound
+      playAlarmSound();
+
+      // Step 2: Wait for alarm notes to finish (~800ms) + 400ms pause
+      alarmLoopTimeout = setTimeout(() => {
+        if (!isAlarmRunning) return;
+
+        // Step 3: Text to Speech (speaks and reads all text completely)
+        speakReadyAnnouncement(() => {
+          if (!isAlarmRunning) return;
+
+          // Step 4: After speech is completely done, pause 800ms
+          alarmLoopTimeout = setTimeout(() => {
+            if (!isAlarmRunning) return;
+
+            // Step 5: Loop back to play alarm again
+            runAlarmSequenceLoop();
+          }, 800);
+        });
+      }, 1200);
     }
 
     function startRepeatingAlarm() {
       const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-      if (_store.getItem('alarmDismissed_' + orderKey) === 'true') {
+      const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
+      if (_store.getItem('alarmDismissed_' + orderKey) === 'true' ||
+          (orderIdKey && _store.getItem('alarmDismissed_' + orderIdKey) === 'true') ||
+          _store.getItem('alarmDismissed_global') === 'true') {
         return;
       }
       if (prevTrackStatus === 'completed' || _store.getItem('orderCompleted') === 'true') {
         return;
       }
+      if (isAlarmRunning) return; // Already running
+
+      isAlarmRunning = true;
 
       document.body.classList.add('alarm-active');
       const numEl = document.getElementById('alarmModalOrderNum');
@@ -5402,61 +5438,67 @@ class KdsServerService {
         }
       } catch(e) {}
 
-      // ── Sequence: alarm → TTS → alarm ──
-      // Step 1: Play alarm immediately
-      playAlarmSound();
-
-      // Step 2: After alarm sound finishes (~0.9s), speak TTS
-      setTimeout(() => {
-        speakReadyAnnouncement(() => {
-          // Step 3: After TTS finishes, play alarm again
-          playAlarmSound();
-
-          // Step 4: After that final burst, start the repeating interval
-          setTimeout(() => {
-            if (!alarmInterval) {
-              alarmInterval = setInterval(playAlarmSound, 3500);
-            }
-          }, 1200);
-        });
-      }, 900);
+      // Start the repeating alarm sequence loop
+      runAlarmSequenceLoop();
     }
 
     function speakReadyAnnouncement(onEnd) {
+      if (!isAlarmRunning) {
+        if (onEnd) onEnd();
+        return;
+      }
       try {
         if (!('speechSynthesis' in window)) {
           if (onEnd) onEnd();
           return;
         }
-        window.speechSynthesis.cancel(); // clear any queued speech
-        const utter = new SpeechSynthesisUtterance(
-          'Your order is ready to claim!'
-        );
-        // Fire onEnd callback when TTS finishes (or errors)
-        utter.onend  = () => { if (onEnd) onEnd(); };
-        utter.onerror = () => { if (onEnd) onEnd(); };
+        window.speechSynthesis.cancel(); // clear previous queued speech
 
-        // Try to find a Filipino / Tagalog voice, fall back to any available
+        const utter = new SpeechSynthesisUtterance(
+          'Your order is ready to claim! Please proceed to the pickup counter.'
+        );
+
+        let ended = false;
+        const finish = () => {
+          if (!ended) {
+            ended = true;
+            if (isAlarmRunning && onEnd) onEnd();
+          }
+        };
+
+        // Guarantee all text is read before callback triggers
+        utter.onend = finish;
+        utter.onerror = finish;
+
         const trySpeak = () => {
+          if (!isAlarmRunning) return;
           const voices = window.speechSynthesis.getVoices();
           const eng = voices.find(v => v.lang === 'en-US') ||
-                      voices.find(v => v.lang.startsWith('en'));
+                      voices.find(v => v.lang && v.lang.startsWith('en'));
           if (eng) {
             utter.voice = eng;
             utter.lang  = eng.lang;
           } else {
             utter.lang = 'en-US';
           }
-          utter.rate   = 0.92;
+          utter.rate   = 0.90;
           utter.pitch  = 1.0;
           utter.volume = 1.0;
           window.speechSynthesis.speak(utter);
         };
+
         if (window.speechSynthesis.getVoices().length > 0) {
           trySpeak();
         } else {
-          // Voices may not be loaded yet on first call
-          window.speechSynthesis.onvoiceschanged = () => { trySpeak(); window.speechSynthesis.onvoiceschanged = null; };
+          window.speechSynthesis.onvoiceschanged = () => {
+            window.speechSynthesis.onvoiceschanged = null;
+            if (isAlarmRunning) trySpeak();
+          };
+          setTimeout(() => {
+            if (!ended && !window.speechSynthesis.speaking && isAlarmRunning) {
+              trySpeak();
+            }
+          }, 300);
         }
       } catch(e) {
         if (onEnd) onEnd();
@@ -5464,17 +5506,47 @@ class KdsServerService {
     }
 
     function stopAlarm() {
-      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-      try {
-        _store.setItem('alarmDismissed_' + orderKey, 'true');
-      } catch(e) {}
+      // 1. Immediately flag alarm as stopped
+      isAlarmRunning = false;
 
+      // 2. Clear any pending timeouts and intervals in the sequence loop
+      if (alarmLoopTimeout) {
+        clearTimeout(alarmLoopTimeout);
+        alarmLoopTimeout = null;
+      }
       if (alarmInterval) {
         clearInterval(alarmInterval);
         alarmInterval = null;
       }
+
+      // 3. Immediately stop audio & cancel speech synthesis
+      if (currentAlarmAudio) {
+        try {
+          currentAlarmAudio.pause();
+          currentAlarmAudio.currentTime = 0;
+        } catch(_) {}
+        currentAlarmAudio = null;
+      }
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      } catch(e) {}
+
+      // 4. Stop vibration
       stopVibrationLoop();
-      try { window.speechSynthesis.cancel(); } catch(e) {}
+
+      // 5. Persist dismissed state for this order
+      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
+      const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
+      try {
+        _store.setItem('alarmDismissed_' + orderKey, 'true');
+        if (orderIdKey) _store.setItem('alarmDismissed_' + orderIdKey, 'true');
+        _store.setItem('alarmDismissed_#1', 'true');
+        _store.setItem('alarmDismissed_global', 'true');
+      } catch(e) {}
+
+      // 6. Hide modal and remove active styles
       document.body.classList.remove('alarm-active');
       const modal = document.getElementById('readyAlarmModal');
       if (modal) modal.style.display = 'none';
@@ -6208,6 +6280,7 @@ class KdsServerService {
           _store.setItem('activeOrderItems', JSON.stringify(items));
         }
         _store.removeItem('pendingCart');
+        _store.removeItem('alarmDismissed_global');
         if (orderNumber) _store.removeItem('alarmDismissed_' + orderNumber);
         if (orderId) _store.removeItem('alarmDismissed_' + orderId);
         _store.removeItem('alarmDismissed_#1');
