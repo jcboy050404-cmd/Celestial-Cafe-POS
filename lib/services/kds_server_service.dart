@@ -5228,8 +5228,8 @@ class KdsServerService {
     function getFallbackChimeUri() {
       if (fallbackChimeDataUri) return fallbackChimeDataUri;
       try {
-        const sampleRate = 8000;
-        const duration = 0.42;
+        const sampleRate = 11025;
+        const duration = 0.95;
         const numSamples = Math.floor(sampleRate * duration);
         const headerLength = 44;
         const totalLength = headerLength + numSamples;
@@ -5252,12 +5252,28 @@ class KdsServerService {
         buffer[36] = 0x64; buffer[37] = 0x61; buffer[38] = 0x74; buffer[39] = 0x61; // data
         buffer[40] = numSamples & 0xff; buffer[41] = (numSamples >> 8) & 0xff;
         buffer[42] = 0; buffer[43] = 0;
+        
+        const notes = [
+          { freq: 1046.50, start: 0.00, len: 0.35, amp: 0.40 },
+          { freq: 1318.51, start: 0.14, len: 0.35, amp: 0.45 },
+          { freq: 1567.98, start: 0.28, len: 0.40, amp: 0.50 },
+          { freq: 2093.00, start: 0.42, len: 0.52, amp: 0.55 }
+        ];
+
         for (let i = 0; i < numSamples; i++) {
           const t = i / sampleRate;
-          const freq = (t < 0.18) ? 1046.5 : 1318.5;
-          const decay = Math.max(0, 1 - (t / duration));
-          const val = Math.sin(2 * Math.PI * freq * t) * decay * 0.85;
-          buffer[headerLength + i] = Math.floor((val + 1) * 127.5);
+          let sample = 0;
+          for (let n = 0; n < notes.length; n++) {
+            const nt = notes[n];
+            if (t >= nt.start && t < nt.start + nt.len) {
+              const dt = t - nt.start;
+              const decay = Math.max(0, 1 - (dt / nt.len));
+              sample += Math.sin(2 * Math.PI * nt.freq * dt) * decay * nt.amp;
+              sample += Math.sin(2 * Math.PI * nt.freq * 2 * dt) * decay * (nt.amp * 0.22);
+            }
+          }
+          sample = Math.max(-1, Math.min(1, sample));
+          buffer[headerLength + i] = Math.floor((sample + 1) * 127.5);
         }
         let binary = '';
         for (let i = 0; i < buffer.length; i++) {
@@ -5290,7 +5306,9 @@ class KdsServerService {
     function testOrEnableSound(e) {
       if (e) e.stopPropagation();
       _unlockAudioOnGesture();
+      isAlarmRunning = true;
       playAlarmSound();
+      setTimeout(() => { isAlarmRunning = false; }, 1200);
     }
 
     function updateSoundStatusBadge() {}
@@ -5323,49 +5341,80 @@ class KdsServerService {
 
     function playAlarmSound() {
       if (!isAlarmRunning) return;
+      let playedViaWebAudio = false;
+
       try {
+        if (!audioContext) initAudio();
         const doSynth = () => {
           if (!audioContext || !isAlarmRunning) return;
           try {
             const now = audioContext.currentTime;
-            const notes = [880, 1174.66, 1760, 1174.66, 1760, 2093];
-            notes.forEach((freq, i) => {
-              const osc = audioContext.createOscillator();
-              const gain = audioContext.createGain();
-              osc.type = 'sawtooth';
-              osc.connect(gain);
-              gain.connect(audioContext.destination);
-              osc.frequency.setValueAtTime(freq, now + i * 0.12);
-              gain.gain.setValueAtTime(0.85, now + i * 0.12);
-              gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.38);
-              osc.start(now + i * 0.12);
-              osc.stop(now + i * 0.12 + 0.38);
+            // 4-tone crystalline cafe chime: C6 -> E6 -> G6 -> C7
+            const chordNotes = [
+              { freq: 1046.50, time: 0.00, dur: 0.35, vol: 0.65 },
+              { freq: 1318.51, time: 0.14, dur: 0.35, vol: 0.70 },
+              { freq: 1567.98, time: 0.28, dur: 0.40, vol: 0.75 },
+              { freq: 2093.00, time: 0.42, dur: 0.55, vol: 0.80 }
+            ];
+
+            chordNotes.forEach(n => {
+              const startT = now + n.time;
+              const endT = startT + n.dur;
+
+              // Primary pure sine wave tone
+              const osc1 = audioContext.createOscillator();
+              const gain1 = audioContext.createGain();
+              osc1.type = 'sine';
+              osc1.frequency.setValueAtTime(n.freq, startT);
+              gain1.gain.setValueAtTime(n.vol, startT);
+              gain1.gain.exponentialRampToValueAtTime(0.001, endT);
+              osc1.connect(gain1);
+              gain1.connect(audioContext.destination);
+              osc1.start(startT);
+              osc1.stop(endT);
+
+              // Gentle harmonic overtone (triangle)
+              const osc2 = audioContext.createOscillator();
+              const gain2 = audioContext.createGain();
+              osc2.type = 'triangle';
+              osc2.frequency.setValueAtTime(n.freq * 2, startT);
+              gain2.gain.setValueAtTime(n.vol * 0.2, startT);
+              gain2.gain.exponentialRampToValueAtTime(0.001, startT + n.dur * 0.6);
+              osc2.connect(gain2);
+              gain2.connect(audioContext.destination);
+              osc2.start(startT);
+              osc2.stop(startT + n.dur * 0.6);
             });
+            playedViaWebAudio = true;
           } catch(_) {}
         };
 
-        if (!audioContext) initAudio();
         if (audioContext && audioContext.state === 'suspended') {
           audioContext.resume().then(doSynth).catch(() => {});
-        } else if (audioContext) {
+        } else if (audioContext && audioContext.state === 'running') {
           doSynth();
         }
-
-        // HTML5 Audio fallback
-        try {
-          const uri = getFallbackChimeUri();
-          if (uri && isAlarmRunning) {
-            if (currentAlarmAudio) {
-              try { currentAlarmAudio.pause(); } catch(_) {}
-            }
-            currentAlarmAudio = new Audio(uri);
-            currentAlarmAudio.volume = 1.0;
-            currentAlarmAudio.play().catch(() => {});
-          }
-        } catch(_) {}
       } catch (e) {
         console.warn('Audio play err:', e);
       }
+
+      // Fallback: If Web Audio is unavailable or blocked, use HTML5 Audio chime
+      setTimeout(() => {
+        if (!playedViaWebAudio && isAlarmRunning) {
+          try {
+            const uri = getFallbackChimeUri();
+            if (uri) {
+              if (currentAlarmAudio) {
+                try { currentAlarmAudio.pause(); } catch(_) {}
+              }
+              currentAlarmAudio = new Audio(uri);
+              currentAlarmAudio.volume = 1.0;
+              currentAlarmAudio.play().catch(() => {});
+            }
+          } catch(_) {}
+        }
+      }, 50);
+
       if (isAlarmRunning) doVibrate();
     }
 
