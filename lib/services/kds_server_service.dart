@@ -3554,7 +3554,7 @@ class KdsServerService {
       height: 7px;
       border-radius: 50%;
       background: var(--emerald);
-      box-shadow: 0 0 8px var(--emerald);
+      box-shadow: none;
       animation: livePulse 2s infinite;
     }
     @keyframes livePulse {
@@ -3586,8 +3586,8 @@ class KdsServerService {
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
     .dining-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
+      background: #14100D;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: var(--radius-lg);
       padding: 16px;
       cursor: pointer;
@@ -3597,23 +3597,23 @@ class KdsServerService {
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
-      box-shadow: var(--shadow-soft);
+      box-shadow: none;
     }
     .dining-card:hover {
       border-color: var(--caramel-accent);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-card);
+      box-shadow: none;
     }
     .dining-card:active { transform: scale(0.97); }
     .dining-card.selected {
       border-color: var(--caramel-accent);
-      background: rgba(196, 130, 72, 0.18);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      background: rgba(196, 130, 72, 0.12);
+      box-shadow: none;
     }
     .dining-card.takeout-card.selected, .dining-card.takeout-card:hover {
-      border-color: var(--amber);
-      background: rgba(226, 155, 56, 0.18);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      border-color: var(--caramel-accent);
+      background: rgba(196, 130, 72, 0.12);
+      box-shadow: none;
     }
     .dining-icon-box {
       width: 52px;
@@ -4688,29 +4688,22 @@ class KdsServerService {
     .btn-qty:active { background: var(--caramel-accent); color: #110E0C; }
     .qty-display { font-size: 16px; font-weight: 800; color: var(--gold-primary); min-width: 24px; text-align: center; }
 
-    /* Order Tracker Card - Soft UI Warm Espresso */
+    /* Order Tracker Card - Clean Matte Espresso */
     .tracker-card {
-      background: #120E0C;
+      background: #14100D;
       border-radius: 24px;
-      border: 1.5px solid rgba(196, 130, 72, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       padding: 26px 20px 22px 20px;
       margin: 14px auto;
       max-width: 460px;
       text-align: center;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
       animation: fadeInModal 0.3s ease;
       position: relative;
       overflow: hidden;
     }
     .tracker-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 120px;
-      background: radial-gradient(ellipse at top, rgba(196, 130, 72, 0.15) 0%, transparent 70%);
-      pointer-events: none;
+      display: none;
     }
 
     /* Wi-Fi Status Pill */
@@ -4719,8 +4712,8 @@ class KdsServerService {
       align-items: center;
       justify-content: center;
       gap: 7px;
-      background: rgba(61, 174, 122, 0.12);
-      border: 1px solid rgba(61, 174, 122, 0.35);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: #6FE0AC;
       border-radius: 20px;
       padding: 5px 14px;
@@ -4764,10 +4757,10 @@ class KdsServerService {
       color: #FFC27D;
     }
     .status-pill-ready {
-      background: rgba(61, 174, 122, 0.22);
-      border: 1.2px solid var(--emerald);
+      background: rgba(40, 140, 120, 0.18);
+      border: 1px solid var(--emerald);
       color: #6FE0AC;
-      box-shadow: 0 0 14px rgba(61, 174, 122, 0.3);
+      box-shadow: none;
     }
 
     /* Order Number Hero Box (Reference Design) */
@@ -4787,9 +4780,10 @@ class KdsServerService {
       line-height: 1.05;
       font-weight: 800;
       font-family: 'Cinzel', serif;
-      color: #D4AF37;
+      color: #FFFFFF;
       margin: 4px 0;
       letter-spacing: 1px;
+      text-shadow: none;
     }
     .tracker-table-sub {
       font-size: 13.5px;
@@ -4812,8 +4806,8 @@ class KdsServerService {
 
     /* Instruction Banner Card (Reference Design) */
     .tracker-instruction-card {
-      background: rgba(196, 130, 72, 0.08);
-      border: 1.5px solid rgba(196, 130, 72, 0.45);
+      background: #181310;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 16px;
       padding: 18px 16px;
       margin-top: 18px;
@@ -4862,7 +4856,7 @@ class KdsServerService {
     }
     .tracker-details-drawer {
       background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(196, 130, 72, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 14px;
       padding: 12px 16px;
       margin-bottom: 16px;
@@ -4975,29 +4969,30 @@ class KdsServerService {
       line-height: 1.25;
     }
     .status-step.active .step-dot {
-      background: #C48248;
-      border-color: #D4AF37;
+      background: var(--caramel-accent);
+      border-color: var(--caramel-accent);
       color: #110E0C;
       font-size: 15px;
       font-weight: 900;
-      box-shadow: 0 0 16px rgba(196, 130, 72, 0.45);
-      transform: scale(1.06);
+      box-shadow: none;
+      transform: none;
     }
     .status-step.active .step-label {
       color: #FFFFFF;
       font-weight: 800;
     }
     .status-step.completed .step-dot {
-      background: #2EC4B6;
-      border-color: #48E5D5;
-      color: #110E0C;
+      background: #288C78;
+      border-color: #288C78;
+      color: #FFFFFF;
       font-size: 0;
+      box-shadow: none;
     }
     .status-step.completed .step-dot::after {
       content: '✓';
       font-size: 16px;
       font-weight: 900;
-      color: #110E0C;
+      color: #FFFFFF;
     }
     .status-step.completed .step-label {
       color: #6FE0AC;
@@ -5020,8 +5015,8 @@ class KdsServerService {
     /* Live Kitchen Queue Action Button (Reference Design) */
     .btn-kitchen-queue {
       width: 100%;
-      background: rgba(26, 19, 15, 0.95);
-      border: 1.5px solid rgba(196, 130, 72, 0.35);
+      background: #181310;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       color: #FDFBF7;
       border-radius: 16px;
       padding: 13px 16px;
@@ -5032,12 +5027,12 @@ class KdsServerService {
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      box-shadow: none;
       transition: all 0.2s ease;
     }
     .btn-kitchen-queue:hover {
-      border-color: #C48248;
-      background: rgba(36, 26, 20, 0.95);
+      border-color: var(--caramel-accent);
+      background: #1E1814;
     }
     .btn-kitchen-queue:active {
       transform: scale(0.98);
@@ -5046,19 +5041,19 @@ class KdsServerService {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #FFA726;
+      background: var(--caramel-accent);
       display: inline-block;
-      box-shadow: 0 0 8px #FFA726;
-      animation: pulse 1.5s infinite;
+      box-shadow: none;
     }
     .queue-badge-pill {
-      background: rgba(196, 130, 72, 0.16);
-      border: 1px solid rgba(196, 130, 72, 0.4);
-      color: #C48248;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #D6C8BD;
       font-size: 11px;
       padding: 4px 10px;
       border-radius: 12px;
       font-weight: 800;
+      box-shadow: none;
     }
 
     .btn-view-receipt {
@@ -5117,28 +5112,24 @@ class KdsServerService {
     @keyframes screenStrobe {
       0% {
         background-color: #0D0A0F;
-        box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
       }
       50% {
-        background-color: #073832;
-        box-shadow: inset 0 0 160px rgba(46, 196, 182, 0.95), 0 0 80px rgba(46, 196, 182, 0.8);
+        background-color: #0F221F;
       }
       100% {
-        background-color: #382A0A;
-        box-shadow: inset 0 0 160px rgba(212, 175, 55, 0.95), 0 0 80px rgba(212, 175, 55, 0.8);
+        background-color: #21190D;
       }
     }
     .ready-alarm-box {
-      background: rgba(46, 196, 182, 0.2);
-      border: 2px solid var(--emerald);
+      background: rgba(40, 140, 120, 0.15);
+      border: 1px solid var(--emerald);
       border-radius: var(--radius-lg);
       padding: 20px 16px;
       margin-top: 16px;
-      animation: alertPulse 0.9s infinite alternate;
     }
     @keyframes alertPulse {
-      0% { box-shadow: 0 0 12px rgba(46,196,182,0.3); transform: scale(0.99); }
-      100% { box-shadow: 0 0 32px rgba(46,196,182,0.95); transform: scale(1.01); }
+      0% { transform: scale(0.99); }
+      100% { transform: scale(1.0); }
     }
     .ready-alarm-title { font-size: 20px; font-weight: 800; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 1px; }
     @keyframes spin {
@@ -5158,8 +5149,8 @@ class KdsServerService {
     }
     .ready-alarm-sub { font-size: 13px; color: var(--text-light); margin-top: 6px; font-weight: 600; }
     .btn-silence {
-      background: var(--emerald);
-      color: #000;
+      background: #288C78;
+      color: #FFFFFF;
       border: none;
       border-radius: var(--radius-md);
       padding: 12px 26px;
@@ -5167,7 +5158,7 @@ class KdsServerService {
       font-weight: 800;
       margin-top: 14px;
       cursor: pointer;
-      box-shadow: 0 4px 16px rgba(46, 196, 182, 0.4);
+      box-shadow: none;
     }
 
     .empty-state {
@@ -5211,8 +5202,8 @@ class KdsServerService {
       50% { height: 24px; }
     }
     @keyframes custVolGlow {
-      0% { box-shadow: 0 0 15px rgba(212,175,55,0.3); transform: scale(0.98); }
-      100% { box-shadow: 0 0 35px rgba(212,175,55,0.85); transform: scale(1.02); }
+      0% { transform: scale(0.99); }
+      100% { transform: scale(1.0); }
     }
   </style>
 </head>
@@ -5296,7 +5287,7 @@ class KdsServerService {
   <div id="trackerView" style="display: none;">
     <div class="tracker-card">
       <!-- Wi-Fi Disconnect Alert Banner -->
-      <div id="wifiWarningBanner" style="display: none; background: rgba(231,29,54,0.18); border: 1.5px solid var(--rose); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; text-align: center; color: #FFA8B2; font-size: 12px; font-weight: 700; box-shadow: 0 4px 16px rgba(231,29,54,0.3); animation: pulse 2s infinite;">
+      <div id="wifiWarningBanner" style="display: none; background: rgba(217, 83, 79, 0.12); border: 1px solid var(--rose); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; text-align: center; color: #FFA8B2; font-size: 12px; font-weight: 700; box-shadow: none;">
         Wi-Fi Disconnected! Please reconnect to Cafe Wi-Fi to continue tracking your order live.
       </div>
 
@@ -5537,33 +5528,33 @@ class KdsServerService {
 
   <!-- Dining Option Modal (Dine-In or Takeout) - First Appearance Prompt -->
   <div class="modal-overlay" id="diningOptionModal" style="display: none;" onclick="if(event.target===this) closeModal('diningOptionModal')">
-    <div class="modal-content" style="max-width: 440px; margin: 0 auto; background: #161219; border: 1.5px solid var(--gold-primary); border-radius: 24px; padding: 22px; box-shadow: 0 14px 50px rgba(0,0,0,0.95); animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
+    <div class="modal-content" style="max-width: 440px; margin: 0 auto; background: #14100D; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 24px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,0.7); animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
       <div class="modal-drag-pill"></div>
 
       <div style="text-align: center; margin-bottom: 18px;">
         <div class="brand-logo-frame" style="margin: 0 auto 10px auto; width: 48px; height: 48px; border-radius: 12px;">
-          <img src="/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='<span style=\\'font-weight:800;color:#D4AF37;font-size:22px;\\'>C</span>'">
+          <img src="/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='<span style=\\'font-weight:800;color:#FFFFFF;font-size:22px;\\'>C</span>'">
         </div>
-        <div style="font-family: 'Cinzel', serif; font-size: 18.5px; font-weight: 800; color: var(--gold-light); letter-spacing: 1px;">WELCOME TO CELESTIAL CAFE</div>
-        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">How will you enjoy your order today?</div>
+        <div style="font-family: 'Cinzel', serif; font-size: 18.5px; font-weight: 800; color: #FFFFFF; letter-spacing: 1px;">WELCOME TO CELESTIAL CAFE</div>
+        <div style="font-size: 12.5px; color: #A89B91; margin-top: 4px;">How will you enjoy your order today?</div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px;">
         <!-- Option 1: Dine-In -->
         <div class="dining-card selected" id="cardDineIn" onclick="selectDiningOption('dineIn')">
           <div class="dining-icon-box">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--caramel-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-weight: 800; font-size: 15px; color: var(--gold-light); font-family: 'Cinzel', serif;">Dine-In</span>
-              <span id="dineInCheck" style="font-size: 16px; color: var(--gold-primary); font-weight: 900;">✓</span>
+              <span style="font-weight: 800; font-size: 15px; color: #FFFFFF; font-family: 'Cinzel', serif;">Dine-In</span>
+              <span id="dineInCheck" style="font-size: 16px; color: var(--caramel-accent); font-weight: 900;">✓</span>
             </div>
             <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Enjoy inside our cafe at your table. Served in glassware and plates.</div>
-            <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px; background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.35); border-radius: 8px; padding: 5px 9px;">
+            <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 5px 9px;">
               <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                <span id="welcomeScannedTable" style="font-size: 11.5px; font-weight: 800; color: var(--gold-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Table 1</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--caramel-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <span id="welcomeScannedTable" style="font-size: 11.5px; font-weight: 800; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Table 1</span>
               </div>
               <div id="welcomeTableBadge" style="flex-shrink: 0; white-space: nowrap;"></div>
             </div>
@@ -5573,16 +5564,16 @@ class KdsServerService {
         <!-- Option 2: Takeout -->
         <div class="dining-card takeout-card" id="cardTakeout" onclick="selectDiningOption('takeaway')">
           <div class="dining-icon-box">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--caramel-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-weight: 800; font-size: 15px; color: #FFB74D; font-family: 'Cinzel', serif;">Takeout / To-Go</span>
-              <span id="takeoutCheck" style="font-size: 16px; color: #FF9F1C; font-weight: 900; display: none;">✓</span>
+              <span style="font-weight: 800; font-size: 15px; color: #FFFFFF; font-family: 'Cinzel', serif;">Takeout / To-Go</span>
+              <span id="takeoutCheck" style="font-size: 16px; color: var(--caramel-accent); font-weight: 900; display: none;">✓</span>
             </div>
             <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Packed in to-go paper cups, lids, and bags. Pick up freshly at the counter.</div>
             <div style="margin-top: 8px;">
-              <span style="background: rgba(255,159,28,0.18); border: 1px solid rgba(255,159,28,0.5); color: #FFB74D; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+              <span style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #D6C8BD; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
                 <span>TO-GO PACKAGING</span>
               </span>
@@ -5591,7 +5582,7 @@ class KdsServerService {
         </div>
       </div>
 
-      <button type="button" onclick="confirmDiningOptionAndClose()" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; border: none; border-radius: var(--radius-md); padding: 14px; font-weight: 800; font-size: 14.5px; cursor: pointer; box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4);">
+      <button type="button" onclick="confirmDiningOptionAndClose()" style="width: 100%; background: var(--caramel-accent); color: #110E0C; border: none; border-radius: var(--radius-md); padding: 14px; font-weight: 800; font-size: 14.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);">
         Continue to Menu
       </button>
     </div>
@@ -5599,19 +5590,19 @@ class KdsServerService {
 
   <!-- Official Order Receipt Pop-up Modal -->
   <div class="modal-overlay" id="orderReceiptModal" onclick="if(event.target===this) closeModal('orderReceiptModal')">
-    <div class="modal-content" style="max-width: 480px; margin: 0 auto; background: #161219; border: 1.5px solid var(--gold-primary); border-radius: 20px; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.9);">
+    <div class="modal-content" style="max-width: 480px; margin: 0 auto; background: #14100D; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px; padding: 20px; box-shadow: 0 16px 40px rgba(0,0,0,0.7);">
       <div class="modal-drag-pill"></div>
 
       <!-- Receipt Header -->
       <div style="text-align: center; margin-bottom: 12px;">
-        <div style="font-family: 'Cinzel', serif; font-size: 20px; font-weight: 900; color: var(--gold-light); letter-spacing: 2px;">CELESTIAL</div>
-        <div style="font-size: 10px; font-weight: 700; color: var(--gold-primary); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 1px;">Cozy & Classic Artisanal Cafe</div>
-        <div style="font-size: 9.5px; color: var(--text-muted); margin-top: 2px;">Coffee • Milk Tea • Cheesecake • Street Bites</div>
+        <div style="font-family: 'Cinzel', serif; font-size: 20px; font-weight: 900; color: #FFFFFF; letter-spacing: 2px;">CELESTIAL</div>
+        <div style="font-size: 10px; font-weight: 700; color: #C48248; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 1px;">Cozy & Classic Artisanal Cafe</div>
+        <div style="font-size: 9.5px; color: #A89B91; margin-top: 2px;">Coffee • Milk Tea • Cheesecake • Street Bites</div>
       </div>
 
       <!-- Paid Stamp / Status Badge -->
       <div id="receiptStampContainer" style="margin-bottom: 12px; text-align: center;">
-        <div id="receiptStampBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 6px; font-weight: 900; font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; border: 1.5px solid #2EC4B6; color: #2EC4B6; background: rgba(46,196,182,0.12);">
+        <div id="receiptStampBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 6px; font-weight: 900; font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; border: 1px solid #288C78; color: #6FE0AC; background: rgba(40,140,120,0.15);">
           ✓ OFFICIAL RECEIPT • PAID
         </div>
       </div>
@@ -5620,7 +5611,7 @@ class KdsServerService {
       <div style="background: rgba(255,255,255,0.03); border-top: 1px dashed rgba(255,255,255,0.15); border-bottom: 1px dashed rgba(255,255,255,0.15); padding: 10px 0; margin-bottom: 12px; font-size: 11.5px; color: var(--text-light); line-height: 1.65;">
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--text-muted);">Receipt / Order No:</span>
-          <span id="receiptOrderNum" style="font-weight: 800; color: var(--gold-light);">#1</span>
+          <span id="receiptOrderNum" style="font-weight: 800; color: #FFFFFF;">#1</span>
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--text-muted);">Date & Time:</span>
@@ -5628,7 +5619,7 @@ class KdsServerService {
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--text-muted);">Table / Type:</span>
-          <span id="receiptTableType" style="font-weight: 700; color: var(--gold-light);">Table 1 • Dine-In</span>
+          <span id="receiptTableType" style="font-weight: 700; color: #FFFFFF;">Table 1 • Dine-In</span>
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--text-muted);">Cashier / Staff:</span>
@@ -5728,8 +5719,8 @@ class KdsServerService {
 
   <!-- Ready For Pickup Pop-Up Alarm Modal -->
   <div class="modal-overlay" id="readyAlarmModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 300;" onclick="if(event.target===this) stopAlarm()">
-    <div class="modal-content" style="max-width: 420px; border-radius: var(--radius-xl); border: 2px solid var(--emerald); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 0 40px var(--emerald-glow), 0 20px 60px rgba(0,0,0,0.95); animation: alertPulse 0.9s infinite alternate;">
-      <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(46,196,182,0.18); border: 2px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: 0 0 24px var(--emerald-glow);">
+    <div class="modal-content" style="max-width: 420px; border-radius: var(--radius-xl); border: 1px solid var(--emerald); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.8); background: #14100D;">
+      <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(40,140,120,0.18); border: 1px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: none;">
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -5738,14 +5729,14 @@ class KdsServerService {
 
       <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--emerald); margin-bottom: 6px;">Order Is Ready For Pickup</div>
       
-      <div class="modal-title" id="alarmModalOrderNum" style="font-size: 42px; font-family: 'Cinzel', serif; font-weight: 800; color: var(--emerald); letter-spacing: 2px; text-shadow: 0 2px 14px var(--emerald-glow);">#1</div>
+      <div class="modal-title" id="alarmModalOrderNum" style="font-size: 42px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 2px; text-shadow: none;">#1</div>
       <div id="alarmModalTableInfo" style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 4px;">Table 1 • Dine-In</div>
 
-      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(46,196,182,0.1); border-radius: var(--radius-md); border: 1px dashed rgba(46,196,182,0.3);">
+      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(40,140,120,0.1); border-radius: var(--radius-md); border: 1px dashed rgba(40,140,120,0.3);">
         Your handcrafted drinks & food are freshly prepared. Please proceed to the <b>Pickup Counter</b> to claim your order.
       </div>
 
-      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm(event)" ontouchstart="stopAlarm(event)" style="width: 100%; background: linear-gradient(135deg, var(--emerald) 0%, #1FA295 100%); border: none; color: #000000; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 20px var(--emerald-glow); margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm(event)" ontouchstart="stopAlarm(event)" style="width: 100%; background: #288C78; border: none; color: #FFFFFF; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: none; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         <span>Silence Alarm & Claim Order</span>
       </button>
@@ -5754,8 +5745,8 @@ class KdsServerService {
 
   <!-- Order Completed Pop-Up Modal -->
   <div class="modal-overlay" id="orderCompletedModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 99999;" onclick="if(event.target===this) closeModal('orderCompletedModal')">
-    <div class="modal-content" style="max-width: 400px; border-radius: var(--radius-xl); border: 2px solid var(--emerald); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 0 35px var(--emerald-glow), 0 20px 60px rgba(0,0,0,0.95); animation: fadeInModal 0.25s ease-out;">
-      <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(46,196,182,0.18); border: 2px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: 0 0 24px var(--emerald-glow);">
+    <div class="modal-content" style="max-width: 400px; border-radius: var(--radius-xl); border: 1px solid rgba(255,255,255,0.12); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.8); background: #14100D; animation: fadeInModal 0.25s ease-out;">
+      <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(40,140,120,0.18); border: 1px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: none;">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
           <polyline points="22 4 12 14.01 9 11.01"></polyline>
@@ -5764,16 +5755,16 @@ class KdsServerService {
 
       <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--emerald); margin-bottom: 6px;">Order Served & Completed</div>
       
-      <div class="modal-title" id="completedModalOrderNum" style="font-size: 38px; font-family: 'Cinzel', serif; font-weight: 800; color: var(--gold-light); letter-spacing: 1px;">#1</div>
+      <div class="modal-title" id="completedModalOrderNum" style="font-size: 38px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 1px;">#1</div>
       <div id="completedModalTableInfo" style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 4px;">Table 1 • Dine-In</div>
 
-      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(46,196,182,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(46,196,182,0.3);">
+      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(40,140,120,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(40,140,120,0.3);">
         Your order has been served. Thank you for dining with Celestial Cafe! Would you like to order anything else?
       </div>
 
       <!-- Action Buttons: Order Again / No Thanks -->
       <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 10px;">
-        <button onclick="closeModal('orderCompletedModal'); newOrder(true);" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 14px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 18px var(--gold-glow); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <button onclick="closeModal('orderCompletedModal'); newOrder(true);" style="width: 100%; background: var(--caramel-accent); border: none; color: #110E0C; border-radius: var(--radius-md); padding: 14px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: none; display: flex; align-items: center; justify-content: center; gap: 8px;">
           <span>Order Again</span>
         </button>
 
@@ -5786,7 +5777,7 @@ class KdsServerService {
 
   <!-- Live Kitchen Activity Pop-Up Modal -->
   <div class="modal-overlay" id="kitchenQueueModal" onclick="if(event.target===this) closeModal('kitchenQueueModal')">
-    <div class="modal-content" style="max-width: 480px; margin: 0 auto; border-top: 2px solid var(--amber-brewing); box-shadow: 0 -10px 40px rgba(0,0,0,0.9), 0 0 30px rgba(255,159,28,0.15);">
+    <div class="modal-content" style="max-width: 480px; margin: 0 auto; border-top: 2px solid var(--caramel-accent); box-shadow: 0 16px 48px rgba(0,0,0,0.8); background: #14100D;">
       <div class="modal-drag-pill"></div>
       
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
@@ -5861,10 +5852,10 @@ class KdsServerService {
 
   <!-- Customer Turn Up Volume Pop-Up Modal (Triggered when Cashier Confirms Payment) -->
   <div class="modal-overlay" id="customerVolumeModal" style="display: none; align-items: center; justify-content: center; padding: 18px; z-index: 999999;">
-    <div class="modal-content" style="max-width: 410px; border-radius: 24px; border: 2px solid var(--gold-primary); background: #161219; padding: 26px 20px; text-align: center; margin: auto; position: relative; box-shadow: 0 0 45px rgba(212,175,55,0.38), 0 20px 60px rgba(0,0,0,0.95); animation: custVolGlow 1.5s infinite alternate;">
+    <div class="modal-content" style="max-width: 410px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.12); background: #14100D; padding: 26px 20px; text-align: center; margin: auto; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.8);">
       
       <!-- Animated Center Speaker Icon -->
-      <div id="custVolumeIconBox" style="width: 74px; height: 74px; border-radius: 50%; background: rgba(212,175,55,0.16); border: 2.2px solid var(--gold-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; color: var(--gold-light); box-shadow: 0 0 26px rgba(212,175,55,0.4); transition: all 0.25s ease;">
+      <div id="custVolumeIconBox" style="width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,0.06); border: 1.5px solid var(--caramel-accent); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; color: var(--caramel-accent); box-shadow: none; transition: all 0.25s ease;">
         <svg id="custVolumeSvg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -5873,34 +5864,34 @@ class KdsServerService {
 
       <!-- Animated Equalizer Bars -->
       <div id="custVolumeEqualizer" style="display: flex; justify-content: center; align-items: flex-end; gap: 4px; height: 26px; margin-bottom: 12px;">
-        <span class="vol-eq-bar" style="width: 4px; height: 10px; background: var(--gold-primary); border-radius: 2px; animation: eqBounce 0.9s ease-in-out infinite;"></span>
-        <span class="vol-eq-bar" style="width: 4px; height: 22px; background: var(--amber-brewing); border-radius: 2px; animation: eqBounce 1.1s ease-in-out infinite 0.15s;"></span>
-        <span class="vol-eq-bar" style="width: 4px; height: 16px; background: var(--gold-light); border-radius: 2px; animation: eqBounce 0.8s ease-in-out infinite 0.3s;"></span>
-        <span class="vol-eq-bar" style="width: 4px; height: 24px; background: var(--gold-primary); border-radius: 2px; animation: eqBounce 1.2s ease-in-out infinite 0.1s;"></span>
-        <span class="vol-eq-bar" style="width: 4px; height: 14px; background: var(--amber-brewing); border-radius: 2px; animation: eqBounce 0.95s ease-in-out infinite 0.25s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 10px; background: var(--caramel-accent); border-radius: 2px; animation: eqBounce 0.9s ease-in-out infinite;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 22px; background: #C8B29E; border-radius: 2px; animation: eqBounce 1.1s ease-in-out infinite 0.15s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 16px; background: #FFFFFF; border-radius: 2px; animation: eqBounce 0.8s ease-in-out infinite 0.3s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 24px; background: var(--caramel-accent); border-radius: 2px; animation: eqBounce 1.2s ease-in-out infinite 0.1s;"></span>
+        <span class="vol-eq-bar" style="width: 4px; height: 14px; background: #C8B29E; border-radius: 2px; animation: eqBounce 0.95s ease-in-out infinite 0.25s;"></span>
       </div>
 
-      <div style="font-size: 10.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--gold-primary); margin-bottom: 5px;">
+      <div style="font-size: 10.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--caramel-accent); margin-bottom: 5px;">
         AUDIO VOLUME REQUIRED • LIVE CHIME READY
       </div>
 
-      <div class="modal-title" id="custVolumeModalTitle" style="font-size: 21px; font-family: 'Cinzel', serif; font-weight: 800; color: var(--gold-light); letter-spacing: 0.5px; line-height: 1.25;">
+      <div class="modal-title" id="custVolumeModalTitle" style="font-size: 21px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 0.5px; line-height: 1.25;">
         Please Turn Up Your Volume
       </div>
 
-      <div id="custVolumeModalDesc" style="font-size: 13px; color: var(--text-light); line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(212,175,55,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(212,175,55,0.3);">
+      <div id="custVolumeModalDesc" style="font-size: 13px; color: var(--text-light); line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(255,255,255,0.05); border-radius: var(--radius-md); border: 1px dashed rgba(255,255,255,0.15);">
         Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alert when your order is ready for pickup!
       </div>
 
       <!-- Physical Hardware Volume Key Instruction -->
-      <div id="custVolumeKeyBox" style="margin-top: 14px; background: rgba(0,0,0,0.52); border: 1.5px dashed var(--gold-primary); border-radius: 16px; padding: 14px 12px; user-select: none;">
+      <div id="custVolumeKeyBox" style="margin-top: 14px; background: rgba(0,0,0,0.52); border: 1px dashed rgba(255,255,255,0.2); border-radius: 16px; padding: 14px 12px; user-select: none;">
         <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(212,175,55,0.18); border: 1.2px solid var(--gold-primary); border-radius: 8px; padding: 6px 12px; color: var(--gold-light); font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 12px; color: #FFFFFF; font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
             <span>VOL UP [ ▲ ]</span>
           </div>
           <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">or</span>
-          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(212,175,55,0.18); border: 1.2px solid var(--gold-primary); border-radius: 8px; padding: 6px 12px; color: var(--gold-light); font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 12px; color: #FFFFFF; font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
             <span>VOL DOWN [ ▼ ]</span>
           </div>
@@ -5911,7 +5902,7 @@ class KdsServerService {
       </div>
 
       <!-- Okay Confirmation Button -->
-      <button type="button" onclick="handleCustVolumeAction('button')" id="btnCustVolumeConfirm" style="margin-top: 15px; width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; border: none; border-radius: var(--radius-md); padding: 14px 18px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4); transition: all 0.15s ease;">
+      <button type="button" onclick="handleCustVolumeAction('button')" id="btnCustVolumeConfirm" style="margin-top: 15px; width: 100%; background: var(--caramel-accent); color: #110E0C; border: none; border-radius: var(--radius-md); padding: 14px 18px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; transition: all 0.15s ease;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         <span>Okay, Got It!</span>
       </button>
@@ -6235,13 +6226,13 @@ class KdsServerService {
       if (isTableVerified && currentTable) {
         if (welcomeTableEl) welcomeTableEl.innerText = currentTable;
         if (welcomeTableBadge) {
-          welcomeTableBadge.innerHTML = '<span style="background:rgba(46,196,182,0.18);border:1px solid rgba(46,196,182,0.5);color:#2EC4B6;font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">✓ Verified QR</span>';
+          welcomeTableBadge.innerHTML = '<span style="background:rgba(40,140,120,0.18);border:1px solid rgba(40,140,120,0.4);color:#6FE0AC;font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">✓ Verified QR</span>';
         }
         if (cardDineIn) cardDineIn.style.opacity = '1';
       } else {
         if (welcomeTableEl) welcomeTableEl.innerText = 'No Table Scanned';
         if (welcomeTableBadge) {
-          welcomeTableBadge.innerHTML = '<span style="background:rgba(255,183,77,0.16);border:1px solid rgba(255,183,77,0.4);color:#FFB74D;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap;">Scan QR to Dine-In</span>';
+          welcomeTableBadge.innerHTML = '<span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#D6C8BD;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap;">Scan QR to Dine-In</span>';
         }
         if (cardDineIn) cardDineIn.style.opacity = '0.7';
       }
@@ -7815,15 +7806,15 @@ class KdsServerService {
       const iconBox = document.getElementById('custVolumeIconBox');
       const titleEl = document.getElementById('custVolumeModalTitle');
       if (iconBox) {
-        iconBox.style.background = 'rgba(212,175,55,0.16)';
-        iconBox.style.borderColor = 'var(--gold-primary)';
-        iconBox.style.color = 'var(--gold-light)';
-        iconBox.style.boxShadow = '0 0 26px rgba(212,175,55,0.4)';
+        iconBox.style.background = 'rgba(255,255,255,0.06)';
+        iconBox.style.borderColor = 'var(--caramel-accent)';
+        iconBox.style.color = 'var(--caramel-accent)';
+        iconBox.style.boxShadow = 'none';
         iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
       }
       if (titleEl) {
         titleEl.innerText = 'Please Turn Up Your Volume';
-        titleEl.style.color = 'var(--gold-light)';
+        titleEl.style.color = '#FFFFFF';
       }
 
       const confirmBtn = document.getElementById('btnCustVolumeConfirm');
@@ -7916,10 +7907,10 @@ class KdsServerService {
       const iconBox = document.getElementById('custVolumeIconBox');
       const titleEl = document.getElementById('custVolumeModalTitle');
       if (iconBox) {
-        iconBox.style.background = 'rgba(46,196,182,0.2)';
-        iconBox.style.borderColor = 'var(--emerald)';
-        iconBox.style.color = 'var(--emerald)';
-        iconBox.style.boxShadow = '0 0 30px var(--emerald-glow)';
+        iconBox.style.background = 'rgba(40,140,120,0.18)';
+        iconBox.style.borderColor = '#288C78';
+        iconBox.style.color = '#6FE0AC';
+        iconBox.style.boxShadow = 'none';
         iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
       }
       if (titleEl) {
@@ -7932,7 +7923,7 @@ class KdsServerService {
         } else {
           titleEl.innerText = 'Volume Ready & Chime Active ✓';
         }
-        titleEl.style.color = 'var(--emerald)';
+        titleEl.style.color = '#6FE0AC';
       }
 
       setTimeout(() => {
