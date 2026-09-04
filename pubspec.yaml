@@ -43,6 +43,7 @@ dependencies:
   qr_flutter: ^4.1.0
   pdf: ^3.11.1
   printing: ^5.13.2
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/audio/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

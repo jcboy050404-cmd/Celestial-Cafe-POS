@@ -379,13 +379,13 @@ class _TableQrDialogState extends State<TableQrDialog> {
                           const SizedBox(height: 8),
 
                           Text(
-                            '1. Connect to Cafe Hotspot\n2. Scan QR code with Phone Camera\n3. Order & Phone Buzzes when Ready!',
+                            '1. Connect to Celestial Cafe Wi-Fi\n2. Scan with Camera (iOS) or Google Lens (Android)\n3. Order & your phone buzzes when ready!',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.outfit(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black54,
-                              height: 1.3,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
+                              height: 1.35,
                             ),
                           ),
                         ],

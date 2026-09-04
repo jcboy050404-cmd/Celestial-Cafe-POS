@@ -86,4 +86,41 @@ void main() {
     expect(find.text('Please Turn Up Your Volume'), findsNothing);
     expect(dialogResult, isTrue);
   });
+
+  testWidgets('VolumePromptDialog dismisses when tapping Okay Got It button',
+      (WidgetTester tester) async {
+    bool? dialogResult;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                dialogResult = await VolumePromptDialog.show(context);
+              },
+              child: const Text('Open Volume Modal'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Tap button to open VolumePromptDialog
+    await tester.tap(find.text('Open Volume Modal'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Please Turn Up Your Volume'), findsOneWidget);
+    expect(find.text('Okay, Got It!'), findsOneWidget);
+
+    // Tap the confirmation button
+    await tester.tap(find.text('Okay, Got It!'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Verify dialog is closed and returned true
+    expect(find.text('Please Turn Up Your Volume'), findsNothing);
+    expect(dialogResult, isTrue);
+  });
 }

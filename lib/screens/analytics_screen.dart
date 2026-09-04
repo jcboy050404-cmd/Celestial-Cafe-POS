@@ -164,9 +164,9 @@ class AnalyticsScreen extends StatelessWidget {
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: CelestialTheme.glassCard(
+      decoration: CelestialTheme.softCard(
         color: CelestialTheme.bgCard,
-        glow: glow,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/order.dart';
@@ -45,9 +46,49 @@ class KdsServerService {
     }
   }
 
+  static const String _tableSecretSalt = 'Celestial_Cafe_Table_Sign_2026_SecureKey';
+
+  static String getTableToken(String tableNumber) {
+    final cleanTable = tableNumber.replaceAll(RegExp(r'[^0-9]'), '').trim();
+    if (cleanTable.isEmpty) return '';
+    final bytes = utf8.encode('table:$cleanTable:$_tableSecretSalt');
+    final digest = sha256.convert(bytes);
+    return digest.toString().substring(0, 8).toUpperCase();
+  }
+
+  static ({String tableNumber, String? token}) parseTableAndToken(String? rawTable, String? rawToken) {
+    if (rawTable == null || rawTable.trim().isEmpty) {
+      return (tableNumber: '', token: null);
+    }
+    final cleaned = rawTable.trim();
+    String? token = (rawToken != null && rawToken.trim().isNotEmpty) ? rawToken.trim() : null;
+
+    if (cleaned.contains('-') || cleaned.contains('_')) {
+      final parts = cleaned.split(RegExp(r'[-_]'));
+      if (parts.length >= 2) {
+        final tablePart = parts[0].replaceAll(RegExp(r'[^0-9]'), '').trim();
+        final tokenPart = parts.sublist(1).join('-').trim();
+        return (tableNumber: tablePart, token: token ?? tokenPart);
+      }
+    }
+
+    final tablePart = cleaned.replaceAll(RegExp(r'[^0-9]'), '').trim();
+    return (tableNumber: tablePart, token: token);
+  }
+
+  static bool isValidTableToken(String tableNumber, String? token) {
+    final parsed = parseTableAndToken(tableNumber, token);
+    if (parsed.tableNumber.isEmpty || parsed.token == null || parsed.token!.trim().isEmpty) {
+      return false;
+    }
+    final expected = getTableToken(parsed.tableNumber);
+    return parsed.token!.trim().toLowerCase() == expected.toLowerCase();
+  }
+
   String getTableOrderUrl(String tableNumber) {
-    final cleanTable = tableNumber.replaceAll('Table', '').trim();
-    return 'http://$_localIp:$_port/order?table=$cleanTable';
+    final cleanTable = tableNumber.replaceAll(RegExp(r'[^0-9]'), '').trim();
+    final token = getTableToken(cleanTable);
+    return 'http://$_localIp:$_port/order?table=T$cleanTable-$token';
   }
 
   String getOrderTrackingUrl(String orderId, {String? orderNumber}) {
@@ -325,6 +366,34 @@ class KdsServerService {
     }
   }
 
+  void broadcastMenu(List<Map<String, dynamic>> menuList) {
+    try {
+      final payload = jsonEncode({
+        'type': 'SYNC_MENU',
+        'menu': menuList,
+      });
+
+      final deadClients = <WebSocket>[];
+      for (var client in List<WebSocket>.from(_clients)) {
+        if (client.readyState == WebSocket.open) {
+          try {
+            client.add(payload);
+          } catch (_) {
+            deadClients.add(client);
+          }
+        } else {
+          deadClients.add(client);
+        }
+      }
+      for (var dead in deadClients) {
+        _clients.remove(dead);
+        try { dead.close(); } catch (_) {}
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error broadcasting menu update: $e');
+    }
+  }
+
   void _handleRequest(HttpRequest request) {
     request.response.headers.add('Access-Control-Allow-Origin', '*');
     request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -372,12 +441,18 @@ class KdsServerService {
       _handleWebSocket(request);
     } else if (path == '/logo.png' || path == '/assets/images/logo.png') {
       _serveLogo(request);
+    } else if (path.startsWith('/assets/images/') || path.startsWith('/images/')) {
+      _serveAssetImage(request);
+    } else if (path == '/audio/order-ready.wav' || path == '/order-ready.wav') {
+      _serveOrderReadyAudio(request);
     } else if (path.startsWith('/api/item-image') || path.startsWith('/item-image')) {
       _serveItemImage(request);
     } else if (path.startsWith('/order') || path.startsWith('/menu') || path.startsWith('/table') || path.startsWith('/track') || path.startsWith('/claim') || path.startsWith('/status')) {
       _serveCustomerOrderWebPage(request);
     } else if (path.startsWith('/api/barista/verify-pin') || path.startsWith('/api/verify-pin')) {
       _handleBaristaVerifyPinApi(request);
+    } else if (path.startsWith('/api/verify-table')) {
+      _handleVerifyTableApi(request);
     } else if (path.startsWith('/api/menu')) {
       _handleMenuApi(request);
     } else if (path.startsWith('/api/customer/order')) {
@@ -439,7 +514,108 @@ class KdsServerService {
     request.response.close();
   }
 
+  void _serveAssetImage(HttpRequest request) async {
+    try {
+      String rawPath = request.uri.path;
+      if (rawPath.startsWith('/')) rawPath = rawPath.substring(1);
+      if (!rawPath.startsWith('assets/')) {
+        rawPath = 'assets/$rawPath';
+      }
+      Uint8List? bytes;
+      try {
+        final byteData = await rootBundle.load(rawPath);
+        bytes = byteData.buffer.asUint8List();
+      } catch (_) {
+        final f = File(rawPath);
+        if (f.existsSync()) {
+          bytes = f.readAsBytesSync();
+        }
+      }
+      if (bytes != null && bytes.isNotEmpty) {
+        final isJpg = rawPath.endsWith('.jpg') || rawPath.endsWith('.jpeg');
+        request.response
+          ..headers.contentType = isJpg ? ContentType('image', 'jpeg') : ContentType('image', 'png')
+          ..headers.add('Cache-Control', 'public, max-age=86400, immutable')
+          ..headers.add('Access-Control-Allow-Origin', '*')
+          ..statusCode = HttpStatus.ok
+          ..add(bytes)
+          ..close();
+        return;
+      }
+    } catch (_) {}
+    request.response.statusCode = HttpStatus.notFound;
+    request.response.close();
+  }
+
+  Uint8List? _cachedOrderReadyAudioBytes;
+
+  void _serveOrderReadyAudio(HttpRequest request) async {
+    try {
+      if (_cachedOrderReadyAudioBytes == null) {
+        try {
+          final byteData = await rootBundle.load('assets/audio/order_ready.wav');
+          _cachedOrderReadyAudioBytes = byteData.buffer.asUint8List();
+        } catch (_) {
+          final f = File('assets/audio/order_ready.wav');
+          if (f.existsSync()) {
+            _cachedOrderReadyAudioBytes = f.readAsBytesSync();
+          }
+        }
+      }
+      if (_cachedOrderReadyAudioBytes != null && _cachedOrderReadyAudioBytes!.isNotEmpty) {
+        request.response
+          ..headers.contentType = ContentType('audio', 'wav')
+          ..headers.add('Cache-Control', 'public, max-age=86400, immutable')
+          ..headers.add('Access-Control-Allow-Origin', '*')
+          ..statusCode = HttpStatus.ok
+          ..add(_cachedOrderReadyAudioBytes!)
+          ..close();
+        return;
+      }
+    } catch (_) {}
+    request.response.statusCode = HttpStatus.notFound;
+    request.response.close();
+  }
+
+  void _handleVerifyTableApi(HttpRequest request) {
+    final tableParam = request.uri.queryParameters['table'] ?? request.uri.queryParameters['t'] ?? '';
+    final tokenParam = request.uri.queryParameters['token'] ?? request.uri.queryParameters['key'] ?? request.uri.queryParameters['code'] ?? '';
+    final parsed = parseTableAndToken(tableParam, tokenParam);
+    final valid = parsed.tableNumber.isNotEmpty && isValidTableToken(parsed.tableNumber, parsed.token);
+
+    request.response
+      ..headers.contentType = ContentType.json
+      ..statusCode = HttpStatus.ok
+      ..write(jsonEncode({
+        'success': valid,
+        'verified': valid,
+        'table': parsed.tableNumber.isNotEmpty ? 'Table ${parsed.tableNumber}' : null,
+        'token': valid ? parsed.token : null,
+        'fullCode': valid ? 'T${parsed.tableNumber}-${parsed.token}' : null,
+        if (!valid) 'error': 'Invalid or missing table QR verification token. Please scan the physical QR code on your table.'
+      }))
+      ..close();
+  }
+
   void _handleMenuApi(HttpRequest request) {
+    final tableParam = request.uri.queryParameters['table'] ?? request.uri.queryParameters['t'];
+    final tokenParam = request.uri.queryParameters['token'] ?? request.uri.queryParameters['key'] ?? request.uri.queryParameters['code'];
+    if (tableParam != null && tableParam.trim().isNotEmpty) {
+      final parsed = parseTableAndToken(tableParam, tokenParam);
+      if (parsed.tableNumber.isNotEmpty && !isValidTableToken(parsed.tableNumber, parsed.token)) {
+        request.response
+          ..headers.contentType = ContentType.json
+          ..statusCode = HttpStatus.forbidden
+          ..write(jsonEncode({
+            'success': false,
+            'menu': [],
+            'error': 'Menu access blocked. Please scan the physical table QR code to access the menu.'
+          }))
+          ..close();
+        return;
+      }
+    }
+
     final menuList = getMenuCallback != null ? getMenuCallback!() : [];
     request.response
       ..headers.contentType = ContentType.json
@@ -453,8 +629,10 @@ class KdsServerService {
       final orderId = request.uri.queryParameters['orderId'] ??
           request.uri.queryParameters['id'] ??
           request.uri.queryParameters['orderNumber'] ??
+          request.uri.queryParameters['order'] ??
+          request.uri.queryParameters['num'] ??
           '';
-      final cleanId = orderId.trim().toLowerCase();
+      final cleanId = orderId.trim().toLowerCase().replaceAll('#', '');
 
       final activeList = getActiveOrdersJson != null ? getActiveOrdersJson!() : <Map<String, dynamic>>[];
       final List<String> currentlyPreparing = [];
@@ -504,6 +682,22 @@ class KdsServerService {
           if (oId == cleanId || oNum == cleanId || oNum.replaceAll('#', '').trim() == cleanId) {
             matchedOrder = o;
             break;
+          }
+        }
+      }
+
+      if (matchedOrder == null && cleanId.isEmpty) {
+        final tableParam = (request.uri.queryParameters['table'] ?? request.uri.queryParameters['t'] ?? '')
+            .replaceAll(RegExp(r'table\s*', caseSensitive: false), '')
+            .trim();
+        if (tableParam.isNotEmpty && activeList.isNotEmpty) {
+          for (var o in activeList.reversed) {
+            final t = (o['tableNumber'] as String? ?? '').replaceAll(RegExp(r'table\s*', caseSensitive: false), '').trim();
+            final s = (o['status'] as String? ?? '').toLowerCase();
+            if (t == tableParam && s != 'completed' && s != 'cancelled') {
+              matchedOrder = o;
+              break;
+            }
           }
         }
       }
@@ -688,21 +882,23 @@ class KdsServerService {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
-          ..write(jsonEncode(result))
-          ..close();
+          ..write(jsonEncode(result));
+        await request.response.close();
       } else {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.badRequest
-          ..write(jsonEncode({'success': false, 'error': 'Missing order ID or change handler not initialized'}))
-          ..close();
+          ..write(jsonEncode({'success': false, 'error': 'Missing order ID or change handler not initialized'}));
+        await request.response.close();
       }
     } catch (e) {
-      request.response
-        ..headers.contentType = ContentType.json
-        ..statusCode = HttpStatus.badRequest
-        ..write(jsonEncode({'success': false, 'error': e.toString()}))
-        ..close();
+      try {
+        request.response
+          ..headers.contentType = ContentType.json
+          ..statusCode = HttpStatus.badRequest
+          ..write(jsonEncode({'success': false, 'error': e.toString()}));
+        await request.response.close();
+      } catch (_) {}
     }
   }
 
@@ -734,22 +930,22 @@ class KdsServerService {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
-          ..write(jsonEncode(result))
-          ..close();
+          ..write(jsonEncode(result));
+        await request.response.close();
       } else {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
-          ..write(jsonEncode({'success': false, 'error': 'Missing order ID or order not found'}))
-          ..close();
+          ..write(jsonEncode({'success': false, 'error': 'Missing order ID or order not found'}));
+        await request.response.close();
       }
     } catch (e) {
       try {
         request.response
           ..headers.contentType = ContentType.json
           ..statusCode = HttpStatus.ok
-          ..write(jsonEncode({'success': false, 'error': e.toString()}))
-          ..close();
+          ..write(jsonEncode({'success': false, 'error': e.toString()}));
+        await request.response.close();
       } catch (_) {}
     }
   }
@@ -824,12 +1020,14 @@ class KdsServerService {
   /// Used by customer page to auto-restore tracking on any device that opens the same table URL.
   void _handleTableOrderApi(HttpRequest request) {
     final raw = request.uri.queryParameters['table'] ?? '';
-    final tableNum = raw.replaceAll(RegExp(r'table\s*', caseSensitive: false), '').trim();
-    if (tableNum.isEmpty) {
+    final tokenParam = request.uri.queryParameters['token'] ?? request.uri.queryParameters['key'] ?? request.uri.queryParameters['code'];
+    final parsed = parseTableAndToken(raw, tokenParam);
+    final tableNum = parsed.tableNumber;
+    if (tableNum.isEmpty || !isValidTableToken(tableNum, parsed.token)) {
       request.response
         ..headers.contentType = ContentType.json
         ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({'success': false, 'error': 'No table specified'}))
+        ..write(jsonEncode({'success': false, 'error': 'Table QR verification required'}))
         ..close();
       return;
     }
@@ -1053,18 +1251,73 @@ class KdsServerService {
     }
   }
 
+  static String? _cachedMenuJson;
+  static String? _cachedCustomerHtml;
+
   void _serveCustomerOrderWebPage(HttpRequest request) {
     final menuJson = jsonEncode(getMenuCallback != null ? getMenuCallback!() : []);
-    final html = _customerOrderHtmlTemplate.replaceFirst(
-      '/*__INITIAL_MENU_DATA__*/',
-      'window.INITIAL_MENU = $menuJson;',
+
+    String? rawTable = request.uri.queryParameters['table'] ?? request.uri.queryParameters['t'];
+    if (rawTable == null) {
+      final segments = request.uri.pathSegments;
+      for (int i = 0; i < segments.length; i++) {
+        final s = segments[i].toLowerCase();
+        if ((s == 'table' || s == 't') && i + 1 < segments.length) {
+          rawTable = segments[i + 1];
+          break;
+        } else if (s.startsWith('table') && s.length > 5) {
+          rawTable = s.substring(5);
+          break;
+        }
+      }
+    }
+
+    final token = request.uri.queryParameters['token'] ?? request.uri.queryParameters['key'] ?? request.uri.queryParameters['code'];
+    final parsed = parseTableAndToken(rawTable, token);
+    final cleanTable = parsed.tableNumber;
+    final validToken = parsed.token;
+
+    final bool hasTableAttempt = cleanTable.isNotEmpty;
+    final bool isVerified = hasTableAttempt && isValidTableToken(cleanTable, validToken);
+
+    final tableAuthJson = jsonEncode({
+      'hasTableAttempt': hasTableAttempt,
+      'isVerified': isVerified,
+      'tableNumber': isVerified ? 'Table $cleanTable' : (hasTableAttempt ? 'Table $cleanTable' : null),
+      'cleanTable': isVerified ? cleanTable : null,
+      'token': isVerified ? validToken : null,
+      'fullCode': isVerified ? 'T$cleanTable-$validToken' : null,
+      'error': (hasTableAttempt && !isVerified)
+          ? 'Physical QR code scan required. Table cannot be accessed by manually editing the link.'
+          : null,
+    });
+
+    final bool isBlocked = hasTableAttempt && !isVerified;
+    final String effectiveMenuJson = isBlocked ? '[]' : menuJson;
+
+    String baseHtml;
+    if (_cachedMenuJson == effectiveMenuJson && _cachedCustomerHtml != null) {
+      baseHtml = _cachedCustomerHtml!;
+    } else {
+      baseHtml = _customerOrderHtmlTemplate.replaceFirst(
+        '/*__INITIAL_MENU_DATA__*/',
+        'window.INITIAL_MENU = $effectiveMenuJson;',
+      );
+      _cachedMenuJson = effectiveMenuJson;
+      _cachedCustomerHtml = baseHtml;
+    }
+
+    final html = baseHtml.replaceFirst(
+      '/*__TABLE_AUTH_DATA__*/',
+      'window.TABLE_AUTH = $tableAuthJson;',
     );
+
     final acceptEncoding = request.headers.value(HttpHeaders.acceptEncodingHeader) ?? '';
     final canGzip = acceptEncoding.contains('gzip');
 
     request.response
       ..headers.contentType = ContentType.html
-      ..headers.add('Cache-Control', 'no-cache');
+      ..headers.add('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     if (canGzip) {
       final compressed = gzip.encode(utf8.encode(html));
@@ -1147,7 +1400,7 @@ class KdsServerService {
       font-weight: 800;
       font-size: 15px;
       letter-spacing: 2px;
-      color: var(--gold-primary);
+      color: #FFFFFF;
       line-height: 1.1;
     }
     .brand-sub {
@@ -2010,7 +2263,7 @@ class KdsServerService {
     <div class="brand">
       <img src="/logo.png" style="height: 38px; width: 38px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(212, 175, 55, 0.4); box-shadow: 0 2px 8px rgba(212,175,55,0.25);" alt="Logo" onerror="this.style.display='none'">
       <div>
-        <div class="brand-title">CELESTIAL</div>
+        <div class="brand-title">CELESTIAL CAFE</div>
         <div class="brand-sub">KITCHEN DISPLAY SYSTEM (KDS)</div>
       </div>
     </div>
@@ -3185,29 +3438,36 @@ class KdsServerService {
   </style>
   <style>
     :root {
-      --bg-dark: #0D0A0F;
-      --bg-surface: #17121A;
-      --bg-card: #201924;
-      --bg-card-elevated: #2A2130;
-      --gold-primary: #D4AF37;
-      --gold-light: #F4E295;
-      --gold-dark: #997A15;
-      --gold-glow: rgba(212, 175, 55, 0.28);
-      --brown-warm: #3A2315;
-      --emerald: #2EC4B6;
-      --emerald-glow: rgba(46, 196, 182, 0.3);
-      --amber: #FF9F1C;
-      --rose: #E71D36;
-      --blue: #4CC9F0;
-      --text-light: #FDF8F3;
-      --text-muted: #B8ABA0;
-      --text-subtle: #756960;
-      --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-gold: rgba(212, 175, 55, 0.35);
-      --radius-sm: 8px;
+      --bg-dark: #000000;
+      --bg-surface: #0C0A09;
+      --bg-card: #14100D;
+      --bg-card-elevated: #1C1612;
+      --gold-primary: #D4A359;
+      --gold-light: #F6EFE9;
+      --gold-dark: #A37936;
+      --caramel-accent: #C48248;
+      --cream-light: #F6EFE9;
+      --cream-soft: #D6C8BD;
+      --warm-beige: #C8B29E;
+      --warm-gray: #8A7B70;
+      --brown-warm: #201610;
+      --emerald: #3DAE7A;
+      --amber: #E29B38;
+      --amber-brewing: #E29B38;
+      --rose: #D9534F;
+      --blue: #5C9DF5;
+      --text-light: #F6EFE9;
+      --text-muted: #D6C8BD;
+      --text-subtle: #8A7B70;
+      --border-subtle: rgba(250, 240, 230, 0.08);
+      --border-gold: rgba(212, 163, 89, 0.35);
+      --border-caramel: rgba(196, 130, 72, 0.35);
+      --radius-sm: 10px;
       --radius-md: 14px;
       --radius-lg: 20px;
-      --radius-xl: 26px;
+      --radius-xl: 24px;
+      --shadow-soft: 0 4px 14px rgba(0,0,0,0.45);
+      --shadow-card: 0 8px 24px rgba(0,0,0,0.55);
     }
     * {
       box-sizing: border-box;
@@ -3217,9 +3477,9 @@ class KdsServerService {
       -webkit-tap-highlight-color: transparent;
     }
     body {
-      background-color: var(--bg-dark);
-      background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.08) 0%, transparent 60%),
-                        radial-gradient(circle at 100% 100%, rgba(58, 35, 21, 0.15) 0%, transparent 50%);
+      background-color: #000000;
+      background-image: radial-gradient(circle at 50% 0%, rgba(196, 130, 72, 0.05) 0%, transparent 60%),
+                        radial-gradient(circle at 100% 100%, rgba(30, 20, 14, 0.28) 0%, transparent 55%);
       color: var(--text-light);
       min-height: 100vh;
       display: flex;
@@ -3236,12 +3496,12 @@ class KdsServerService {
       flex-shrink: 0;
     }
 
-    /* Top Glassmorphic Header */
+    /* Top Warm Glassmorphic Header */
     header {
-      background: rgba(23, 18, 26, 0.88);
+      background: rgba(12, 10, 9, 0.95);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border-gold);
+      border-bottom: 1px solid var(--border-subtle);
       padding: 12px 18px;
       display: flex;
       justify-content: space-between;
@@ -3249,7 +3509,7 @@ class KdsServerService {
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.7);
     }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-logo-frame {
@@ -3257,8 +3517,8 @@ class KdsServerService {
       width: 40px;
       border-radius: var(--radius-sm);
       overflow: hidden;
-      border: 1.5px solid var(--gold-primary);
-      box-shadow: 0 2px 10px var(--gold-glow);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
       background: var(--bg-surface);
       display: flex;
       align-items: center;
@@ -3269,18 +3529,18 @@ class KdsServerService {
     .brand-title {
       font-family: 'Cinzel', Georgia, 'Times New Roman', 'Palatino Linotype', serif;
       font-weight: 800;
-      font-size: 16px;
-      letter-spacing: 2px;
-      color: var(--gold-primary);
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      color: #FFFFFF;
       line-height: 1.1;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
     }
     .brand-sub {
       font-size: 10px;
       font-weight: 600;
       letter-spacing: 0.8px;
-      color: var(--gold-light);
-      opacity: 0.85;
+      color: #FFFFFF;
+      opacity: 0.95;
       text-transform: uppercase;
     }
 
@@ -3302,14 +3562,14 @@ class KdsServerService {
       50% { opacity: 0.4; transform: scale(0.8); }
     }
     .table-pill {
-      background: rgba(212, 175, 55, 0.16);
-      border: 1.2px solid var(--gold-primary);
-      color: var(--gold-light);
+      background: rgba(196, 130, 72, 0.16);
+      border: 1.2px solid var(--caramel-accent);
+      color: var(--cream-light);
       padding: 6px 14px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 800;
-      box-shadow: 0 0 12px var(--gold-glow);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -3320,14 +3580,14 @@ class KdsServerService {
     }
     .table-pill:active { transform: scale(0.95); }
     .table-pill.takeout {
-      background: linear-gradient(135deg, rgba(255, 159, 28, 0.28) 0%, rgba(224, 122, 0, 0.18) 100%);
-      border-color: #FF9F1C;
-      color: #FFB74D;
-      box-shadow: 0 0 14px rgba(255, 159, 28, 0.4);
+      background: rgba(226, 155, 56, 0.18);
+      border-color: var(--amber);
+      color: #FFC27D;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
     .dining-card {
       background: var(--bg-card);
-      border: 1.5px solid var(--border-subtle);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-lg);
       padding: 16px;
       cursor: pointer;
@@ -3337,23 +3597,23 @@ class KdsServerService {
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--shadow-soft);
     }
     .dining-card:hover {
-      border-color: var(--gold-primary);
+      border-color: var(--caramel-accent);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      box-shadow: var(--shadow-card);
     }
     .dining-card:active { transform: scale(0.97); }
     .dining-card.selected {
-      border-color: var(--gold-primary);
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.18) 0%, rgba(153, 122, 21, 0.08) 100%);
-      box-shadow: 0 0 20px var(--gold-glow);
+      border-color: var(--caramel-accent);
+      background: rgba(196, 130, 72, 0.18);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
     }
     .dining-card.takeout-card.selected, .dining-card.takeout-card:hover {
-      border-color: #FF9F1C;
-      background: linear-gradient(135deg, rgba(255, 159, 28, 0.2) 0%, rgba(224, 122, 0, 0.08) 100%);
-      box-shadow: 0 0 20px rgba(255, 159, 28, 0.35);
+      border-color: var(--amber);
+      background: rgba(226, 155, 56, 0.18);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
     }
     .dining-icon-box {
       width: 52px;
@@ -3365,11 +3625,11 @@ class KdsServerService {
       justify-content: center;
       font-size: 26px;
       flex-shrink: 0;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border-subtle);
     }
     .takeout-card .dining-icon-box {
-      background: rgba(255, 159, 28, 0.16);
-      border-color: rgba(255, 159, 28, 0.45);
+      background: rgba(226, 155, 56, 0.14);
+      border-color: rgba(226, 155, 56, 0.4);
     }
     .order-type-tab-btn {
       flex: 1;
@@ -3377,7 +3637,7 @@ class KdsServerService {
       border-radius: var(--radius-md);
       font-size: 13px;
       font-weight: 800;
-      border: 1.2px solid var(--border-subtle);
+      border: 1px solid var(--border-subtle);
       background: var(--bg-card);
       color: var(--text-muted);
       cursor: pointer;
@@ -3388,41 +3648,144 @@ class KdsServerService {
       transition: all 0.18s ease;
     }
     .order-type-tab-btn.active {
-      border-color: var(--gold-primary);
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(153, 122, 21, 0.15) 100%);
-      color: var(--gold-light);
-      box-shadow: 0 2px 12px var(--gold-glow);
+      border-color: var(--caramel-accent);
+      background: rgba(196, 130, 72, 0.22);
+      color: var(--cream-light);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     }
     .order-type-tab-btn.takeout.active {
-      border-color: #FF9F1C;
-      background: linear-gradient(135deg, rgba(255, 159, 28, 0.3) 0%, rgba(224, 122, 0, 0.15) 100%);
-      color: #FFB74D;
-      box-shadow: 0 2px 14px rgba(255, 159, 28, 0.35);
+      border-color: var(--amber);
+      background: rgba(226, 155, 56, 0.22);
+      color: #FFC27D;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+
+    /* Hero Spotlight Card (Tactile Micro-Skeuomorphism) */
+    .hero-spotlight-card {
+      position: relative;
+      margin: 14px 12px 6px 12px;
+      border-radius: 20px;
+      overflow: hidden;
+      min-height: 115px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+    }
+    .hero-spotlight-bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center right;
+      opacity: 0.88;
+      transform: scale(1.02);
+      transition: transform 0.5s ease;
+    }
+    .hero-spotlight-card:hover .hero-spotlight-bg {
+      transform: scale(1.06);
+    }
+    .hero-spotlight-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, #000000FA 0%, #0C0A09E0 45%, #0C0A0944 75%, #0C0A0922 100%);
+    }
+    .hero-spotlight-content {
+      position: relative;
+      z-index: 2;
+      padding: 14px 12px 14px 16px;
+      flex: 1;
+      min-width: 0;
+    }
+    .hero-spotlight-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      background: rgba(22, 17, 13, 0.7);
+      border: 1px solid rgba(196, 130, 72, 0.45);
+      border-radius: 10px;
+      font-size: 9.5px;
+      font-weight: 800;
+      color: var(--gold-primary);
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .hero-spotlight-title {
+      font-size: 16.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+      font-family: 'Outfit', sans-serif;
+    }
+    .hero-spotlight-sub {
+      font-size: 11.5px;
+      color: var(--cream-soft);
+      margin-top: 3px;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hero-spotlight-action {
+      position: relative;
+      z-index: 2;
+      padding-right: 16px;
+      padding-left: 8px;
+      flex-shrink: 0;
+    }
+    .hero-spotlight-order-btn {
+      background: var(--caramel-accent);
+      color: #16120E;
+      border: none;
+      border-radius: 14px;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .hero-spotlight-order-btn:hover {
+      background: #D9965B;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(196, 130, 72, 0.35);
+    }
+    .hero-spotlight-order-btn:active {
+      transform: scale(0.95);
     }
 
     /* Hero Banner Greeting */
     .hero-banner {
-      padding: 16px 18px 8px 18px;
+      padding: 14px 18px 8px 18px;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
     }
     .hero-greeting {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
-      color: var(--text-light);
+      color: var(--cream-light);
       font-family: 'Cinzel', Georgia, 'Times New Roman', 'Palatino Linotype', serif;
       letter-spacing: 0.5px;
     }
     .hero-sub {
       font-size: 12px;
-      color: var(--text-muted);
+      color: var(--warm-gray);
       margin-top: 2px;
     }
 
     /* Sticky Controls: Search Bar + Categories */
     .controls-wrapper {
-      background: rgba(23, 18, 26, 0.92);
+      background: rgba(12, 10, 9, 0.95);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       position: sticky;
@@ -3446,21 +3809,21 @@ class KdsServerService {
       border-radius: var(--radius-md);
       padding: 10px 40px 10px 42px;
       font-size: 13.5px;
-      color: var(--text-light);
+      color: var(--cream-light);
       outline: none;
       transition: all 0.2s ease;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
     }
     .search-input::placeholder { color: var(--text-subtle); }
     .search-input:focus {
-      border-color: var(--gold-primary);
+      border-color: var(--caramel-accent);
       background: var(--bg-card-elevated);
-      box-shadow: 0 0 14px var(--gold-glow);
+      box-shadow: 0 0 10px rgba(196, 130, 72, 0.25);
     }
     .search-icon-pos {
       position: absolute;
       left: 32px;
-      color: var(--gold-primary);
+      color: var(--caramel-accent);
       pointer-events: none;
     }
     .clear-search-btn {
@@ -3494,9 +3857,9 @@ class KdsServerService {
     .cat-tab {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
-      color: var(--text-muted);
+      color: var(--cream-soft);
       padding: 8px 16px;
-      border-radius: 24px;
+      border-radius: 14px;
       font-size: 12.5px;
       font-weight: 600;
       cursor: pointer;
@@ -3508,11 +3871,11 @@ class KdsServerService {
     }
     .cat-tab:active { transform: scale(0.95); }
     .cat-tab.active {
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(153, 122, 21, 0.2) 100%);
-      border-color: var(--gold-primary);
-      color: var(--gold-light);
-      font-weight: 700;
-      box-shadow: 0 2px 10px var(--gold-glow);
+      background: linear-gradient(135deg, #C48248 0%, #A66632 100%);
+      border-color: #C48248;
+      color: #110E0C;
+      font-weight: 800;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     }
 
     /* Section Title & Items Count */
@@ -3526,7 +3889,7 @@ class KdsServerService {
       font-size: 15px;
       font-weight: 800;
       font-family: 'Cinzel', serif;
-      color: var(--gold-light);
+      color: var(--cream-light);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -3535,75 +3898,80 @@ class KdsServerService {
     .item-counter-badge {
       font-size: 11px;
       font-weight: 700;
-      color: var(--gold-light);
-      background: rgba(212, 175, 55, 0.14);
-      border: 1px solid rgba(212, 175, 55, 0.3);
+      color: var(--cream-soft);
+      background: rgba(196, 130, 72, 0.14);
+      border: 1px solid rgba(196, 130, 72, 0.3);
       padding: 3px 10px;
       border-radius: 12px;
     }
 
     /* Menu Grid Container - GUARANTEED 2 COLUMNS ON ALL PHONES */
     .menu-container {
-      padding: 6px 10px 24px 10px;
+      padding: 8px 12px 28px 12px;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 12px;
     }
 
     @media (min-width: 600px) {
       .menu-container {
-        padding: 10px 20px 30px 20px;
-        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-        gap: 14px;
+        padding: 14px 20px 32px 20px;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
       }
       .item-img-container {
-        height: 125px !important;
+        height: 140px !important;
       }
     }
 
-    /* Item Card */
+    /* Item Card - Soft UI Warm Espresso Rounded Card */
     .item-card {
-      background: var(--bg-card);
-      border-radius: var(--radius-lg);
+      background: #1D1612;
+      border-radius: 20px;
       border: 1px solid var(--border-subtle);
-      padding: 10px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+      box-shadow: var(--shadow-card);
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
       min-width: 0;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .item-card:hover {
-      border-color: rgba(212, 175, 55, 0.4);
-      transform: translateY(-2px);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+      border-color: rgba(196, 130, 72, 0.45);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
     }
     .item-card:active {
-      transform: scale(0.97);
+      transform: scale(0.98);
     }
 
+    /* Inset Rounded Image */
     .item-img-container {
       width: 100%;
-      height: 105px;
-      border-radius: var(--radius-md);
+      height: 128px;
+      border-radius: 14px;
       overflow: hidden;
-      margin-bottom: 8px;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 10px;
+      background: #181310;
+      border: 1px solid var(--border-subtle);
       position: relative;
+      flex-shrink: 0;
     }
     .item-img-container img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: transform 0.3s ease;
+      transition: transform 0.35s ease;
+      display: block;
     }
     .item-card:hover .item-img-container img {
-      transform: scale(1.05);
+      transform: scale(1.06);
     }
     .item-img-placeholder {
       width: 100%;
@@ -3612,77 +3980,122 @@ class KdsServerService {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #1f1723 0%, #2b1f32 100%);
-      color: var(--gold-light);
+      background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%);
+      color: var(--caramel-accent);
     }
-    .item-img-placeholder svg { opacity: 0.7; }
+    .item-img-placeholder svg { opacity: 0.75; }
 
-    .item-cat-badge {
-      font-size: 9.5px;
-      font-weight: 700;
-      color: var(--gold-light);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-bottom: 3px;
-      display: inline-block;
+    /* Card Details: Title, Category, Description */
+    .item-card-info {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      margin-bottom: 8px;
     }
     .item-card-name {
       font-weight: 700;
-      font-size: 13px;
-      color: var(--text-light);
-      line-height: 1.3;
+      font-size: 16px;
+      color: var(--cream-light);
+      line-height: 1.22;
       margin-bottom: 3px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
       word-break: break-word;
     }
-    .item-card-desc {
+    .item-card-cat {
       font-size: 10.5px;
-      color: var(--text-muted);
-      line-height: 1.3;
-      max-height: 30px;
+      font-weight: 800;
+      color: var(--warm-beige);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .item-card-desc {
+      font-size: 11.5px;
+      color: var(--warm-gray);
+      line-height: 1.35;
+      min-height: 31px;
+      max-height: 32px;
       overflow: hidden;
       text-overflow: ellipsis;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      word-break: break-word;
     }
 
+    /* Bottom Row: Gold Price on Left + Circular '+' Button on Right */
     .item-card-bottom {
       display: flex;
-      flex-direction: column;
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px dashed rgba(255, 255, 255, 0.08);
-      gap: 12px;
-    }
-    .item-card-bottom-row {
-      display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 4px;
       width: 100%;
     }
     .item-price {
-      font-size: 15.5px;
-      font-weight: 900;
-      color: var(--gold-light);
-      letter-spacing: 0.3px;
-    }
-    .btn-add-pill {
-      background: var(--gold-primary);
-      color: #000000;
-      width: 100%;
-      justify-content: center;
-      border: none;
-      border-radius: 9px;
-      padding: 10px 14px;
+      font-size: 19px;
       font-weight: 800;
-      font-size: 13.5px;
-      cursor: pointer;
+      color: #FFFFFF;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: baseline;
+    }
+    .item-price .peso-symbol {
+      font-size: 17px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-right: 1px;
+    }
+    .btn-add-circle {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      border-radius: 50%;
+      background: var(--caramel-accent);
+      border: none;
       display: flex;
       align-items: center;
-      gap: 6px;
-      transition: all 0.15s ease;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 0;
+      color: #110E0C;
     }
-    .btn-add-pill:active { transform: scale(0.92); }
+    .btn-add-circle:hover {
+      transform: scale(1.08);
+      background: #D49054;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+    }
+    .btn-add-circle:active {
+      transform: scale(0.92);
+    }
+    .btn-add-circle svg {
+      width: 18px;
+      height: 18px;
+      stroke: #110E0C;
+      stroke-width: 2.8;
+    }
+
+    /* Sold Out States */
+    .item-card.sold-out {
+      opacity: 0.6;
+    }
+    .item-card.sold-out .btn-add-circle {
+      background: #281F1A;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    .item-card.sold-out .btn-add-circle svg {
+      stroke: var(--warm-gray);
+    }
 
     /* Floating Cart Tray Bar */
     .cart-bar {
@@ -3690,17 +4103,17 @@ class KdsServerService {
       bottom: 14px;
       left: 16px;
       right: 16px;
-      background: rgba(23, 18, 26, 0.94);
+      background: rgba(12, 10, 9, 0.96);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
-      border: 1.5px solid var(--gold-primary);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-xl);
       padding: 12px 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       z-index: 100;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px var(--gold-glow);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
       animation: slideUpTray 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     @keyframes slideUpTray {
@@ -3708,11 +4121,11 @@ class KdsServerService {
       to { transform: translateY(0); opacity: 1; }
     }
     .cart-summary { display: flex; flex-direction: column; }
-    .cart-count { font-size: 11.5px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.4px; }
-    .cart-total { font-size: 20px; font-weight: 800; color: var(--gold-light); letter-spacing: 0.5px; }
+    .cart-count { font-size: 11.5px; color: var(--warm-beige); font-weight: 600; letter-spacing: 0.4px; }
+    .cart-total { font-size: 20px; font-weight: 800; color: #FFFFFF; letter-spacing: 0.5px; }
     .btn-view-tray {
-      background: linear-gradient(135deg, var(--gold-primary) 0%, #C49822 100%);
-      color: #0D0A0F;
+      background: var(--caramel-accent);
+      color: #110E0C;
       border: none;
       border-radius: 14px;
       padding: 12px 22px;
@@ -3722,16 +4135,18 @@ class KdsServerService {
       display: flex;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
       transition: all 0.15s ease;
     }
     .btn-view-tray:active { transform: scale(0.96); }
+    #btnSendOrder:active { transform: scale(0.98); }
+    #btnSendOrder:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
     /* Modal Overlay & Bottom Sheet */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.82);
+      background: rgba(0,0,0,0.80);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       z-index: 200;
@@ -3746,12 +4161,12 @@ class KdsServerService {
     .modal-content {
       background: var(--bg-surface);
       border-radius: 28px 28px 0 0;
-      border-top: 2px solid var(--gold-primary);
+      border-top: 1px solid var(--border-subtle);
       width: 100%;
       max-height: 90vh;
       overflow-y: auto;
       padding: 20px 20px 32px 20px;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.9);
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.85);
       animation: slideUpSheet 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     @keyframes slideUpSheet {
@@ -3762,17 +4177,17 @@ class KdsServerService {
       width: 44px;
       height: 4px;
       border-radius: 4px;
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.18);
       margin: 0 auto 16px auto;
     }
 
-    .modal-title { font-size: 19px; font-weight: 800; font-family: 'Cinzel', serif; color: var(--text-light); }
-    .modal-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; margin-bottom: 16px; line-height: 1.4; }
+    .modal-title { font-size: 19px; font-weight: 800; font-family: 'Cinzel', serif; color: var(--cream-light); }
+    .modal-desc { font-size: 12px; color: var(--cream-soft); margin-top: 4px; margin-bottom: 16px; line-height: 1.4; }
     
     .opt-group-title {
       font-size: 12px;
       font-weight: 700;
-      color: var(--gold-light);
+      color: var(--cream-light);
       text-transform: uppercase;
       margin-top: 16px;
       margin-bottom: 8px;
@@ -3785,7 +4200,7 @@ class KdsServerService {
     .opt-chip {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
-      color: var(--text-muted);
+      color: var(--cream-soft);
       padding: 9px 15px;
       border-radius: var(--radius-md);
       font-size: 13px;
@@ -3797,14 +4212,14 @@ class KdsServerService {
       transition: all 0.15s ease;
     }
     .opt-chip.selected {
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.28) 0%, rgba(153, 122, 21, 0.18) 100%);
-      border-color: var(--gold-primary);
-      color: var(--gold-light);
+      background: rgba(196, 130, 72, 0.22);
+      border-color: var(--caramel-accent);
+      color: var(--cream-light);
       font-weight: 700;
-      box-shadow: 0 2px 8px var(--gold-glow);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
-    /* ── POS Customization Dialog Replica Styles ── */
+    /* ── Customization Dialog / Modal (Showcase Layout) ── */
     #customModal {
       align-items: center;
       justify-content: center;
@@ -3817,132 +4232,46 @@ class KdsServerService {
       }
     }
     .custom-dialog-card {
-      background: #1C1622;
-      border: 1.5px solid rgba(212, 175, 55, 0.35);
+      background: #0C0A09;
+      border: 1px solid var(--border-subtle);
       border-radius: 24px;
       width: 100%;
-      max-width: 520px;
+      max-width: 440px;
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(212, 175, 55, 0.12);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
       overflow: hidden;
+      position: relative;
       animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
     }
     @media (max-width: 600px) {
       .custom-dialog-card {
         border-radius: 24px 24px 0 0;
-        max-height: 92vh;
+        max-height: 94vh;
       }
     }
 
-    .cust-dlg-header {
-      padding: 16px 18px;
-      background: linear-gradient(135deg, #251B29 0%, #1A131E 100%);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-    }
-    .cust-dlg-thumb {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      border: 1.5px solid rgba(212, 175, 55, 0.5);
-      overflow: hidden;
-      background: #140E18;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 16px rgba(212, 175, 55, 0.15);
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .cust-dlg-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .cust-dlg-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .cust-dlg-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .cust-dlg-name {
-      font-size: 19px;
-      font-weight: 800;
-      font-family: 'Outfit', sans-serif;
-      color: #FFFFFF;
-      white-space: normal;
-      word-break: normal;
-      overflow-wrap: break-word;
-      line-height: 1.25;
-      letter-spacing: 0.2px;
-    }
-    .cust-dlg-price-badge {
-      background: rgba(212, 175, 55, 0.16);
-      border: 1px solid rgba(212, 175, 55, 0.55);
-      color: var(--gold-light);
-      font-size: 13.5px;
-      font-weight: 800;
-      font-family: 'Outfit', sans-serif;
-      padding: 3px 10px;
-      border-radius: 8px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .cust-dlg-close {
+    .cust-dlg-floating-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid var(--border-subtle);
+      color: var(--cream-light);
+      font-size: 14px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
-      flex-shrink: 0;
+      z-index: 10;
       transition: all 0.15s ease;
     }
-    .cust-dlg-close:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #FFFFFF;
-    }
-    .cust-dlg-tags {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 5px;
-    }
-    .cust-dlg-tag {
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 6px;
-      padding: 2px 7px;
-      font-size: 10.5px;
-      font-weight: 600;
-      color: var(--text-muted);
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .cust-dlg-tag.gold {
-      background: rgba(212, 175, 55, 0.12);
-      color: var(--gold-light);
-      border: 0.5px solid rgba(212, 175, 55, 0.3);
-    }
-    .cust-dlg-desc {
-      font-size: 11.5px;
-      color: var(--text-muted);
-      margin-top: 5px;
-      line-height: 1.4;
-      display: block;
+    .cust-dlg-floating-close:hover {
+      background: rgba(255, 255, 255, 0.20);
     }
 
     .cust-dlg-body {
@@ -3952,332 +4281,339 @@ class KdsServerService {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
     }
-    
-    .cust-group-header {
+
+    /* ── Top Product Showcase Card (Soft UI Minimalist) ── */
+    .cust-showcase-card {
+      background: #16120E;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 14px;
       display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
+      flex-direction: column;
+      box-shadow: var(--shadow-soft);
     }
-    .cust-group-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      background: rgba(212, 175, 55, 0.14);
+    .cust-showcase-img-box {
+      width: 100%;
+      height: 155px;
+      border-radius: 14px;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      color: var(--gold-primary);
+      background: #140E0C;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 12px;
+      position: relative;
     }
-    .cust-group-title {
-      font-size: 14px;
-      font-weight: 700;
-      font-family: 'Outfit', sans-serif;
-      color: #FFFFFF;
-      letter-spacing: 0.2px;
+    .cust-showcase-img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
-    .cust-badge-required {
-      background: rgba(212, 175, 55, 0.15);
-      border: 1px solid var(--gold-primary);
-      color: var(--gold-light);
-      font-size: 9.5px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      padding: 2px 7px;
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .cust-badge-required::before {
-      content: '';
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--gold-primary);
-      display: inline-block;
-    }
-    .cust-badge-optional {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text-subtle);
-      font-size: 9.5px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      padding: 2px 7px;
-      border-radius: 8px;
-    }
-
-    /* Single-select & binary 2-column option grid */
-    .cust-opt-grid-2col {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    @media (max-width: 360px) {
-      .cust-opt-grid-2col {
-        grid-template-columns: 1fr;
-        gap: 8px;
-      }
-    }
-
-    .cust-opt-card {
-      background: #17111C;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-height: 50px;
-      cursor: pointer;
-      transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
-      user-select: none;
-      box-sizing: border-box;
-    }
-    .cust-opt-card:hover {
-      border-color: rgba(212, 175, 55, 0.35);
-      background: #1F1726;
-    }
-    .cust-opt-card:active {
-      transform: scale(0.97);
-    }
-    .cust-opt-card.selected {
-      background: rgba(212, 175, 55, 0.14);
-      border: 1.6px solid var(--gold-primary);
-      box-shadow: 0 0 14px rgba(212, 175, 55, 0.2);
-    }
-
-    .cust-temp-card {
-      padding: 10px 12px;
-    }
-    .cust-temp-icon-box {
+    .cust-img-close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
       width: 32px;
       height: 32px;
       border-radius: 50%;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-      background: rgba(255, 255, 255, 0.06);
-      flex-shrink: 0;
+      z-index: 10;
+      transition: all 0.15s ease;
     }
-    .cust-opt-card.selected .cust-temp-icon-box.hot {
-      background: rgba(255, 122, 69, 0.25);
+    .cust-img-close-btn:hover {
+      background: rgba(0, 0, 0, 0.85);
+      transform: scale(1.05);
     }
-    .cust-opt-card.selected .cust-temp-icon-box.iced {
-      background: rgba(76, 201, 240, 0.25);
+    .cust-img-close-btn:active {
+      transform: scale(0.92);
     }
-
-    .cust-opt-text-col {
-      flex: 1;
-      min-width: 0;
+    .cust-showcase-info {
       display: flex;
       flex-direction: column;
+      gap: 2px;
     }
-    .cust-opt-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-light);
-      font-family: 'Outfit', sans-serif;
-      white-space: normal;
-      word-break: normal;
-      overflow-wrap: break-word;
-      line-height: 1.3;
-      display: block;
-    }
-    .cust-opt-card.selected .cust-opt-label {
-      font-weight: 700;
+    .cust-showcase-name {
+      font-size: 20px;
+      font-weight: 800;
       color: #FFFFFF;
+      font-family: 'Outfit', sans-serif;
+      line-height: 1.25;
+      letter-spacing: 0.2px;
     }
-    .cust-opt-sublabel {
-      font-size: 10.5px;
-      color: var(--text-subtle);
-      margin-top: 1px;
-      line-height: 1.2;
+    .cust-showcase-price {
+      font-size: 17.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      font-family: 'Outfit', sans-serif;
+      margin-top: 3px;
     }
-    .cust-opt-card.selected .cust-opt-sublabel {
-      color: var(--gold-light);
+    .cust-showcase-desc {
+      font-size: 12px;
+      color: var(--cream-soft);
+      line-height: 1.45;
+      margin-top: 5px;
+      font-family: 'Outfit', sans-serif;
+      opacity: 0.88;
     }
 
-    .cust-radio-circle {
-      width: 18px;
-      height: 18px;
+    /* ── Group Header (Tactile Icon + Title + Badge) ── */
+    .cust-group-section {
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+    .cust-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cust-group-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cust-group-icon-box {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: rgba(196, 130, 72, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cust-group-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: 0.2px;
+    }
+    .cust-group-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-family: 'Outfit', sans-serif;
+    }
+    .cust-group-badge.required {
+      background: rgba(196, 130, 72, 0.16);
+      border: 0.8px solid rgba(196, 130, 72, 0.45);
+      color: #F6EFE9;
+    }
+    .cust-group-badge.optional {
+      background: rgba(255, 255, 255, 0.05);
+      border: 0.8px solid rgba(255, 255, 255, 0.1);
+      color: #8A7B70;
+    }
+    .cust-badge-dot {
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
-      border: 1.5px solid rgba(255, 255, 255, 0.25);
+      background: #C48248;
+      display: inline-block;
+    }
+
+    /* ── Pill Buttons with Radio Indicator (Temperature & Sweetness) ── */
+    .cust-pill-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .cust-pill-row .cust-pill-btn {
+      flex: 1;
+      min-width: 0;
+    }
+    .cust-pill-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    .cust-pill-btn {
+      background: #16120E;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      font-family: 'Outfit', sans-serif;
+      text-align: left;
+    }
+    .cust-pill-btn:hover {
+      background: #1F1814;
+      border-color: rgba(196, 130, 72, 0.35);
+    }
+    .cust-pill-btn:active {
+      transform: scale(0.98);
+    }
+    .cust-pill-btn.selected {
+      background: rgba(196, 130, 72, 0.12);
+      border: 1.6px solid #C48248;
+    }
+    .cust-radio-ring {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
       transition: all 0.15s ease;
     }
-    .cust-opt-card.selected .cust-radio-circle {
-      border-color: var(--gold-primary);
+    .cust-pill-btn.selected .cust-radio-ring {
+      border-color: #C48248;
     }
-    .cust-opt-card.selected .cust-radio-circle::after {
-      content: '';
-      width: 9px;
-      height: 9px;
+    .cust-radio-dot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: var(--gold-primary);
-      box-shadow: 0 0 6px var(--gold-primary);
+      background: #C48248;
+      display: none;
+    }
+    .cust-pill-btn.selected .cust-radio-dot {
+      display: block;
+    }
+    .cust-pill-label {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #D6C8BD;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cust-pill-btn.selected .cust-pill-label {
+      color: #FFFFFF;
+      font-weight: 800;
+    }
+    .cust-pill-extra {
+      font-size: 11.5px;
+      color: var(--caramel-accent);
+      margin-left: auto;
+      font-weight: 700;
     }
 
-    /* ── Dedicated Full-Width Add-on Cards for Multi-Select & Extras (Guarantees Full Text Readability) ── */
+    /* ── Add-ons & Extras Rows ── */
     .cust-addon-list {
       display: flex;
       flex-direction: column;
       gap: 8px;
       width: 100%;
     }
-    .cust-addon-card {
-      background: #17111C;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+    .cust-addon-row {
+      background: #16120E;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 14px;
       padding: 12px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      min-height: 52px;
       cursor: pointer;
-      transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease;
       user-select: none;
-      width: 100%;
-      box-sizing: border-box;
     }
-    .cust-addon-card:hover {
-      border-color: rgba(212, 175, 55, 0.4);
-      background: #1F1726;
+    .cust-addon-row:hover {
+      background: #1F1814;
+      border-color: rgba(196, 130, 72, 0.35);
     }
-    .cust-addon-card:active {
-      transform: scale(0.98);
+    .cust-addon-row:active {
+      transform: scale(0.99);
     }
-    .cust-addon-card.selected {
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.16) 0%, rgba(153, 122, 21, 0.08) 100%);
-      border: 1.6px solid var(--gold-primary);
-      box-shadow: 0 0 16px rgba(212, 175, 55, 0.2);
+    .cust-addon-row.selected {
+      background: rgba(196, 130, 72, 0.12);
+      border: 1.5px solid var(--caramel-accent);
     }
-    .cust-addon-left {
+    .cust-addon-row-left {
       display: flex;
       align-items: center;
-      gap: 12px;
-      flex: 1;
-      min-width: 0;
-    }
-    .cust-addon-text-col {
-      flex: 1;
-      min-width: 0;
-    }
-    .cust-addon-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-light);
-      font-family: 'Outfit', sans-serif;
-      white-space: normal;
-      word-break: normal;
-      overflow-wrap: break-word;
-      line-height: 1.35;
-      letter-spacing: 0.1px;
-    }
-    .cust-addon-card.selected .cust-addon-label {
-      font-weight: 700;
+      gap: 10px;
       color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
     }
-
-    .cust-check-box {
-      width: 24px;
-      height: 24px;
-      border-radius: 7px;
-      border: 1.5px solid rgba(255, 255, 255, 0.25);
-      background: rgba(255, 255, 255, 0.05);
+    .cust-addon-circle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.4px solid rgba(255, 255, 255, 0.25);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      font-weight: bold;
-      color: var(--text-subtle);
       flex-shrink: 0;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.7);
       transition: all 0.15s ease;
     }
-    .cust-addon-card.selected .cust-check-box,
-    .cust-opt-card.selected .cust-check-box {
-      border-color: var(--gold-primary);
-      background: var(--gold-primary);
-      color: #0D0A0F;
-      box-shadow: 0 0 8px var(--gold-glow);
+    .cust-addon-row.selected .cust-addon-circle {
+      background: var(--caramel-accent);
+      border-color: var(--caramel-accent);
+      color: #16120E;
+      font-weight: 900;
     }
-
-    .cust-price-pill {
-      background: rgba(212, 175, 55, 0.18);
-      border: 1px solid rgba(212, 175, 55, 0.45);
-      color: var(--gold-light);
-      font-size: 12px;
-      font-weight: 800;
+    .cust-addon-row-right {
+      color: #8A7B70;
+      font-size: 13.5px;
+      font-weight: 700;
       font-family: 'Outfit', sans-serif;
-      padding: 3px 10px;
-      border-radius: 8px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
-    .cust-addon-card.selected .cust-price-pill,
-    .cust-opt-card.selected .cust-price-pill {
-      background: var(--gold-primary);
-      border-color: var(--gold-primary);
-      color: #0D0A0F;
-      box-shadow: 0 0 10px var(--gold-glow);
+    .cust-addon-row.selected .cust-addon-row-right {
+      color: var(--cream-light);
     }
 
-    .cust-notes-input {
-      width: 100%;
-      background: #17111C;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: 12px;
-      padding: 12px 14px;
-      color: #FFFFFF;
-      font-size: 13px;
-      font-family: 'Outfit', sans-serif;
-      outline: none;
-      transition: border-color 0.15s ease;
-    }
-    .cust-notes-input:focus {
-      border-color: var(--gold-primary);
-    }
-    .cust-notes-input::placeholder {
-      color: var(--text-subtle);
-    }
-
+    /* ── Bottom Sticky Bar ── */
     .cust-dlg-footer {
-      padding: 14px 18px 18px 18px;
-      background: #17111C;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 12px 18px max(18px, env(safe-area-inset-bottom, 18px)) 18px;
+      background: #0C0A09;
+      border-top: 1px solid var(--border-subtle);
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
     .cust-stepper {
-      height: 48px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      height: 46px;
+      border: 1px solid var(--border-subtle);
       border-radius: 14px;
+      background: #16120E;
       display: flex;
       align-items: center;
-      padding: 0 4px;
+      padding: 0 6px;
       flex-shrink: 0;
     }
     .cust-stepper-btn {
-      width: 34px;
+      width: 32px;
       height: 36px;
       background: none;
       border: none;
-      color: var(--gold-primary);
-      font-size: 18px;
-      font-weight: bold;
+      color: var(--caramel-accent);
+      font-size: 20px;
+      font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -4285,36 +4621,36 @@ class KdsServerService {
       transition: transform 0.1s ease;
     }
     .cust-stepper-btn:active {
-      transform: scale(0.88);
+      transform: scale(0.85);
     }
     .cust-stepper-val {
       font-size: 16px;
       font-weight: 800;
       font-family: 'Outfit', sans-serif;
-      color: #FFFFFF;
-      min-width: 24px;
+      color: var(--cream-light);
+      min-width: 22px;
       text-align: center;
     }
     .cust-add-btn {
       flex: 1;
-      height: 48px;
-      background: linear-gradient(135deg, #D4AF37 0%, #C49822 100%);
-      color: #0D0A0F;
+      height: 46px;
+      background: var(--caramel-accent);
+      color: #110E0C;
       border: none;
-      border-radius: 14px;
+      border-radius: 16px;
       font-size: 15px;
-      font-weight: 900;
+      font-weight: 800;
       font-family: 'Outfit', sans-serif;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
       transition: all 0.15s ease;
     }
     .cust-add-btn:active {
-      transform: scale(0.97);
+      transform: scale(0.96);
     }
 
     /* Quantity Stepper Control in Customization Modal */
@@ -4339,7 +4675,7 @@ class KdsServerService {
       height: 32px;
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--border-subtle);
       color: var(--text-light);
       font-weight: bold;
       font-size: 16px;
@@ -4349,88 +4685,430 @@ class KdsServerService {
       justify-content: center;
       transition: all 0.15s;
     }
-    .btn-qty:active { background: var(--gold-primary); color: #0D0A0F; }
-    .qty-display { font-size: 16px; font-weight: 800; color: var(--gold-light); min-width: 24px; text-align: center; }
+    .btn-qty:active { background: var(--caramel-accent); color: #110E0C; }
+    .qty-display { font-size: 16px; font-weight: 800; color: var(--gold-primary); min-width: 24px; text-align: center; }
 
-    /* Order Tracker Card */
+    /* Order Tracker Card - Soft UI Warm Espresso */
     .tracker-card {
-      background: var(--bg-card);
-      border-radius: var(--radius-xl);
-      border: 1.5px solid var(--gold-primary);
-      padding: 26px 20px;
-      margin: 16px 18px;
+      background: #120E0C;
+      border-radius: 24px;
+      border: 1.5px solid rgba(196, 130, 72, 0.4);
+      padding: 26px 20px 22px 20px;
+      margin: 14px auto;
+      max-width: 460px;
       text-align: center;
-      box-shadow: 0 10px 36px rgba(0,0,0,0.8), 0 0 20px var(--gold-glow);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
       animation: fadeInModal 0.3s ease;
+      position: relative;
+      overflow: hidden;
     }
+    .tracker-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 120px;
+      background: radial-gradient(ellipse at top, rgba(196, 130, 72, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Wi-Fi Status Pill */
+    .wifi-status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      background: rgba(61, 174, 122, 0.12);
+      border: 1px solid rgba(61, 174, 122, 0.35);
+      color: #6FE0AC;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: 0.2px;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Tracker Status Badges */
+    .tracker-status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border-radius: 20px;
+      padding: 6px 15px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+    .status-pill-pending {
+      background: rgba(196, 130, 72, 0.16);
+      border: 1px solid var(--caramel-accent);
+      color: var(--cream-light);
+    }
+    .status-pill-confirmed {
+      background: rgba(61, 174, 122, 0.16);
+      border: 1px solid var(--emerald);
+      color: #6FE0AC;
+    }
+    .status-pill-preparing {
+      background: rgba(226, 155, 56, 0.18);
+      border: 1px solid var(--amber);
+      color: #FFC27D;
+    }
+    .status-pill-ready {
+      background: rgba(61, 174, 122, 0.22);
+      border: 1.2px solid var(--emerald);
+      color: #6FE0AC;
+      box-shadow: 0 0 14px rgba(61, 174, 122, 0.3);
+    }
+
+    /* Order Number Hero Box (Reference Design) */
     .tracker-num-box {
-      background: rgba(212, 175, 55, 0.12);
-      border: 1px dashed var(--gold-primary);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      margin: 12px 0 16px 0;
+      margin: 4px 0 0 0;
+      position: relative;
+    }
+    .tracker-num-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: #C48248;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
     }
     .tracker-num {
-      font-size: 44px;
+      font-size: 58px;
+      line-height: 1.05;
       font-weight: 800;
       font-family: 'Cinzel', serif;
-      color: var(--gold-light);
-      letter-spacing: 2px;
-      text-shadow: 0 2px 10px var(--gold-glow);
+      color: #D4AF37;
+      margin: 4px 0;
+      letter-spacing: 1px;
     }
-    .tracker-table { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
-    
-    /* Timeline Milestone Stepper */
+    .tracker-table-sub {
+      font-size: 13.5px;
+      color: #A89B91;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .tracker-total-amount {
+      font-size: 21px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-top: 4px;
+      letter-spacing: 0.3px;
+      font-family: 'Outfit', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    /* Instruction Banner Card (Reference Design) */
+    .tracker-instruction-card {
+      background: rgba(196, 130, 72, 0.08);
+      border: 1.5px solid rgba(196, 130, 72, 0.45);
+      border-radius: 16px;
+      padding: 18px 16px;
+      margin-top: 18px;
+      text-align: center;
+    }
+    .tracker-instruction-title {
+      font-family: 'Cinzel', serif;
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: 0.6px;
+      line-height: 1.4;
+      text-transform: uppercase;
+    }
+    .tracker-instruction-status {
+      font-size: 13px;
+      color: #C48248;
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    /* Collapsible Details Toggle & Drawer (Reference Design) */
+    .tracker-details-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: #C48248;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      margin: 20px auto 14px auto;
+      user-select: none;
+      transition: all 0.2s;
+    }
+    .tracker-details-toggle:hover {
+      color: #D4AF37;
+    }
+    .tracker-chevron {
+      display: inline-block;
+      font-size: 13px;
+      transition: transform 0.25s ease;
+    }
+    .tracker-chevron.open {
+      transform: rotate(180deg);
+    }
+    .tracker-details-drawer {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(196, 130, 72, 0.25);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      text-align: left;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    /* Notice Banners (Fallback Compatibility) */
+    .tracker-notice-box {
+      border-radius: 20px;
+      padding: 18px 16px;
+      margin-top: 14px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+    }
+    .notice-icon-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 10px auto;
+      transition: all 0.3s ease;
+    }
+    .notice-icon-emerald {
+      background: rgba(61, 174, 122, 0.18);
+      border: 1.5px solid var(--emerald);
+      color: var(--emerald);
+    }
+    .notice-icon-amber {
+      background: rgba(226, 155, 56, 0.18);
+      border: 1.5px solid var(--amber);
+      color: #FFC27D;
+    }
+    .notice-icon-gold {
+      background: rgba(196, 130, 72, 0.18);
+      border: 1.5px solid var(--caramel-accent);
+      color: var(--cream-light);
+    }
+    .notice-banner-ready {
+      background: rgba(61, 174, 122, 0.14);
+      border: 1.5px solid var(--emerald);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+    }
+    .notice-banner-brewing {
+      background: rgba(226, 155, 56, 0.14);
+      border: 1.5px solid var(--amber);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+    }
+    .notice-banner-confirmed {
+      background: rgba(61, 174, 122, 0.12);
+      border: 1.5px solid var(--emerald);
+    }
+    .notice-banner-pending {
+      background: rgba(196, 130, 72, 0.12);
+      border: 1.5px solid var(--caramel-accent);
+    }
+
+    /* Milestone Stepper (Reference Design) */
     .status-steps {
       display: flex;
       justify-content: space-between;
       margin-top: 24px;
-      margin-bottom: 24px;
+      margin-bottom: 18px;
       position: relative;
     }
     .status-steps::before {
       content: '';
       position: absolute;
-      top: 19px;
-      left: 15%;
-      right: 15%;
+      top: 21px;
+      left: 18%;
+      right: 18%;
       height: 2px;
       background: rgba(255, 255, 255, 0.12);
       z-index: 1;
     }
-    .status-step { display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 2; flex: 1; }
+    .status-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 2;
+      flex: 1;
+    }
     .step-dot {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
-      background: var(--bg-surface);
-      border: 2px solid rgba(255,255,255,0.2);
+      background: #1C1613;
+      border: 1.5px solid rgba(255, 255, 255, 0.18);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 14px;
       font-weight: 800;
-      color: var(--text-muted);
+      color: rgba(255, 255, 255, 0.45);
       transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
-    .step-label { font-size: 11.5px; font-weight: 700; color: var(--text-muted); transition: color 0.3s ease; }
-    
+    .step-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #EFE9E1;
+      transition: color 0.3s ease;
+      text-align: center;
+      line-height: 1.25;
+    }
     .status-step.active .step-dot {
-      background: linear-gradient(135deg, var(--gold-primary) 0%, #C49822 100%);
-      border-color: var(--gold-light);
-      color: #0D0A0F;
-      box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
-      transform: scale(1.1);
+      background: #C48248;
+      border-color: #D4AF37;
+      color: #110E0C;
+      font-size: 15px;
+      font-weight: 900;
+      box-shadow: 0 0 16px rgba(196, 130, 72, 0.45);
+      transform: scale(1.06);
     }
-    .status-step.active .step-label { color: var(--gold-light); font-weight: 800; }
-    
+    .status-step.active .step-label {
+      color: #FFFFFF;
+      font-weight: 800;
+    }
     .status-step.completed .step-dot {
-      background: var(--emerald);
-      border-color: var(--emerald);
-      color: #000;
-      box-shadow: 0 0 12px var(--emerald-glow);
+      background: #2EC4B6;
+      border-color: #48E5D5;
+      color: #110E0C;
+      font-size: 0;
     }
-    .status-step.completed .step-label { color: var(--emerald); }
+    .status-step.completed .step-dot::after {
+      content: '✓';
+      font-size: 16px;
+      font-weight: 900;
+      color: #110E0C;
+    }
+    .status-step.completed .step-label {
+      color: #6FE0AC;
+      font-weight: 700;
+    }
+
+    /* Estimated Waiting Time */
+    .tracker-wait-time-row {
+      font-size: 13.5px;
+      color: #EFE9E1;
+      margin-top: 18px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .wait-time-highlight {
+      color: #C48248;
+      font-weight: 800;
+    }
+
+    /* Live Kitchen Queue Action Button (Reference Design) */
+    .btn-kitchen-queue {
+      width: 100%;
+      background: rgba(26, 19, 15, 0.95);
+      border: 1.5px solid rgba(196, 130, 72, 0.35);
+      color: #FDFBF7;
+      border-radius: 16px;
+      padding: 13px 16px;
+      font-weight: 800;
+      font-size: 13.5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s ease;
+    }
+    .btn-kitchen-queue:hover {
+      border-color: #C48248;
+      background: rgba(36, 26, 20, 0.95);
+    }
+    .btn-kitchen-queue:active {
+      transform: scale(0.98);
+    }
+    .queue-live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #FFA726;
+      display: inline-block;
+      box-shadow: 0 0 8px #FFA726;
+      animation: pulse 1.5s infinite;
+    }
+    .queue-badge-pill {
+      background: rgba(196, 130, 72, 0.16);
+      border: 1px solid rgba(196, 130, 72, 0.4);
+      color: #C48248;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 800;
+    }
+
+    .btn-view-receipt {
+      width: 100%;
+      background: rgba(61, 174, 122, 0.14);
+      border: 1.2px solid rgba(61, 174, 122, 0.45);
+      color: var(--text-light);
+      border-radius: 16px;
+      padding: 12px 16px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease;
+    }
+    .btn-view-receipt:active {
+      transform: scale(0.98);
+    }
+
+    .btn-order-another {
+      background: var(--caramel-accent) !important;
+      border: 1px solid var(--caramel-accent) !important;
+      color: #110E0C !important;
+      border-radius: 16px !important;
+      padding: 13px 24px !important;
+      font-weight: 800 !important;
+      font-size: 13.5px !important;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+      transition: all 0.2s ease;
+      letter-spacing: 0.3px;
+      text-decoration: none;
+    }
+    .btn-order-another.secondary {
+      background: rgba(255, 255, 255, 0.06) !important;
+      border: 1px solid var(--border-subtle) !important;
+      color: var(--text-light) !important;
+      box-shadow: none !important;
+    }
+    .btn-order-another:active {
+      transform: scale(0.97);
+    }
 
     /* READY ALARM BANNER & SILENT-MODE HIGH-CONTRAST STROBE */
     body.alarm-active {
@@ -4546,13 +5224,13 @@ class KdsServerService {
         <img src="/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='<span style=\\'font-weight:800;color:#D4AF37;\\'>C</span>'">
       </div>
       <div>
-        <div class="brand-title">CELESTIAL</div>
-        <div class="brand-sub">Cozy & Classic</div>
+        <div class="brand-title">CELESTIAL CAFE</div>
+        <div class="brand-sub">Cozy&Classic</div>
       </div>
     </div>
     <div class="header-right" style="display: flex; align-items: center; gap: 8px;">
       <div class="live-dot-pulse" title="Connected to Cafe Hotspot"></div>
-      <div id="tablePill" class="table-pill" onclick="showDiningOptionModal()" title="Tap to switch Dine-In or Takeout"><span>🍽️</span> <span>Table 1</span> <span style="font-size:10px;opacity:0.7;">▼</span></div>
+      <div id="tablePill" class="table-pill" style="cursor: default; pointer-events: none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">Table 1</span></div>
     </div>
   </header>
 
@@ -4575,11 +5253,38 @@ class KdsServerService {
       <button class="cat-tab" onclick="filterCategory('streetBites', this)">Bites</button>
       <button class="cat-tab" onclick="filterCategory('pastaDishes', this)">Pasta</button>
       <button class="cat-tab" onclick="filterCategory('sandwich', this)">Sandwich</button>
+      <button class="cat-tab" onclick="filterCategory('dinner', this)">Dinner Meals</button>
     </div>
   </div>
 
   <!-- Normal Menu View -->
   <div id="menuView">
+    <!-- Celestial Signature Craft Hero Banner (Tactile Micro-Skeuomorphism) -->
+    <div class="hero-spotlight-card" id="heroSpotlight" onclick="openSignatureLatteItem()" style="cursor: pointer;" title="Tap to customize & order Celestial Signature Latte">
+      <div class="hero-spotlight-bg" style="background-image: url('/assets/images/hero_coffee_splash.jpg');"></div>
+      <div class="hero-spotlight-overlay"></div>
+      <div class="hero-spotlight-content">
+        <div class="hero-spotlight-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 2L12.1 7.9L18 10L12.1 12.1L10 18L7.9 12.1L2 10L7.9 7.9L10 2Z" />
+            <path d="M19 16L19.9 18.1L22 19L19.9 19.9L19 22L18.1 19.9L16 19L18.1 18.1L19 16Z" />
+          </svg>
+          <span>SIGNATURE CRAFT</span>
+        </div>
+        <div class="hero-spotlight-title">Celestial Signature Latte</div>
+        <div class="hero-spotlight-sub">House specialty handcrafted celestial latte blend with silky sweet foam • Tap to order</div>
+      </div>
+      <div class="hero-spotlight-action">
+        <button type="button" class="hero-spotlight-order-btn" onclick="event.stopPropagation(); openSignatureLatteItem();" title="Order Celestial Signature Latte">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 2L12.1 7.9L18 10L12.1 12.1L10 18L7.9 12.1L2 10L7.9 7.9L10 2Z" />
+            <path d="M19 16L19.9 18.1L22 19L19.9 19.9L19 22L18.1 19.9L16 19L18.1 18.1L19 16Z" />
+          </svg>
+          <span>Order</span>
+        </button>
+      </div>
+    </div>
+
     <div class="section-header">
       <div class="section-title" id="sectionTitleLabel">All Menu Items</div>
       <div class="item-counter-badge" id="menuCountBadge">0 items</div>
@@ -4591,65 +5296,59 @@ class KdsServerService {
   <div id="trackerView" style="display: none;">
     <div class="tracker-card">
       <!-- Wi-Fi Disconnect Alert Banner -->
-      <div id="wifiWarningBanner" style="display: none; background: rgba(231,29,54,0.18); border: 1.5px solid var(--rose); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 14px; text-align: center; color: #FFA8B2; font-size: 12.5px; font-weight: 700; box-shadow: 0 4px 16px rgba(231,29,54,0.3); animation: pulse 2s infinite;">
+      <div id="wifiWarningBanner" style="display: none; background: rgba(231,29,54,0.18); border: 1.5px solid var(--rose); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; text-align: center; color: #FFA8B2; font-size: 12px; font-weight: 700; box-shadow: 0 4px 16px rgba(231,29,54,0.3); animation: pulse 2s infinite;">
         Wi-Fi Disconnected! Please reconnect to Cafe Wi-Fi to continue tracking your order live.
       </div>
 
       <!-- Slow Connection / Loading Banner -->
       <div id="slowConnectionBanner" style="display: none; text-align: center; margin-bottom: 12px;">
-        <span style="width: 13px; height: 13px; border: 2px solid var(--amber-brewing); border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite;"></span>
+        <span style="width: 14px; height: 14px; border: 2px solid var(--amber-brewing); border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite;"></span>
       </div>
 
       <!-- Wi-Fi Keep Connected Notice Pill -->
-      <div id="wifiStatusPill" style="display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: rgba(46,196,182,0.12); border: 1px solid rgba(46,196,182,0.35); color: var(--emerald); border-radius: 20px; padding: 6px 14px; font-size: 11.5px; font-weight: 700; margin-bottom: 10px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
-        <span>Keep Wi-Fi connected to receive live updates & ready chime</span>
+      <div id="wifiStatusPill" class="wifi-status-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+        <span>Wi-Fi Connected • Live Updates Active</span>
       </div>
 
-      <div id="trackerHeaderTag" style="font-size: 11.5px; font-weight: 800; letter-spacing: 1.5px; color: var(--gold-light);">ORDER PLACED • AWAITING CASHIER</div>
-      
+      <!-- Hidden compatibility stubs for existing JS functions -->
+      <div style="display: none;">
+        <div id="trackerHeaderTag"><span id="trackerHeaderTagText"></span></div>
+        <div id="pendingPaymentNotice"></div>
+        <div id="confirmedPaymentNotice"></div>
+        <div id="brewingNotice"></div>
+        <div id="readyNotice"><span id="readyNoticeOrderNum"></span></div>
+        <div id="completedNotice"></div>
+      </div>
+
+      <!-- Order Number Hero Box (Reference Design) -->
       <div class="tracker-num-box">
-        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 4px;">Ticket Number</div>
+        <div class="tracker-num-label">Order Number</div>
         <div class="tracker-num" id="trackOrderNum">#1</div>
-        <div class="tracker-table" id="trackTableInfo">Table 1 • Dine-In</div>
-        <div id="trackTotal" style="font-size: 19px; font-weight: 800; color: var(--gold-light); margin-top: 6px;">Total: ₱0</div>
+        <div id="trackTableInfo" class="tracker-table-sub">Table 1 (Dine-In at Table)</div>
+        <div class="tracker-total-amount" id="trackTotal">Total: ₱0</div>
       </div>
 
-      <!-- Pending Cashier Instruction Banner -->
-      <div id="pendingPaymentNotice" style="background: rgba(212,175,55,0.12); border: 1.5px solid var(--gold-primary); border-radius: var(--radius-md); padding: 16px 14px; margin-top: 14px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-        <div style="font-weight: 800; font-size: 14px; font-family: 'Cinzel', serif; color: var(--gold-light); letter-spacing: 0.5px;">PLEASE PROCEED TO CASHIER COUNTER</div>
-        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px; line-height: 1.45;">Present your <b id="promptOrderNum" style="color: var(--gold-light); font-size: 13.5px;">Order #1</b> to the cashier to confirm your order and settle payment.</div>
-        <div style="font-size: 11.5px; color: var(--gold-primary); margin-top: 8px; font-weight: 700; letter-spacing: 0.5px;">Status: Awaiting Cashier Confirmation</div>
+      <!-- Instruction Banner Card (Reference Design) -->
+      <div class="tracker-instruction-card" id="trackerInstructionCard">
+        <div class="tracker-instruction-title" id="trackerInstructionTitle">
+          SHOW ORDER NUMBER <span id="promptOrderNum">#1</span> AT CASHIER TO PAY AND CONFIRM
+        </div>
+        <div class="tracker-instruction-status">
+          Status: <span id="trackerStatusDisplay">Awaiting Cashier</span>
+        </div>
       </div>
 
-      <!-- Confirmed / In Queue Banner -->
-      <div id="confirmedPaymentNotice" style="display: none; background: rgba(46,196,182,0.12); border: 1.5px solid var(--emerald); border-radius: var(--radius-md); padding: 16px 14px; margin-top: 14px; text-align: center;">
-        <div style="font-weight: 800; font-size: 14.5px; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 0.5px;">PAYMENT CONFIRMED • IN QUEUE</div>
-        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">Your order has been approved & paid. Ticket is queued in the kitchen.</div>
-        <div style="font-size: 11px; color: var(--gold-light); margin-top: 6px; font-weight: 600;">The barista will start brewing your items shortly.</div>
+      <!-- Collapsible Order Details Toggle & Drawer (Reference Design) -->
+      <div>
+        <div class="tracker-details-toggle" onclick="toggleTrackerOrderDetails()">
+          <span>View Order Details (<span id="trackedItemsCount">0</span> items)</span>
+          <span id="trackerDetailsChevron" class="tracker-chevron">⌵</span>
+        </div>
+        <div id="trackerOrderDetailsList" class="tracker-details-drawer" style="display: none;"></div>
       </div>
 
-      <!-- Active Brewing / Preparing Banner -->
-      <div id="brewingNotice" style="display: none; background: rgba(255,159,28,0.15); border: 1.5px solid var(--amber-brewing); border-radius: var(--radius-md); padding: 16px 14px; margin-top: 14px; text-align: center;">
-        <div style="font-weight: 800; font-size: 14.5px; font-family: 'Cinzel', serif; color: var(--gold-light); letter-spacing: 0.5px;">NOW BREWING & PREPARING</div>
-        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">The barista is actively preparing your handcrafted items now.</div>
-      </div>
-
-      <!-- Ready for Pickup Banner -->
-      <div id="readyNotice" style="display: none; background: rgba(46,196,182,0.14); border: 1.5px solid var(--emerald); border-radius: var(--radius-md); padding: 18px 14px; margin-top: 14px; text-align: center; box-shadow: 0 4px 20px rgba(46,196,182,0.25);">
-        <div style="font-weight: 800; font-size: 15px; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 0.5px;">ORDER READY FOR PICKUP!</div>
-        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">Your order is ready! Please proceed to the <b>Pickup Counter</b> to claim your order.</div>
-        <div style="font-size: 11.5px; color: var(--gold-light); margin-top: 8px; font-weight: 700;">Claim Ticket: <span id="readyNoticeOrderNum" style="color: var(--emerald);">#1</span></div>
-      </div>
-
-      <!-- Completed / Served Banner -->
-      <div id="completedNotice" style="display: none; background: rgba(46,196,182,0.14); border: 1.5px solid var(--emerald); border-radius: var(--radius-md); padding: 18px 14px; margin-top: 14px; text-align: center; box-shadow: 0 4px 20px rgba(46,196,182,0.25);">
-        <div style="font-weight: 800; font-size: 15px; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 0.5px;">ORDER SERVED & COMPLETED</div>
-        <div style="font-size: 12.5px; color: var(--text-light); margin-top: 6px;">Your order has been served. Thank you for dining with us!</div>
-        <div style="font-size: 11.5px; color: var(--gold-light); margin-top: 8px; font-weight: 700;">Enjoy your handcrafted drinks & food!</div>
-      </div>
-
-      <!-- Stepper Milestone Tracker -->
+      <!-- Stepper Milestone Tracker (Reference Design) -->
       <div class="status-steps">
         <div class="status-step active" id="step1">
           <div class="step-dot">1</div>
@@ -4657,7 +5356,7 @@ class KdsServerService {
         </div>
         <div class="status-step" id="step2">
           <div class="step-dot">2</div>
-          <div class="step-label">Brewing / Preparing</div>
+          <div class="step-label">Brewing</div>
         </div>
         <div class="status-step" id="step3">
           <div class="step-dot">3</div>
@@ -4665,36 +5364,44 @@ class KdsServerService {
         </div>
       </div>
 
-      <!-- Live Kitchen Activity Pop-up Modal Button -->
-      <div style="margin-top: 14px;">
-        <button onclick="openKitchenQueueModal()" id="btnOpenKitchenQueueModal" style="width: 100%; background: linear-gradient(135deg, rgba(255,159,28,0.16) 0%, rgba(255,159,28,0.05) 100%); border: 1.5px solid var(--amber-brewing); color: var(--gold-light); border-radius: var(--radius-md); padding: 13px 16px; font-weight: 800; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; box-shadow: 0 4px 14px rgba(255,159,28,0.15); transition: all 0.15s;">
+      <!-- Estimated Waiting Time -->
+      <div class="tracker-wait-time-row">
+        Estimated Waiting Time: <span id="trackerWaitTime" class="wait-time-highlight">5 Minutes</span>
+      </div>
+
+      <!-- Live Kitchen Activity Pop-up Modal Button (Reference Design) -->
+      <div style="margin-top: 18px;">
+        <button onclick="openKitchenQueueModal()" id="btnOpenKitchenQueueModal" class="btn-kitchen-queue">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--amber-brewing); display: inline-block; animation: pulse 1.5s infinite;"></span>
+            <span class="queue-live-dot"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--amber-brewing);"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
             <span>Live Kitchen Activity</span>
           </div>
-          <span id="trackerQueueSummaryBadge" style="background: rgba(255,159,28,0.22); border: 1px solid rgba(255,159,28,0.4); color: var(--amber-brewing); font-size: 11px; padding: 3px 9px; border-radius: 12px; font-weight: 800;">View Queue ➔</span>
+          <span id="trackerQueueSummaryBadge" class="queue-badge-pill">0 brewing • 0 in queue</span>
         </button>
       </div>
 
       <!-- View Official Receipt Pop-up Modal Button (Hidden until settled by cashier) -->
-      <div style="margin-top: 14px;">
-        <button onclick="openOrderModal()" id="btnOpenOrderModal" style="display: none; width: 100%; background: linear-gradient(135deg, rgba(46,196,182,0.18) 0%, rgba(46,196,182,0.06) 100%); border: 1.5px solid var(--emerald); color: var(--gold-light); border-radius: var(--radius-md); padding: 13px 16px; font-weight: 800; font-size: 13.5px; cursor: pointer; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(46,196,182,0.25); transition: all 0.15s;">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--emerald);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          <span>View Official Receipt (<span style="color: var(--emerald); font-weight: 800;">Paid ✓</span>)</span>
+      <div style="margin-top: 12px;">
+        <button onclick="openOrderModal()" id="btnOpenOrderModal" class="btn-view-receipt" style="display: none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--emerald);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>View Official Receipt</span>
+          <span style="background: rgba(46,196,182,0.18); border: 1px solid rgba(46,196,182,0.4); color: #48E5D5; border-radius: 8px; padding: 2px 7px; font-size: 10.5px; font-weight: 800;">Paid ✓</span>
         </button>
       </div>
 
       <!-- Pending Order Actions: Cancel Order (Available while status is pending cashier payment) -->
-      <div id="pendingActionButtons" style="margin-top: 16px;">
-        <button onclick="cancelCustomerOrder()" id="btnCancelOrder" style="width: 100%; background: rgba(230, 57, 70, 0.12); border: 1.5px solid var(--rose); color: var(--rose); border-radius: var(--radius-md); padding: 12px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s;">
+      <div id="pendingActionButtons" style="margin-top: 14px;">
+        <button onclick="cancelCustomerOrder()" id="btnCancelOrder" style="width: 100%; background: rgba(230, 57, 70, 0.12); border: 1.5px solid var(--rose); color: var(--rose); border-radius: 16px; padding: 12px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
           <span>Cancel Order</span>
         </button>
       </div>
 
-      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 18px;">
-        <button onclick="newOrder(true)" id="btnOrderAnotherItem" style="display: none; background: linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%); border: 1.5px solid var(--gold-primary); color: var(--gold-light); border-radius: var(--radius-md); padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(212,175,55,0.18);">
-          + Order Another Item
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+        <button onclick="newOrder(true)" id="btnOrderAnotherItem" class="btn-order-another" style="display: none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Order More / New Order</span>
         </button>
       </div>
     </div>
@@ -4712,40 +5419,38 @@ class KdsServerService {
     </button>
   </div>
 
-  <!-- Customization Modal (Exact POS Dialog Replica for Customer Phone) -->
+  <!-- Customization Modal (Showcase Card & Segmented Controls) -->
   <div class="modal-overlay" id="customModal" onclick="if(event.target===this) closeModal('customModal')">
     <div class="custom-dialog-card">
-      <!-- Header -->
-      <div class="cust-dlg-header">
-        <div class="cust-dlg-thumb" id="modalThumbBox">
-          <img src="" id="modalThumbImg" alt="Item" onerror="this.style.display='none'; document.getElementById('modalThumbIcon').style.display='block';">
-          <span id="modalThumbIcon" style="font-size: 26px; display: none;">☕</span>
-        </div>
-        <div class="cust-dlg-info">
-          <div class="cust-dlg-title-row">
-            <div class="cust-dlg-name" id="modalItemName">Americano</div>
-            <div class="cust-dlg-price-badge" id="modalBasePriceBadge">₱90</div>
-            <button class="cust-dlg-close" onclick="closeModal('customModal')">✕</button>
-          </div>
-          <div class="cust-dlg-tags" id="modalTagsRow"></div>
-          <div class="cust-dlg-desc" id="modalItemDesc"></div>
-        </div>
-      </div>
-
-      <!-- Scrollable Body with Group Options -->
+      <!-- Scrollable Body with Top Product Showcase & Customization Groups -->
       <div class="cust-dlg-body">
+        <!-- Top Product Showcase Card (Reference Design) -->
+        <div class="cust-showcase-card">
+          <div class="cust-showcase-img-box" id="modalThumbBox">
+            <button class="cust-img-close-btn" onclick="closeModal('customModal')" aria-label="Close dialog">✕</button>
+            <img src="" id="modalThumbImg" alt="Item" onerror="this.style.display='none'; document.getElementById('modalThumbIcon').style.display='flex';">
+            <div id="modalThumbIcon" style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%;"><span style="font-size: 54px;">☕</span></div>
+          </div>
+          <div class="cust-showcase-info">
+            <div class="cust-showcase-name" id="modalItemName">Americano</div>
+            <div class="cust-showcase-price" id="modalBasePriceBadge">₱90</div>
+            <div class="cust-showcase-desc" id="modalItemDesc" style="display: none;"></div>
+          </div>
+        </div>
+
+        <!-- Customization Groups Container -->
         <div id="customGroupContainer"></div>
       </div>
 
       <!-- Footer Bar with Stepper & Add to Order Button -->
       <div class="cust-dlg-footer">
         <div class="cust-stepper">
-          <button class="cust-stepper-btn" onclick="changeModalQty(-1)">−</button>
+          <button class="cust-stepper-btn" onclick="changeModalQty(-1)" aria-label="Decrease quantity">−</button>
           <span class="cust-stepper-val" id="modalQtyDisplay">1</span>
-          <button class="cust-stepper-btn" onclick="changeModalQty(1)">+</button>
+          <button class="cust-stepper-btn" onclick="changeModalQty(1)" aria-label="Increase quantity">+</button>
         </div>
         <button class="cust-add-btn" id="btnAddItemToCart" onclick="confirmAddToCart()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
           <span id="modalAddBtnText">Add to Order • ₱90</span>
         </button>
       </div>
@@ -4766,7 +5471,7 @@ class KdsServerService {
       <!-- Single Confirmed Dining Option Banner (Dine-In OR Takeout) -->
       <div id="trayDineInBanner" style="margin-bottom: 14px; background: rgba(212,175,55,0.12); border: 1.2px solid var(--gold-primary); border-radius: var(--radius-md); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 17px;">🍽️</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
           <div>
             <div style="font-size: 13px; font-weight: 800; color: var(--gold-light); font-family: 'Cinzel', serif;">Dine-In Order</div>
             <div style="font-size: 11.5px; color: var(--text-muted);" id="trayDineInTableText">Table 1 (Dine-In at Table)</div>
@@ -4777,7 +5482,7 @@ class KdsServerService {
 
       <div id="trayTakeoutBanner" style="display: none; margin-bottom: 14px; background: rgba(255,159,28,0.14); border: 1.2px solid #FF9F1C; border-radius: var(--radius-md); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 17px;">🥡</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
           <div>
             <div style="font-size: 13px; font-weight: 800; color: #FFB74D; font-family: 'Cinzel', serif;">Takeout / To-Go Order</div>
             <div style="font-size: 11px; color: var(--text-light);">Packed in paper cups & bags for counter pickup</div>
@@ -4797,12 +5502,36 @@ class KdsServerService {
 
       <div style="border-top: 1px dashed rgba(255,255,255,0.12); padding-top: 14px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <span style="font-weight: 700; font-size: 14px; color: var(--text-muted);">Total Amount</span>
-        <span style="font-weight: 800; font-size: 24px; color: var(--gold-light);" id="trayTotalAmount">₱0</span>
+        <span style="font-weight: 800; font-size: 24px; color: #FFFFFF;" id="trayTotalAmount">₱0</span>
       </div>
 
-      <button onclick="submitOrderToKitchen()" id="btnSendOrder" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); color: #0D0A0F; border: none; border-radius: var(--radius-md); padding: 16px; font-weight: 800; font-size: 15.5px; cursor: pointer; box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4);">
+      <button onclick="submitOrderToKitchen()" id="btnSendOrder" style="width: 100%; background: var(--caramel-accent); color: #110E0C; border: none; border-radius: var(--radius-md); padding: 16px; font-weight: 800; font-size: 15.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); transition: all 0.15s ease;">
         Submit Order to Cashier
       </button>
+    </div>
+  </div>
+
+  <!-- Unverified Table QR Modal (Blocks direct URL editing to arbitrary tables) -->
+  <div class="modal-overlay" id="unverifiedTableModal" style="display: none; z-index: 999999; background: rgba(0, 0, 0, 0.94); backdrop-filter: blur(8px);">
+    <div class="modal-content" style="max-width: 430px; margin: 0 auto; background: #161219; border: 2px solid rgba(229, 57, 53, 0.7); border-radius: 24px; padding: 28px 22px; box-shadow: 0 16px 60px rgba(0,0,0,0.98); text-align: center; animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
+      
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(229, 57, 53, 0.16); border: 2.2px solid rgba(229, 57, 53, 0.6); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; box-shadow: 0 0 28px rgba(229, 57, 53, 0.35);">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#E53935" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </div>
+
+      <div style="font-family: 'Cinzel', serif; font-size: 18px; font-weight: 800; color: #FF6B6B; letter-spacing: 1px;">MENU ACCESS BLOCKED</div>
+      <div style="font-size: 14.5px; font-weight: 700; color: #FFFFFF; margin-top: 6px;" id="unverifiedTableTitle">Direct Table Link Not Allowed</div>
+      <div style="font-size: 13px; color: var(--text-muted); margin-top: 10px; line-height: 1.55;" id="unverifiedTableBody">
+        You cannot access the menu by editing or typing the table link in your browser. Each table has its own unique physical QR code.
+      </div>
+
+      <div style="background: rgba(229, 57, 53, 0.12); border: 1.5px dashed rgba(229, 57, 53, 0.45); border-radius: 16px; padding: 16px 14px; color: #FF8A80; font-size: 12.8px; line-height: 1.5; margin-top: 20px; text-align: center;">
+        <div style="font-weight: 800; font-size: 14px; margin-bottom: 5px; color: #FF5252;">📷 Physical QR Scan Required</div>
+        Please point your mobile camera at the actual QR code on your table's acrylic stand to unlock and view the menu.
+      </div>
     </div>
   </div>
 
@@ -4815,39 +5544,47 @@ class KdsServerService {
         <div class="brand-logo-frame" style="margin: 0 auto 10px auto; width: 48px; height: 48px; border-radius: 12px;">
           <img src="/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='<span style=\\'font-weight:800;color:#D4AF37;font-size:22px;\\'>C</span>'">
         </div>
-        <div style="font-family: 'Cinzel', serif; font-size: 18.5px; font-weight: 800; color: var(--gold-light); letter-spacing: 1px;">WELCOME TO CELESTIAL</div>
+        <div style="font-family: 'Cinzel', serif; font-size: 18.5px; font-weight: 800; color: var(--gold-light); letter-spacing: 1px;">WELCOME TO CELESTIAL CAFE</div>
         <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">How will you enjoy your order today?</div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px;">
         <!-- Option 1: Dine-In -->
         <div class="dining-card selected" id="cardDineIn" onclick="selectDiningOption('dineIn')">
-          <div class="dining-icon-box">🍽️</div>
-          <div style="flex: 1;">
+          <div class="dining-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
+          </div>
+          <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <span style="font-weight: 800; font-size: 15px; color: var(--gold-light); font-family: 'Cinzel', serif;">Dine-In</span>
               <span id="dineInCheck" style="font-size: 16px; color: var(--gold-primary); font-weight: 900;">✓</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px;">Enjoy inside our cafe at your table. Served in glassware and plates.</div>
-            <div style="margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.4); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 800; color: var(--gold-light);">
-              <span style="font-size: 11px;">📍 Scanned Table:</span>
-              <span id="welcomeScannedTable">Table 1</span>
+            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Enjoy inside our cafe at your table. Served in glassware and plates.</div>
+            <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px; background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.35); border-radius: 8px; padding: 5px 9px;">
+              <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <span id="welcomeScannedTable" style="font-size: 11.5px; font-weight: 800; color: var(--gold-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Table 1</span>
+              </div>
+              <div id="welcomeTableBadge" style="flex-shrink: 0; white-space: nowrap;"></div>
             </div>
           </div>
         </div>
 
         <!-- Option 2: Takeout -->
         <div class="dining-card takeout-card" id="cardTakeout" onclick="selectDiningOption('takeaway')">
-          <div class="dining-icon-box">🥡</div>
-          <div style="flex: 1;">
+          <div class="dining-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          </div>
+          <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <span style="font-weight: 800; font-size: 15px; color: #FFB74D; font-family: 'Cinzel', serif;">Takeout / To-Go</span>
               <span id="takeoutCheck" style="font-size: 16px; color: #FF9F1C; font-weight: 900; display: none;">✓</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px;">Packed in to-go paper cups, lids, and bags. Pick up freshly at the counter.</div>
-            <div style="margin-top: 6px;">
-              <span style="background: rgba(255,159,28,0.2); border: 1px solid rgba(255,159,28,0.5); color: #FFB74D; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
-                🛍️ TO-GO PACKAGING
+            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Packed in to-go paper cups, lids, and bags. Pick up freshly at the counter.</div>
+            <div style="margin-top: 8px;">
+              <span style="background: rgba(255,159,28,0.18); border: 1px solid rgba(255,159,28,0.5); color: #FFB74D; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                <span>TO-GO PACKAGING</span>
               </span>
             </div>
           </div>
@@ -4976,14 +5713,14 @@ class KdsServerService {
   </div>
 
   <!-- Dynamic Pop-Up Success / Notice Modal -->
-  <div class="modal-overlay" id="successModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 99999;" onclick="if(event.target===this) closeModal('successModal')">
+  <div class="modal-overlay" id="successModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 99999;" onclick="if(event.target===this) closeSuccessModal()">
     <div class="modal-content" style="max-width: 400px; border-radius: var(--radius-xl); border: 1.5px solid var(--emerald); padding: 26px 20px; text-align: center; margin: auto;">
       <div id="successModalIconContainer" style="width: 58px; height: 58px; border-radius: 50%; background: rgba(46,196,182,0.15); border: 1.5px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald);">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
       </div>
       <div class="modal-title" id="successModalTitle" style="font-size: 18.5px; color: var(--text-light); margin-bottom: 8px;">Success!</div>
       <div class="modal-desc" id="successModalMsg" style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 22px;">Your request was completed successfully.</div>
-      <button id="btnSuccessDismiss" onclick="closeModal('successModal')" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(212,175,55,0.35);">
+      <button id="btnSuccessDismiss" onclick="closeSuccessModal()" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(212,175,55,0.35);">
         Continue
       </button>
     </div>
@@ -5037,7 +5774,6 @@ class KdsServerService {
       <!-- Action Buttons: Order Again / No Thanks -->
       <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 10px;">
         <button onclick="closeModal('orderCompletedModal'); newOrder(true);" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 14px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 18px var(--gold-glow); display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
           <span>Order Again</span>
         </button>
 
@@ -5096,7 +5832,7 @@ class KdsServerService {
           <div style="font-size: 11.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
             <span>Orders In Queue</span>
           </div>
-          <span id="modalInQueueCount" style="font-size: 11px; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 2px 8px;">0 tickets</span>
+          <span id="modalInQueueCount" style="font-size: 11px; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 2px 8px;">0 orders</span>
         </div>
         <div id="modalInQueueChips" style="display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 34px;">
           <span style="font-size: 12px; color: var(--text-muted);">Queue is currently clear</span>
@@ -5153,7 +5889,7 @@ class KdsServerService {
       </div>
 
       <div id="custVolumeModalDesc" style="font-size: 13px; color: var(--text-light); line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(212,175,55,0.08); border-radius: var(--radius-md); border: 1px dashed rgba(212,175,55,0.3);">
-        Payment confirmed! Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alarm and voice announcement when your order is ready!
+        Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alert when your order is ready for pickup!
       </div>
 
       <!-- Physical Hardware Volume Key Instruction -->
@@ -5184,6 +5920,7 @@ class KdsServerService {
 
   <script>
     /*__INITIAL_MENU_DATA__*/
+    /*__TABLE_AUTH_DATA__*/
 
     // ── Safe Storage Polyfill ────────────────────────────────────────────────
     // Tries localStorage first (best persistence), then sessionStorage (tab-scoped),
@@ -5212,9 +5949,39 @@ class KdsServerService {
     })();
     // ────────────────────────────────────────────────────────────────────────
 
+    const _tableAuth = window.TABLE_AUTH || { hasTableAttempt: false, isVerified: false, tableNumber: null, token: null };
+    let isTableVerified = Boolean(_tableAuth.isVerified);
+    let currentTable = _tableAuth.isVerified ? _tableAuth.tableNumber : null;
+    let currentTableToken = _tableAuth.isVerified ? _tableAuth.token : null;
+    let unverifiedTableAttempt = (!_tableAuth.isVerified && _tableAuth.hasTableAttempt) ? _tableAuth.tableNumber : null;
+
+    if (!isTableVerified && !_tableAuth.hasTableAttempt) {
+      try {
+        const sTable = _store.getItem('celestial_verified_table');
+        const sToken = _store.getItem('celestial_verified_token');
+        if (sTable && sToken) {
+          currentTable = sTable;
+          currentTableToken = sToken;
+          isTableVerified = true;
+        }
+      } catch(_) {}
+    } else if (isTableVerified && currentTable && currentTableToken) {
+      try {
+        _store.setItem('celestial_verified_table', currentTable);
+        _store.setItem('celestial_verified_token', currentTableToken);
+        _store.setItem('celestial_customer_table', currentTable);
+      } catch(_) {}
+    } else if (_tableAuth.hasTableAttempt && !_tableAuth.isVerified) {
+      // User specifically modified URL to unverified table: clear stored table to prevent impersonation
+      try {
+        _store.removeItem('celestial_customer_table');
+        _store.removeItem('celestial_verified_table');
+        _store.removeItem('celestial_verified_token');
+      } catch(_) {}
+    }
+
     let menuData = window.INITIAL_MENU || [];
     let cart = [];
-    let currentTable = 'Table 1';
     let activeCategory = 'all';
     let currentSearch = '';
     let selectedItem = null;
@@ -5232,27 +5999,38 @@ class KdsServerService {
     let activeAlarmOscillators = [];
     let fallbackChimeTimeout = null;
     let ttsVoiceTimeout = null;
+    let ttsWatchdogTimeout = null;
+    let ttsKeepAliveInterval = null;
     let activeSpeechUtterance = null;
     let alarmLoopTimeout = null;
     let currentAlarmAudio = null;
     let audioContext = null;
 
+    // Clear any stale dismiss flags from past sessions so first orders are never blocked
+    try {
+      _store.removeItem('alarmDismissed_global');
+      _store.removeItem('alarmDismissed_1');
+      _store.removeItem('alarmDismissed_#1');
+      _store.removeItem('custVolumeSeen_current');
+      _store.removeItem('custVolumeSeen_active_order');
+      _store.removeItem('custVolumeSeen_1');
+    } catch(_) {}
+
     function isOrderAlarmDismissed() {
       if (isAlarmPermanentlyDismissed) return true;
-      if (_store.getItem('alarmDismissed_global') === 'true') return true;
 
       const currentNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '';
       const currentId = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
       const cleanNum = String(currentNum).replace('#', '').trim();
       const cleanId = String(currentId).replace('#', '').trim();
 
-      if (dismissedOrderNumber && (cleanNum === dismissedOrderNumber || currentNum === dismissedOrderNumber)) return true;
-      if (dismissedOrderId && (cleanId === dismissedOrderId || currentId === dismissedOrderId)) return true;
+      if (!cleanNum && !cleanId) return false;
+
+      if (dismissedOrderNumber && cleanNum && (cleanNum === dismissedOrderNumber || currentNum === dismissedOrderNumber)) return true;
+      if (dismissedOrderId && cleanId && (cleanId === dismissedOrderId || currentId === dismissedOrderId)) return true;
 
       if (cleanNum && (_store.getItem('alarmDismissed_' + cleanNum) === 'true' || _store.getItem('alarmDismissed_#' + cleanNum) === 'true')) return true;
-      if (currentNum && _store.getItem('alarmDismissed_' + currentNum) === 'true') return true;
       if (cleanId && _store.getItem('alarmDismissed_' + cleanId) === 'true') return true;
-      if (currentId && _store.getItem('alarmDismissed_' + currentId) === 'true') return true;
 
       return false;
     }
@@ -5275,38 +6053,107 @@ class KdsServerService {
       cheesecakeSeries: 'Cheesecake Slices',
       streetBites: 'Street Food & Bites',
       pastaDishes: 'Pastas & Noodles',
-      sandwich: 'Sandwiches & Snacks'
+      sandwich: 'Sandwiches & Snacks',
+      dinner: 'Dinner & Rice Meals'
     };
 
-    let currentOrderType = 'dineIn';
-    const urlParams = new URLSearchParams(window.location.search);
-    const tableParam = urlParams.get('table');
-    if (tableParam) {
-      currentTable = tableParam.toLowerCase().startsWith('table') ? tableParam : 'Table ' + tableParam;
+    function getUrlParamsInfo() {
+      const p = new URLSearchParams(window.location.search);
+      let table = p.get('table') || p.get('t');
+      let token = p.get('token') || p.get('key') || p.get('code');
+      let order = p.get('order') || p.get('orderId') || p.get('id') || p.get('num');
+
+      // Check path parts e.g. /table/T1-C7E30D12, /table/2, /order/3
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        const lower = part.toLowerCase();
+        if ((lower === 'table' || lower === 't') && pathParts[i + 1]) {
+          table = pathParts[i + 1];
+        } else if (lower.startsWith('table') && lower.length > 5) {
+          table = part.substring(5);
+        } else if ((lower === 'order' || lower === 'track' || lower === 'status') && pathParts[i + 1]) {
+          order = pathParts[i + 1];
+        }
+      }
+
+      let cleanNum = null;
+      if (table) {
+        const s = String(table).trim();
+        if (s.includes('-') || s.includes('_')) {
+          const parts = s.split(/[-_]/);
+          cleanNum = parts[0].replace(/[^0-9]/g, '');
+          if (!token && parts.length > 1) {
+            token = parts.slice(1).join('-');
+          }
+        } else {
+          cleanNum = s.replace(/[^0-9]/g, '');
+        }
+      }
+
+      const cleanTable = cleanNum ? ('Table ' + cleanNum) : null;
+      return {
+        table: cleanTable,
+        rawTable: cleanNum,
+        fullTableCode: table ? String(table).trim() : null,
+        token: token ? String(token).trim() : null,
+        order: order ? String(order).trim().replace('#', '') : null
+      };
     }
+
+    let currentOrderType = (isTableVerified && currentTable) ? 'dineIn' : 'takeaway';
+    const urlParams = new URLSearchParams(window.location.search);
     const typeParam = urlParams.get('type') || urlParams.get('orderType');
     if (typeParam === 'takeaway' || typeParam === 'takeout' || typeParam === 'togo') {
       currentOrderType = 'takeaway';
-    } else if (typeParam === 'dinein' || typeParam === 'dineIn') {
+    } else if ((typeParam === 'dinein' || typeParam === 'dineIn') && isTableVerified) {
       currentOrderType = 'dineIn';
     } else {
       try {
         const savedType = _store.getItem('celestial_order_type');
-        if (savedType === 'takeaway' || savedType === 'dineIn') {
+        if (savedType === 'takeaway' || (savedType === 'dineIn' && isTableVerified)) {
           currentOrderType = savedType;
         }
       } catch(e) {}
     }
 
+    function showUnverifiedTableModal(tableName) {
+      const modal = document.getElementById('unverifiedTableModal');
+      const titleEl = document.getElementById('unverifiedTableTitle');
+      const bodyEl = document.getElementById('unverifiedTableBody');
+      const name = tableName || 'this table';
+
+      // Completely hide menu & order UI
+      const controls = document.getElementById('controlsWrapper');
+      const menu = document.getElementById('menuView');
+      const cartB = document.getElementById('cartBar');
+      const tracker = document.getElementById('trackerView');
+      if (controls) controls.style.display = 'none';
+      if (menu) menu.style.display = 'none';
+      if (cartB) cartB.style.display = 'none';
+      if (tracker) tracker.style.display = 'none';
+
+      if (titleEl) titleEl.innerText = 'Menu Access to ' + name + ' Blocked';
+      if (bodyEl) {
+        bodyEl.innerHTML = 'Every table at Celestial Cafe has its own <b>unique physical QR link and security code</b>.<br><br>You cannot access the menu for <b>' + name + '</b> by editing or typing the link in your browser.<br><br>To unlock and view the menu, please <b>scan the physical QR code</b> located on ' + name + ' with your phone camera.';
+      }
+      if (modal) modal.style.display = 'flex';
+      try {
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      } catch(_) {}
+    }
+
     function updateOrderTypeHeaderPill() {
       const pill = document.getElementById('tablePill');
       if (!pill) return;
-      if (currentOrderType === 'takeaway') {
+      pill.style.cursor = 'default';
+      pill.style.pointerEvents = 'none';
+      if (currentOrderType === 'takeaway' || !isTableVerified || !currentTable) {
         pill.className = 'table-pill takeout';
-        pill.innerHTML = '<span>🥡</span> <span>Takeout / To-Go</span> <span style="font-size:10px;opacity:0.7;">▼</span>';
+        pill.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg><span id="tablePillLabel">Takeout / To-Go</span>';
       } else {
         pill.className = 'table-pill';
-        pill.innerHTML = `<span>🍽️</span> <span>\${currentTable}</span> <span style="font-size:10px;opacity:0.7;">▼</span>`;
+        pill.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">\${currentTable}</span>`;
       }
       _updateTrayDiningUI();
     }
@@ -5318,10 +6165,12 @@ class KdsServerService {
       const custInput = document.getElementById('custNameInput');
 
       if (dineInTableText) {
-        dineInTableText.innerText = `\${currentTable} (Dine-In at Table)`;
+        dineInTableText.innerText = (isTableVerified && currentTable)
+            ? `\${currentTable} (Dine-In at Table)`
+            : 'Dine-In (Physical QR Scan Required)';
       }
 
-      if (currentOrderType === 'takeaway') {
+      if (currentOrderType === 'takeaway' || !isTableVerified || !currentTable) {
         if (dineInBanner) dineInBanner.style.display = 'none';
         if (takeoutBanner) takeoutBanner.style.display = 'flex';
         if (custInput) custInput.placeholder = 'Enter name for pickup (e.g. Maria)';
@@ -5333,6 +6182,10 @@ class KdsServerService {
     }
 
     function setOrderType(type, save = true) {
+      if (type === 'dineIn' && (!isTableVerified || !currentTable)) {
+        showUnverifiedTableModal(unverifiedTableAttempt || 'Table');
+        return;
+      }
       currentOrderType = type;
       if (save) {
         try {
@@ -5351,10 +6204,18 @@ class KdsServerService {
     }
 
     function selectDiningOption(type) {
+      if (type === 'dineIn' && (!isTableVerified || !currentTable)) {
+        showUnverifiedTableModal(unverifiedTableAttempt || 'Table');
+        return;
+      }
       setOrderType(type, true);
     }
 
     function confirmDiningOptionAndClose() {
+      if (currentOrderType === 'dineIn' && (!isTableVerified || !currentTable)) {
+        showUnverifiedTableModal(unverifiedTableAttempt || 'Table');
+        return;
+      }
       closeModal('diningOptionModal');
       try {
         _store.setItem('celestial_order_type', currentOrderType);
@@ -5369,9 +6230,23 @@ class KdsServerService {
       const dineInCheck = document.getElementById('dineInCheck');
       const takeoutCheck = document.getElementById('takeoutCheck');
       const welcomeTableEl = document.getElementById('welcomeScannedTable');
-      if (welcomeTableEl) welcomeTableEl.innerText = currentTable;
+      const welcomeTableBadge = document.getElementById('welcomeTableBadge');
 
-      if (currentOrderType === 'takeaway') {
+      if (isTableVerified && currentTable) {
+        if (welcomeTableEl) welcomeTableEl.innerText = currentTable;
+        if (welcomeTableBadge) {
+          welcomeTableBadge.innerHTML = '<span style="background:rgba(46,196,182,0.18);border:1px solid rgba(46,196,182,0.5);color:#2EC4B6;font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">✓ Verified QR</span>';
+        }
+        if (cardDineIn) cardDineIn.style.opacity = '1';
+      } else {
+        if (welcomeTableEl) welcomeTableEl.innerText = 'No Table Scanned';
+        if (welcomeTableBadge) {
+          welcomeTableBadge.innerHTML = '<span style="background:rgba(255,183,77,0.16);border:1px solid rgba(255,183,77,0.4);color:#FFB74D;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap;">Scan QR to Dine-In</span>';
+        }
+        if (cardDineIn) cardDineIn.style.opacity = '0.7';
+      }
+
+      if (currentOrderType === 'takeaway' || !isTableVerified || !currentTable) {
         if (cardDineIn) cardDineIn.classList.remove('selected');
         if (cardTakeout) cardTakeout.classList.add('selected');
         if (dineInCheck) dineInCheck.style.display = 'none';
@@ -5476,7 +6351,64 @@ class KdsServerService {
       return fallbackChimeDataUri;
     }
 
+    let _ttsPrimed = false;
+    function _primeSpeechSynthesis() {
+      if (_ttsPrimed) return;
+      _ttsPrimed = true;
+      try {
+        if ('speechSynthesis' in window) {
+          if (window.speechSynthesis.paused) {
+            try { window.speechSynthesis.resume(); } catch(_) {}
+          }
+          window.speechSynthesis.getVoices();
+          // Prime iOS Safari WebKit speech synthesis
+          const primeUtter = new SpeechSynthesisUtterance(' ');
+          primeUtter.volume = 0.01;
+          window.speechSynthesis.speak(primeUtter);
+        }
+      } catch(_) {}
+    }
+
+    function isIPhoneOrIOS() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    let _voiceBuffer = null;
+    let _voiceAudioLoading = false;
+    function loadVoiceAudio() {
+      if (isIPhoneOrIOS()) return; // iPhone uses repeating chime alarm only, no TTS
+      if (_voiceBuffer || _voiceAudioLoading) return;
+      _voiceAudioLoading = true;
+      try {
+        fetch('/audio/order-ready.wav')
+          .then(r => {
+            if (!r.ok) throw new Error('Audio load status ' + r.status);
+            return r.arrayBuffer();
+          })
+          .then(buf => {
+            if (!audioContext) {
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (AC) audioContext = new AC();
+            }
+            if (audioContext) {
+              audioContext.decodeAudioData(buf, (decoded) => {
+                _voiceBuffer = decoded;
+                _voiceAudioLoading = false;
+              }, () => { _voiceAudioLoading = false; });
+            } else {
+              _voiceAudioLoading = false;
+            }
+          })
+          .catch(() => { _voiceAudioLoading = false; });
+      } catch(_) {
+        _voiceAudioLoading = false;
+      }
+    }
+
     function initAudio() {
+      _primeSpeechSynthesis();
+      loadVoiceAudio();
       try {
         if (!audioContext) {
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -5485,10 +6417,12 @@ class KdsServerService {
         if (audioContext && audioContext.state === 'suspended') {
           return audioContext.resume().then(() => {
             audioUnlocked = true;
+            _startAudioKeepAlive();
             updateSoundStatusBadge(true);
           }).catch(() => {});
         } else if (audioContext && audioContext.state === 'running') {
           audioUnlocked = true;
+          _startAudioKeepAlive();
           updateSoundStatusBadge(true);
         }
       } catch(e) {}
@@ -5497,7 +6431,11 @@ class KdsServerService {
 
     function testOrEnableSound(e) {
       if (e) e.stopPropagation();
+      isAlarmPermanentlyDismissed = false;
+      dismissedOrderNumber = null;
+      dismissedOrderId = null;
       _unlockAudioOnGesture();
+      _primeSpeechSynthesis();
       isAlarmRunning = true;
       playAlarmSound();
       setTimeout(() => { isAlarmRunning = false; }, 1200);
@@ -5505,34 +6443,48 @@ class KdsServerService {
 
     function updateSoundStatusBadge() {}
 
-    // Auto-unlock AudioContext on any first interaction (silent probe)
-    let _audioUnlockDone = false;
+    // Auto-unlock AudioContext and maintain active iOS Safari audio session
+    let _audioKeepAliveSource = null;
+    function _startAudioKeepAlive() {
+      if (_audioKeepAliveSource || !audioContext) return;
+      try {
+        const buffer = audioContext.createBuffer(1, 22050, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        const gain = audioContext.createGain();
+        gain.gain.value = 0.001; // Non-zero so iOS Safari registers active media session, but 100% dead silent buffer
+        source.connect(gain);
+        gain.connect(audioContext.destination);
+        source.start(0);
+        _audioKeepAliveSource = source;
+      } catch(_) {}
+    }
+
     function _unlockAudioOnGesture() {
-      if (_audioUnlockDone) return;
-      _audioUnlockDone = true;
+      _primeSpeechSynthesis();
       try {
         if (!audioContext) {
           const AC = window.AudioContext || window.webkitAudioContext;
           if (AC) audioContext = new AC();
         }
-        if (audioContext && audioContext.state === 'suspended') {
-          audioContext.resume().catch(() => {});
-        }
-        // Silent HTML5 probe to satisfy autoplay policy
-        const silentUri = getFallbackChimeUri();
-        if (silentUri) {
-          const probe = new Audio(silentUri);
-          probe.volume = 0;
-          probe.play().catch(() => {});
+        if (audioContext) {
+          if (audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+              _startAudioKeepAlive();
+            }).catch(() => {});
+          } else if (audioContext.state === 'running') {
+            _startAudioKeepAlive();
+          }
         }
         audioUnlocked = true;
       } catch(e) {}
     }
-    ['click','touchstart','touchend','keydown','scroll','pointerdown']
+    ['click','touchstart','touchend','keydown','pointerdown']
       .forEach(ev => document.addEventListener(ev, _unlockAudioOnGesture, { once: false, passive: true }));
 
     function playAlarmSound() {
-      if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+      if (!isAlarmRunning) return;
       let playedViaWebAudio = false;
 
       try {
@@ -5547,7 +6499,7 @@ class KdsServerService {
           }
 
           const doSynth = () => {
-            if (!audioContext || !isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+            if (!audioContext || !isAlarmRunning) return;
             try {
               const now = audioContext.currentTime;
               if (alarmMasterGainNode) {
@@ -5557,14 +6509,14 @@ class KdsServerService {
 
               // 4-tone crystalline cafe chime: C6 -> E6 -> G6 -> C7
               const chordNotes = [
-                { freq: 1046.50, time: 0.00, dur: 0.35, vol: 0.65 },
-                { freq: 1318.51, time: 0.14, dur: 0.35, vol: 0.70 },
-                { freq: 1567.98, time: 0.28, dur: 0.40, vol: 0.75 },
-                { freq: 2093.00, time: 0.42, dur: 0.55, vol: 0.80 }
+                { freq: 1046.50, time: 0.00, dur: 0.35, vol: 0.70 },
+                { freq: 1318.51, time: 0.14, dur: 0.35, vol: 0.75 },
+                { freq: 1567.98, time: 0.28, dur: 0.40, vol: 0.80 },
+                { freq: 2093.00, time: 0.42, dur: 0.55, vol: 0.85 }
               ];
 
               chordNotes.forEach(n => {
-                if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+                if (!isAlarmRunning) return;
                 const startT = now + n.time;
                 const endT = startT + n.dur;
 
@@ -5607,8 +6559,11 @@ class KdsServerService {
           };
 
           if (audioContext.state === 'suspended') {
-            audioContext.resume().then(doSynth).catch(() => {});
-          } else if (audioContext.state === 'running') {
+            audioContext.resume().then(doSynth).catch(() => {
+              // If Web Audio resume fails/blocked, trigger fallback HTML5 audio immediately
+              if (isAlarmRunning) _playHtml5FallbackChime();
+            });
+          } else {
             doSynth();
           }
         }
@@ -5619,32 +6574,50 @@ class KdsServerService {
       // Fallback: If Web Audio is unavailable or blocked, use HTML5 Audio chime
       if (fallbackChimeTimeout) clearTimeout(fallbackChimeTimeout);
       fallbackChimeTimeout = setTimeout(() => {
-        if (!playedViaWebAudio && isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
-          try {
-            const uri = getFallbackChimeUri();
-            if (uri) {
-              if (currentAlarmAudio) {
-                try { currentAlarmAudio.pause(); currentAlarmAudio.src = ''; } catch(_) {}
-              }
-              currentAlarmAudio = new Audio(uri);
-              currentAlarmAudio.volume = 1.0;
-              currentAlarmAudio.play().catch(() => {});
-            }
-          } catch(_) {}
+        if (!playedViaWebAudio && isAlarmRunning) {
+          _playHtml5FallbackChime();
         }
       }, 50);
 
-      if (isAlarmRunning && !isAlarmPermanentlyDismissed) doVibrate();
+      if (isAlarmRunning) doVibrate();
+    }
+
+    function _playHtml5FallbackChime() {
+      if (!isAlarmRunning) return;
+      try {
+        const uri = getFallbackChimeUri();
+        if (uri) {
+          if (currentAlarmAudio) {
+            try { currentAlarmAudio.pause(); currentAlarmAudio.src = ''; } catch(_) {}
+          }
+          currentAlarmAudio = new Audio(uri);
+          currentAlarmAudio.volume = 1.0;
+          const p = currentAlarmAudio.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch(() => {});
+          }
+        }
+      } catch(_) {}
     }
 
     // Loop sequence: Play Alarm -> Stop/Pause -> TTS (reads all text) -> Pause -> Repeat Loop
     function runAlarmSequenceLoop() {
       if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
-      // Step 1: Play Alarm Sound
+      // Step 1: Play Alarm Sound (4-tone cafe chime)
       playAlarmSound();
 
-      // Step 2: Wait for alarm notes to finish (~800ms) + 400ms pause
+      // iPhone: ALARM CHIME ONLY (NO TTS) - repeat chime every 1.5 seconds cleanly
+      if (isIPhoneOrIOS()) {
+        if (alarmLoopTimeout) clearTimeout(alarmLoopTimeout);
+        alarmLoopTimeout = setTimeout(() => {
+          if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
+          runAlarmSequenceLoop();
+        }, 1500);
+        return;
+      }
+
+      // Non-iPhone devices: Wait for chime notes to finish (~800ms) + 300ms pause -> TTS
       if (alarmLoopTimeout) clearTimeout(alarmLoopTimeout);
       alarmLoopTimeout = setTimeout(() => {
         if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
@@ -5658,11 +6631,11 @@ class KdsServerService {
           alarmLoopTimeout = setTimeout(() => {
             if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
 
-            // Step 5: Loop back to play alarm again
+            // Step 5: Loop back to play alarm chime again
             runAlarmSequenceLoop();
           }, 800);
         });
-      }, 1200);
+      }, 1100);
     }
 
     function startRepeatingAlarm() {
@@ -5673,6 +6646,7 @@ class KdsServerService {
       if (isAlarmRunning) return; // Already running
 
       isAlarmRunning = true;
+      isAlarmPermanentlyDismissed = false; // Reset dismiss flag since alarm is explicitly triggered
 
       document.body.classList.add('alarm-active');
       const numEl = document.getElementById('alarmModalOrderNum');
@@ -5707,83 +6681,157 @@ class KdsServerService {
     }
 
     function speakReadyAnnouncement(onEnd) {
-      if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) {
+      if (!isAlarmRunning || isIPhoneOrIOS()) {
         if (onEnd) onEnd();
         return;
       }
+
+      let ended = false;
+      const finish = () => {
+        if (!ended) {
+          ended = true;
+          if (ttsWatchdogTimeout) {
+            clearTimeout(ttsWatchdogTimeout);
+            ttsWatchdogTimeout = null;
+          }
+          if (ttsKeepAliveInterval) {
+            clearInterval(ttsKeepAliveInterval);
+            ttsKeepAliveInterval = null;
+          }
+          activeSpeechUtterance = null;
+          window._ttsActiveUtterance = null;
+          if (isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed() && onEnd) {
+            onEnd();
+          }
+        }
+      };
+
+      // Failsafe watchdog timer: ensure sequence loop never hangs
+      if (ttsWatchdogTimeout) clearTimeout(ttsWatchdogTimeout);
+      ttsWatchdogTimeout = setTimeout(() => {
+        finish();
+      }, 4500);
+
+      // Primary Engine for Safari / iOS / Android / Desktop:
+      // Play high-fidelity voice AudioBuffer through Web Audio API
+      if (_voiceBuffer && audioContext) {
+        try {
+          if (audioContext.state === 'suspended') {
+            audioContext.resume();
+          }
+          const source = audioContext.createBufferSource();
+          source.buffer = _voiceBuffer;
+          const gain = audioContext.createGain();
+          gain.gain.setValueAtTime(1.0, audioContext.currentTime);
+          source.connect(gain);
+          gain.connect(alarmMasterGainNode || audioContext.destination);
+          activeSpeechUtterance = source;
+          source.onended = finish;
+          source.start();
+          return;
+        } catch(e) {
+          console.warn('Audio buffer voice playback error, falling back to speech synthesis:', e);
+        }
+      }
+
+      // Secondary Engine: Browser SpeechSynthesis
       try {
         if (!('speechSynthesis' in window)) {
-          if (onEnd) onEnd();
+          finish();
           return;
         }
-        window.speechSynthesis.cancel(); // clear previous queued speech
+
+        // Resume if stuck/paused in Chrome
+        if (window.speechSynthesis.paused) {
+          try { window.speechSynthesis.resume(); } catch(_) {}
+        }
 
         const utter = new SpeechSynthesisUtterance(
           'Your order is ready to claim! Please proceed to the pickup counter.'
         );
         activeSpeechUtterance = utter;
+        window._ttsActiveUtterance = utter; // Prevent V8 garbage collection mid-speech
 
-        let ended = false;
-        const finish = () => {
-          if (!ended) {
-            ended = true;
-            activeSpeechUtterance = null;
-            if (isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed() && onEnd) {
-              onEnd();
-            }
-          }
-        };
-
-        // Guarantee all text is read before callback triggers
         utter.onend = finish;
-        utter.onerror = finish;
+        utter.onerror = () => {
+          finish();
+        };
 
         const trySpeak = () => {
-          if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed()) return;
-          const voices = window.speechSynthesis.getVoices();
-          const eng = voices.find(v => v.lang === 'en-US') ||
-                      voices.find(v => v.lang && v.lang.startsWith('en'));
-          if (eng) {
-            utter.voice = eng;
-            utter.lang  = eng.lang;
-          } else {
-            utter.lang = 'en-US';
+          if (!isAlarmRunning || isAlarmPermanentlyDismissed || isOrderAlarmDismissed() || ended) return;
+          try {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+            const voices = window.speechSynthesis.getVoices() || [];
+            if (voices && voices.length > 0) {
+              const eng = voices.find(v => v.lang === 'en-US') ||
+                          voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) ||
+                          voices.find(v => v.default) ||
+                          voices[0];
+              if (eng) {
+                utter.voice = eng;
+                utter.lang = eng.lang || 'en-US';
+              }
+            } else {
+              utter.lang = 'en-US';
+            }
+            utter.rate   = 0.92;
+            utter.pitch  = 1.0;
+            utter.volume = 1.0;
+
+            window.speechSynthesis.speak(utter);
+
+            // Chrome keep-alive interval: prevent browser from pausing speech mid-sentence
+            if (ttsKeepAliveInterval) clearInterval(ttsKeepAliveInterval);
+            ttsKeepAliveInterval = setInterval(() => {
+              if (!ended && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+                if (window.speechSynthesis.paused) {
+                  window.speechSynthesis.resume();
+                }
+              } else {
+                clearInterval(ttsKeepAliveInterval);
+                ttsKeepAliveInterval = null;
+              }
+            }, 800);
+          } catch(e) {
+            finish();
           }
-          utter.rate   = 0.90;
-          utter.pitch  = 1.0;
-          utter.volume = 1.0;
-          window.speechSynthesis.speak(utter);
         };
 
-        if (window.speechSynthesis.getVoices().length > 0) {
+        const currentVoices = window.speechSynthesis.getVoices() || [];
+        if (currentVoices.length > 0) {
           trySpeak();
         } else {
+          let voicesHandled = false;
           window.speechSynthesis.onvoiceschanged = () => {
+            if (voicesHandled) return;
+            voicesHandled = true;
             window.speechSynthesis.onvoiceschanged = null;
-            if (isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
-              trySpeak();
-            }
+            if (ttsVoiceTimeout) clearTimeout(ttsVoiceTimeout);
+            trySpeak();
           };
           if (ttsVoiceTimeout) clearTimeout(ttsVoiceTimeout);
           ttsVoiceTimeout = setTimeout(() => {
-            if (!ended && !window.speechSynthesis.speaking && isAlarmRunning && !isAlarmPermanentlyDismissed && !isOrderAlarmDismissed()) {
+            if (!voicesHandled) {
+              voicesHandled = true;
+              window.speechSynthesis.onvoiceschanged = null;
               trySpeak();
             }
-          }, 300);
+          }, 250);
         }
       } catch(e) {
-        if (onEnd) onEnd();
+        finish();
       }
     }
 
-    function stopAlarm(e) {
+    function stopAlarm(e, userDismiss = true) {
       if (e) {
         try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
       }
 
-      // 1. Immediately flag alarm as stopped & permanently dismissed
+      // 1. Immediately flag alarm as stopped
       isAlarmRunning = false;
-      isAlarmPermanentlyDismissed = true;
 
       // 2. Clear any pending timeouts and intervals in the sequence loop
       if (alarmLoopTimeout) {
@@ -5802,6 +6850,15 @@ class KdsServerService {
         clearTimeout(ttsVoiceTimeout);
         ttsVoiceTimeout = null;
       }
+      if (ttsWatchdogTimeout) {
+        clearTimeout(ttsWatchdogTimeout);
+        ttsWatchdogTimeout = null;
+      }
+      if (ttsKeepAliveInterval) {
+        clearInterval(ttsKeepAliveInterval);
+        ttsKeepAliveInterval = null;
+      }
+      window._ttsActiveUtterance = null;
 
       // 3. Immediately silence Web Audio (zero gain & stop active oscillators)
       try {
@@ -5828,16 +6885,20 @@ class KdsServerService {
         currentAlarmAudio = null;
       }
 
-      // 5. Immediately cancel speech synthesis and drop handlers
-      try {
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.onvoiceschanged = null;
-          if (activeSpeechUtterance) {
-            activeSpeechUtterance.onend = null;
-            activeSpeechUtterance.onerror = null;
-            activeSpeechUtterance = null;
+      // 5. Immediately stop active voice buffer or utterance
+      if (activeSpeechUtterance) {
+        try {
+          if (typeof activeSpeechUtterance.stop === 'function') {
+            activeSpeechUtterance.stop();
           }
-          window.speechSynthesis.pause();
+          activeSpeechUtterance.onend = null;
+          activeSpeechUtterance.onerror = null;
+        } catch(_) {}
+        activeSpeechUtterance = null;
+      }
+      try {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+          window.speechSynthesis.onvoiceschanged = null;
           window.speechSynthesis.cancel();
         }
       } catch(e) {}
@@ -5845,41 +6906,46 @@ class KdsServerService {
       // 6. Stop vibration
       stopVibrationLoop();
 
-      // 7. Persist dismissed state across all key formats
-      const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '1';
-      const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
-      const cleanNum = String(orderKey).replace('#', '').trim();
-      const cleanId = String(orderIdKey).replace('#', '').trim();
-
-      dismissedOrderNumber = cleanNum;
-      dismissedOrderId = cleanId;
-
-      try {
-        _store.setItem('alarmDismissed_global', 'true');
-        _store.setItem('alarmDismissed_' + orderKey, 'true');
-        _store.setItem('alarmDismissed_' + cleanNum, 'true');
-        _store.setItem('alarmDismissed_#' + cleanNum, 'true');
-        if (orderIdKey) {
-          _store.setItem('alarmDismissed_' + orderIdKey, 'true');
-          _store.setItem('alarmDismissed_' + cleanId, 'true');
-        }
-      } catch(e) {}
-
-      // 8. Hide modal and remove active styles
+      // 7. Hide modal and remove active styles
       document.body.classList.remove('alarm-active');
       const modal = document.getElementById('readyAlarmModal');
       if (modal) modal.style.display = 'none';
 
+      // 8. ONLY persist dismissed state if explicitly dismissed by user interaction
+      if (userDismiss) {
+        isAlarmPermanentlyDismissed = true;
+        const orderKey = activeTrackedOrderNum || _store.getItem('activeOrderNum');
+        const orderIdKey = activeTrackedOrderId || _store.getItem('activeOrderId');
+        if (orderKey || orderIdKey) {
+          const cleanNum = orderKey ? String(orderKey).replace('#', '').trim() : '';
+          const cleanId = orderIdKey ? String(orderIdKey).replace('#', '').trim() : '';
+
+          if (cleanNum) dismissedOrderNumber = cleanNum;
+          if (cleanId) dismissedOrderId = cleanId;
+
+          try {
+            if (cleanNum) {
+              _store.setItem('alarmDismissed_' + cleanNum, 'true');
+              _store.setItem('alarmDismissed_#' + cleanNum, 'true');
+            }
+            if (cleanId) {
+              _store.setItem('alarmDismissed_' + cleanId, 'true');
+            }
+          } catch(e) {}
+        }
+      }
+
       // Update button text for immediate touch feedback
       const btn = document.getElementById('btnDismissReadyAlarmModal');
       if (btn) {
-        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Silenced ✓ (Claim at Counter)</span>';
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay</span>';
       }
 
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       if (orderAnotherBtn) {
         orderAnotherBtn.style.display = 'inline-flex';
-        orderAnotherBtn.innerText = '+ Order More / New Order';
+        orderAnotherBtn.className = 'btn-order-another';
+        orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Order More / New Order</span>';
       }
     }
 
@@ -5943,6 +7009,22 @@ class KdsServerService {
               const inQueue = orders.filter(o => ['confirmed','inqueue','queue'].includes((o.status||'').toLowerCase())).map(formatChip);
               const nowReady = orders.filter(o => (o.status||'').toLowerCase() === 'ready').map(formatChip);
               renderLiveQueue(nowPreparing, inQueue, nowReady);
+            } else if (data.type === 'SYNC_MENU') {
+              if (data.menu && Array.isArray(data.menu)) {
+                menuData = data.menu;
+                updateCategoryBar();
+                renderMenu();
+                if (selectedItem) {
+                  const updated = menuData.find(m => m.id === selectedItem.id);
+                  if (updated) {
+                    selectedItem = updated;
+                    if (selectedItem.inStock === false) {
+                      closeCustomModal();
+                      showToast('The item you were viewing has just sold out.');
+                    }
+                  }
+                }
+              }
             }
           } catch(err) {}
         };
@@ -5972,12 +7054,49 @@ class KdsServerService {
       renderMenu();
     }
 
+    function updateCategoryBar() {
+      const catBar = document.getElementById('catBar');
+      if (!catBar) return;
+      const customCats = new Map();
+      (menuData || []).forEach(m => {
+        if (m.customCategory && m.customCategory.trim()) {
+          const name = m.customCategory.trim();
+          if (!customCats.has(name)) {
+            customCats.set(name, m.categoryLabel || name);
+          }
+        }
+      });
+      catBar.querySelectorAll('.custom-cat-tab').forEach(el => el.remove());
+      customCats.forEach((label, name) => {
+        categoryLabels[name] = label;
+        const btn = document.createElement('button');
+        btn.className = 'cat-tab custom-cat-tab' + (activeCategory === name ? ' active' : '');
+        btn.innerText = label;
+        btn.onclick = function() { filterCategory(name, this); };
+        catBar.appendChild(btn);
+      });
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function renderMenu() {
+      if (_tableAuth.hasTableAttempt && !_tableAuth.isVerified) {
+        showUnverifiedTableModal(_tableAuth.tableNumber);
+        return;
+      }
       const grid = document.getElementById('menuGrid');
       let filtered = menuData;
 
       if (activeCategory !== 'all') {
-        filtered = filtered.filter(m => m.category === activeCategory);
+        filtered = filtered.filter(m => m.category === activeCategory || m.customCategory === activeCategory);
       }
 
       if (currentSearch) {
@@ -5994,6 +7113,11 @@ class KdsServerService {
       document.getElementById('sectionTitleLabel').innerText = label;
       document.getElementById('menuCountBadge').innerText = `\${filtered.length} item\${filtered.length !== 1 ? 's' : ''}`;
 
+      const heroSpotlightEl = document.getElementById('heroSpotlight');
+      if (heroSpotlightEl) {
+        heroSpotlightEl.style.display = (activeCategory === 'all' && !currentSearch) ? 'flex' : 'none';
+      }
+
       if (filtered.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
@@ -6006,44 +7130,84 @@ class KdsServerService {
       }
 
       grid.innerHTML = filtered.map(item => {
-        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich') ||
-          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => (item.name || '').toLowerCase().includes(k));
-        const kitchenTag = isKitchen ? '<span style="background: rgba(255,87,34,0.2); border: 1px solid rgba(255,87,34,0.5); color: #FF7043; font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px; margin-left: 5px;">Kitchen Cooked</span>' : '';
+        const isSoldOut = item.inStock === false;
+        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich' || item.category === 'dinner') ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast', 'bbq', 'barbeque', 'combo', 'rice', 'inasal', 'sisig'].some(k => (item.name || '').toLowerCase().includes(k));
+        const kitchenTag = isKitchen ? '<span style="background: rgba(255,87,34,0.2); border: 1px solid rgba(255,87,34,0.5); color: #FF7043; font-size: 8.5px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; text-transform: uppercase;">Kitchen</span>' : '';
+        const soldOutBadge = isSoldOut ? '<span style="background: rgba(229,57,53,0.25); border: 1px solid #E53935; color: #FF6B6B; font-size: 8.5px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; text-transform: uppercase;">Sold Out</span>' : '';
 
-        const imgUrl = item.imageBase64 ? ('data:image/png;base64,' + item.imageBase64) : (item.imageUrl || (item.imagePath ? `/api/item-image?id=\${item.id}` : ''));
+        const rawImg = item.imageBase64 ? ('data:image/png;base64,' + item.imageBase64) : (item.imageUrl || (item.imagePath ? (item.imagePath.startsWith('assets/') ? ('/' + item.imagePath) : `/api/item-image?id=\${item.id}`) : ''));
+        const imgUrl = rawImg;
         const imageCardHtml = imgUrl ? `
           <div class="item-img-container">
-            <img src="\${imgUrl}" alt="\${item.name}" onerror="this.parentElement.innerHTML='<div class=\\'item-img-placeholder\\'><span style=\\'font-family:Cinzel;font-weight:bold;font-size:24px;color:#D4AF37;\\'>CELESTIAL</span></div>'">
+            <img src="\${imgUrl}" alt="\${escapeHtml(item.name)}" onerror="this.parentElement.innerHTML='<div class=\\'item-img-placeholder\\'><span style=\\'font-family:Cinzel;font-weight:bold;font-size:22px;color:#D4AF37;\\'>CELESTIAL</span></div>'">
+            \${isSoldOut ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.68); display:flex; align-items:center; justify-content:center; border-radius:14px;"><span style="background:#E53935; color:#fff; font-size:10px; font-weight:bold; padding:3px 8px; border-radius:6px; letter-spacing:0.8px;">SOLD OUT</span></div>' : ''}
           </div>
         ` : `
           <div class="item-img-container">
             <div class="item-img-placeholder">
-              <span style="font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:2px;color:var(--gold-light);">C</span>
+              <span style="font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:2px;color:var(--gold-light);">☕</span>
             </div>
+            \${isSoldOut ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.68); display:flex; align-items:center; justify-content:center; border-radius:14px;"><span style="background:#E53935; color:#fff; font-size:10px; font-weight:bold; padding:3px 8px; border-radius:6px; letter-spacing:0.8px;">SOLD OUT</span></div>' : ''}
           </div>
         `;
 
+        const cardClass = isSoldOut ? 'item-card sold-out' : 'item-card';
+        const cardStyle = isSoldOut ? 'opacity: 0.65;' : '';
+        const clickAttr = isSoldOut ? "showToast('This item is currently sold out.')" : ("openCustomModal('" + item.id + "')");
+        const priceDisplay = isSoldOut 
+          ? '<span style="font-size: 13.5px; color: #888;">Unavailable</span>' 
+          : '<span class="peso-symbol">₱</span>' + Math.round(item.price);
+        const catText = (item.categoryLabel || item.category || 'COFFEE').toUpperCase();
+        const descText = item.description || (item.tags && item.tags.length > 0 ? item.tags.join(', ') : '');
+
         return `
-          <div class="item-card" onclick="openCustomModal('\${item.id}')">
+          <div class="\${cardClass}" style="\${cardStyle}" onclick="\${clickAttr}">
             \${imageCardHtml}
-            <div>
-              <div class="item-card-name">\${item.name}</div>
-              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
-                <span class="item-cat-badge">\${item.categoryLabel || item.category}</span>
+            <div class="item-card-info">
+              <div class="item-card-name" style="\${isSoldOut ? 'text-decoration: line-through; color: #888;' : ''}">\${escapeHtml(item.name)}</div>
+              <div class="item-card-cat">
+                <span>\${escapeHtml(catText)}</span>
                 \${kitchenTag}
+                \${soldOutBadge}
               </div>
+              <div class="item-card-desc">\${escapeHtml(descText)}</div>
             </div>
             <div class="item-card-bottom">
-              <div class="item-card-bottom-row">
-                <span class="item-price">₱\${Math.round(item.price)}</span>
-              </div>
-              <button class="btn-add-pill" onclick="event.stopPropagation(); openCustomModal('\${item.id}')">
-                Add to Tray
+              <div class="item-price">\${priceDisplay}</div>
+              <button class="btn-add-circle" onclick="event.stopPropagation(); \${clickAttr}" aria-label="Add \${escapeHtml(item.name)} to tray">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
               </button>
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    function openSignatureLatteItem() {
+      initAudio();
+      const item = (menuData || []).find(m => m.id === 'nesp_1' || (m.name && m.name.toLowerCase().includes('celestial signature latte')));
+      if (item) {
+        // Set search query and render so the item card appears directly in the catalog grid below
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+          searchInput.value = item.name;
+          currentSearch = item.name.toLowerCase();
+          const clearBtn = document.getElementById('clearSearchBtn');
+          if (clearBtn) clearBtn.style.display = 'block';
+        }
+        activeCategory = 'all';
+        document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+        const allTab = document.querySelector('.cat-tab');
+        if (allTab) allTab.classList.add('active');
+        renderMenu();
+
+        // Also open the rich customization modal for Celestial Signature Latte immediately
+        openCustomModal(item.id);
+      }
     }
 
     function openCustomModal(itemId) {
@@ -6055,8 +7219,8 @@ class KdsServerService {
       document.getElementById('modalQtyDisplay').innerText = modalItemQty;
       selectedCustomizations = [];
 
-      // Item Media / Photo Thumbnail
-      const imgUrl = selectedItem.imageBase64 ? ('data:image/png;base64,' + selectedItem.imageBase64) : (selectedItem.imageUrl || (selectedItem.imagePath ? `/api/item-image?id=\${selectedItem.id}` : ''));
+      // Item Media / Showcase Photo
+      const imgUrl = selectedItem.imageBase64 ? ('data:image/png;base64,' + selectedItem.imageBase64) : (selectedItem.imageUrl || (selectedItem.imagePath ? (selectedItem.imagePath.startsWith('assets/') ? ('/' + selectedItem.imagePath) : `/api/item-image?id=\${selectedItem.id}`) : ''));
       const thumbImg = document.getElementById('modalThumbImg');
       const thumbIcon = document.getElementById('modalThumbIcon');
       if (imgUrl) {
@@ -6066,26 +7230,34 @@ class KdsServerService {
       } else {
         thumbImg.style.display = 'none';
         thumbIcon.innerText = selectedItem.icon || '☕';
-        thumbIcon.style.display = 'block';
+        thumbIcon.style.display = 'flex';
       }
 
       document.getElementById('modalItemName').innerText = selectedItem.name;
       document.getElementById('modalBasePriceBadge').innerText = `₱\${Math.round(selectedItem.price)}`;
-      document.getElementById('modalItemDesc').innerText = selectedItem.description || '';
-
-
-      // Tags Row
-      const tagsRow = document.getElementById('modalTagsRow');
-      const catLabel = selectedItem.categoryLabel || selectedItem.category;
-      let tagsHtml = `<span class="cust-dlg-tag">\${selectedItem.icon || '☕'} \${catLabel}</span>`;
-      if (selectedItem.tags && Array.isArray(selectedItem.tags)) {
-        selectedItem.tags.forEach(t => {
-          if (t && t !== 'All') {
-            tagsHtml += `<span class="cust-dlg-tag gold">\${t}</span>`;
-          }
-        });
+      const descEl = document.getElementById('modalItemDesc');
+      if (descEl) {
+        const descText = selectedItem.description || (selectedItem.tags && selectedItem.tags.length > 0 ? selectedItem.tags.join(', ') : '');
+        if (descText && descText.trim().length > 0) {
+          descEl.innerText = descText.trim();
+          descEl.style.display = 'block';
+        } else {
+          descEl.style.display = 'none';
+        }
       }
-      tagsRow.innerHTML = tagsHtml;
+
+      function getGroupIconSvg(titleLower) {
+        if (titleLower.includes('temp')) {
+          return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C48248" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>';
+        }
+        if (titleLower.includes('sweet') || titleLower.includes('sugar')) {
+          return '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:#C48248;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>';
+        }
+        if (titleLower.includes('add') || titleLower.includes('extra') || titleLower.includes('sinker')) {
+          return '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:#C48248;"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" /></svg>';
+        }
+        return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C48248" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path></svg>';
+      }
 
       // Customization Groups
       const container = document.getElementById('customGroupContainer');
@@ -6097,118 +7269,169 @@ class KdsServerService {
         const isTemp = titleLower.includes('temp') || idLower.includes('temp');
         const isSweet = titleLower.includes('sweet') || idLower.includes('sweet') || titleLower.includes('sugar');
         const isMulti = g.isMultiSelect === true;
-        const isRequired = g.isRequired !== false && !isMulti;
+        const isRequired = isTemp || isSweet || g.isRequired === true;
 
-        // Group Icon
-        let gIcon = '⚙️';
-        if (isTemp) gIcon = '🌡️';
-        else if (isSweet) gIcon = '💧';
-        else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) gIcon = '✨';
-        else if (titleLower.includes('size') || titleLower.includes('cup')) gIcon = '☕';
-        else if (titleLower.includes('whip') || titleLower.includes('cream')) gIcon = '🍦';
-        else if (titleLower.includes('prep') || titleLower.includes('cook')) gIcon = '🍽️';
+        const iconSvg = getGroupIconSvg(titleLower);
+        const groupTitleDisplay = g.groupTitle || 'Options';
 
         const badgeHtml = isRequired
-          ? `<span class="cust-badge-required">REQUIRED</span>`
-          : `<span class="cust-badge-optional">\${isMulti ? 'OPTIONAL' : 'CHOOSE ONE'}</span>`;
+          ? ''
+          : '<div class="cust-group-badge optional">OPTIONAL</div>';
 
         let optionsHtml = '';
 
-        if (isTemp && g.options.length === 2) {
-          // Temperature specialized 2-card layout (Hot vs Iced)
+        if (isTemp) {
+          // Temperature: Strictly HOT and ICED only
+          const validTempOptions = g.options.filter(o => {
+            const nameLower = (o.name || '').toLowerCase();
+            if (nameLower.includes('&') || nameLower.includes('and')) return false;
+            return nameLower.includes('hot') || nameLower.includes('ice');
+          });
+
+          // Ensure default selection
+          const defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < validTempOptions.length)
+            ? g.defaultIndex
+            : (validTempOptions.findIndex(o => o.name.toLowerCase().includes('ice')) >= 0
+                ? validTempOptions.findIndex(o => o.name.toLowerCase().includes('ice'))
+                : 0);
+          const chosenOpt = validTempOptions[defaultIdx] || validTempOptions[0];
+          if (chosenOpt) {
+            selectedCustomizations.push({
+              groupTitle: g.groupTitle,
+              optionName: chosenOpt.name,
+              extraPrice: chosenOpt.priceAdjustment || 0,
+              isMulti: false
+            });
+          }
+
           optionsHtml = `
-            <div class="cust-opt-grid-2col">
-              \${g.options.map((opt, oIdx) => {
-                const optLower = opt.name.toLowerCase();
-                const isHot = optLower.includes('hot');
-                const isIced = optLower.includes('ice');
-                const isDefault = oIdx === (g.defaultIndex || 0);
-                if (isDefault) {
-                  selectedCustomizations.push({
-                    groupTitle: g.groupTitle,
-                    optionName: opt.name,
-                    extraPrice: opt.priceAdjustment || 0,
-                    isMulti: false
-                  });
-                }
-                const subLabel = isHot ? 'Steamed & Fresh' : (isIced ? 'Chilled with Ice' : '');
-                const iconSymbol = isHot ? '🔥' : '❄️';
-                const iconClass = isHot ? 'hot' : 'iced';
+            <div class="cust-pill-row cust-group-options">
+              \${validTempOptions.map((opt) => {
+                const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                const extra = opt.priceAdjustment || 0;
+                const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
                 return `
-                  <div class="cust-opt-card cust-temp-card \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                    <div class="cust-temp-icon-box \${iconClass}">\${iconSymbol}</div>
-                    <div class="cust-opt-text-col">
-                      <div class="cust-opt-label">\${opt.name}</div>
-                      \${subLabel ? `<div class="cust-opt-sublabel">\${subLabel}</div>` : ''}
-                    </div>
-                    <div class="cust-radio-circle"></div>
-                  </div>
+                  <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
+                    <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                    <span class="cust-pill-label">\${escapeHtml(opt.name)}</span>
+                    \${extraText ? `<span class="cust-pill-extra">\${extraText}</span>` : ''}
+                  </button>
                 `;
               }).join('')}
             </div>
           `;
-        } else if (isMulti) {
-          // Multi-Select Add-ons (Full-Width list guaranteeing full unabbreviated text readability)
+        } else if (isSweet) {
+          // Sweetness Level: 2-column grid
+          let defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < g.options.length)
+            ? g.defaultIndex
+            : g.options.findIndex(o => (o.name || '').toLowerCase().includes('100') || (o.name || '').toLowerCase().includes('regular'));
+          if (defaultIdx < 0) defaultIdx = g.options.length - 1;
+          const chosenOpt = g.options[defaultIdx] || g.options[0];
+          if (chosenOpt) {
+            selectedCustomizations.push({
+              groupTitle: g.groupTitle,
+              optionName: chosenOpt.name,
+              extraPrice: chosenOpt.priceAdjustment || 0,
+              isMulti: false
+            });
+          }
+
+          optionsHtml = `
+            <div class="cust-pill-grid cust-group-options">
+              \${g.options.map((opt) => {
+                const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                const extra = opt.priceAdjustment || 0;
+                const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
+                return `
+                  <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
+                    <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                    <span class="cust-pill-label">\${escapeHtml(opt.name)}</span>
+                    \${extraText ? `<span class="cust-pill-extra">\${extraText}</span>` : ''}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) {
+          // Add-ons & Extras: Full width rows with circle + and price
           optionsHtml = `
             <div class="cust-addon-list">
-              \${g.options.map((opt, oIdx) => {
+              \${g.options.map((opt) => {
                 const extraPrice = opt.priceAdjustment || 0;
-                const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
+                const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
                 return `
-                  <div class="cust-addon-card" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                    <div class="cust-addon-left">
-                      <div class="cust-check-box">+</div>
-                      <div class="cust-addon-text-col">
-                        <div class="cust-addon-label">\${opt.name}</div>
-                      </div>
+                  <div class="cust-addon-row" onclick="toggleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
+                    <div class="cust-addon-row-left">
+                      <span class="cust-addon-circle">+</span>
+                      <span>\${escapeHtml(opt.name)}</span>
                     </div>
-                    \${priceBadge}
+                    <div class="cust-addon-row-right">\${priceText}</div>
                   </div>
                 `;
               }).join('')}
             </div>
           `;
         } else {
-          // Single-Select: Whipped Cream, Sugar levels, Cup sizes, Preparation, etc.
-          const hasLongText = g.options.some(o => (o.name || '').length > 18);
-          const gridClass = (hasLongText && g.options.length > 2) ? 'cust-addon-list' : 'cust-opt-grid-2col';
-          const cardClass = (hasLongText && g.options.length > 2) ? 'cust-addon-card' : 'cust-opt-card';
+          // Generic single-select options (e.g. Size, Rice Choice)
+          const defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < g.options.length) ? g.defaultIndex : 0;
+          const chosenOpt = g.options[defaultIdx] || g.options[0];
+          if (chosenOpt) {
+            selectedCustomizations.push({
+              groupTitle: g.groupTitle,
+              optionName: chosenOpt.name,
+              extraPrice: chosenOpt.priceAdjustment || 0,
+              isMulti: false
+            });
+          }
 
-          optionsHtml = `
-            <div class="\${gridClass}">
-              \${g.options.map((opt, oIdx) => {
-                const isDefault = oIdx === (g.defaultIndex || 0);
-                if (isDefault) {
-                  selectedCustomizations.push({
-                    groupTitle: g.groupTitle,
-                    optionName: opt.name,
-                    extraPrice: opt.priceAdjustment || 0,
-                    isMulti: false
-                  });
-                }
-                const extraPrice = opt.priceAdjustment || 0;
-                const priceBadge = extraPrice > 0 ? `<span class="cust-price-pill">+₱\${Math.round(extraPrice)}</span>` : '';
-                return `
-                  <div class="\${cardClass} \${isDefault ? 'selected' : ''}" onclick="toggleCustomOption(\${gIdx}, \${oIdx}, this)">
-                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
-                      <div class="cust-radio-circle"></div>
-                      <div class="cust-opt-text-col">
-                        <div class="cust-opt-label">\${opt.name}</div>
+          const layoutClass = g.options.length <= 2 ? 'cust-pill-row' : (g.options.length <= 4 ? 'cust-pill-grid' : 'cust-addon-list');
+
+          if (g.options.length <= 4) {
+            optionsHtml = `
+              <div class="\${layoutClass} cust-group-options">
+                \${g.options.map((opt) => {
+                  const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                  const extra = opt.priceAdjustment || 0;
+                  const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
+                  return `
+                    <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
+                      <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                      <span class="cust-pill-label">\${escapeHtml(opt.name)}</span>
+                      \${extraText ? `<span class="cust-pill-extra">\${extraText}</span>` : ''}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            `;
+          } else {
+            optionsHtml = `
+              <div class="cust-addon-list">
+                \${g.options.map((opt) => {
+                  const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                  const extraPrice = opt.priceAdjustment || 0;
+                  const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
+                  return `
+                    <div class="cust-addon-row \${isSelected ? 'selected' : ''}" onclick="selectSingleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
+                      <div class="cust-addon-row-left">
+                        <span class="cust-addon-circle">\${isSelected ? '✓' : '+'}</span>
+                        <span>\${escapeHtml(opt.name)}</span>
                       </div>
+                      <div class="cust-addon-row-right">\${priceText}</div>
                     </div>
-                    \${priceBadge}
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          `;
+                  `;
+                }).join('')}
+              </div>
+            `;
+          }
         }
 
         return `
-          <div>
+          <div class="cust-group-section">
             <div class="cust-group-header">
-              <div class="cust-group-icon">\${gIcon}</div>
-              <div class="cust-group-title">\${g.groupTitle}</div>
+              <div class="cust-group-header-left">
+                <div class="cust-group-icon-box">\${iconSvg}</div>
+                <div class="cust-group-title">\${escapeHtml(groupTitleDisplay)}</div>
+              </div>
               \${badgeHtml}
             </div>
             \${optionsHtml}
@@ -6220,42 +7443,75 @@ class KdsServerService {
       document.getElementById('customModal').style.display = 'flex';
     }
 
-    function changeModalQty(delta) {
-      modalItemQty = Math.max(1, modalItemQty + delta);
-      document.getElementById('modalQtyDisplay').innerText = modalItemQty;
+    function selectPillOption(gIdx, optName, extraPrice, el) {
+      const group = selectedItem.customizations[gIdx];
+      const container = el.closest('.cust-group-options');
+      if (container) {
+        container.querySelectorAll('.cust-pill-btn').forEach(b => {
+          b.classList.remove('selected');
+          const dot = b.querySelector('.cust-radio-dot');
+          if (dot) dot.style.display = 'none';
+        });
+      }
+      el.classList.add('selected');
+      const dot = el.querySelector('.cust-radio-dot');
+      if (dot) dot.style.display = 'block';
+
+      selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
+      selectedCustomizations.push({
+        groupTitle: group.groupTitle,
+        optionName: optName,
+        extraPrice: extraPrice || 0,
+        isMulti: false
+      });
+      updateModalAddButtonPrice();
+    }
+    const selectSegmentOption = selectPillOption;
+
+    function toggleAddonRow(gIdx, optName, extraPrice, el) {
+      const group = selectedItem.customizations[gIdx];
+      el.classList.toggle('selected');
+      const isSel = el.classList.contains('selected');
+      const circleEl = el.querySelector('.cust-addon-circle');
+      if (isSel) {
+        if (circleEl) circleEl.innerText = '✓';
+        selectedCustomizations.push({
+          groupTitle: group.groupTitle,
+          optionName: optName,
+          extraPrice: extraPrice || 0,
+          isMulti: true
+        });
+      } else {
+        if (circleEl) circleEl.innerText = '+';
+        selectedCustomizations = selectedCustomizations.filter(c => !(c.groupTitle === group.groupTitle && c.optionName === optName));
+      }
       updateModalAddButtonPrice();
     }
 
-    function toggleCustomOption(gIdx, oIdx, el) {
+    function selectSingleAddonRow(gIdx, optName, extraPrice, el) {
       const group = selectedItem.customizations[gIdx];
-      const opt = group.options[oIdx];
+      el.parentElement.querySelectorAll('.cust-addon-row').forEach(b => {
+        b.classList.remove('selected');
+        const c = b.querySelector('.cust-addon-circle');
+        if (c) c.innerText = '+';
+      });
+      el.classList.add('selected');
+      const c = el.querySelector('.cust-addon-circle');
+      if (c) c.innerText = '✓';
 
-      if (!group.isMultiSelect) {
-        el.parentElement.querySelectorAll('.cust-opt-card, .cust-addon-card').forEach(c => c.classList.remove('selected'));
-        el.classList.add('selected');
-        selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
-        selectedCustomizations.push({
-          groupTitle: group.groupTitle,
-          optionName: opt.name,
-          extraPrice: opt.priceAdjustment || 0,
-          isMulti: false
-        });
-      } else {
-        el.classList.toggle('selected');
-        const checkEl = el.querySelector('.cust-check-box');
-        if (el.classList.contains('selected')) {
-          if (checkEl) checkEl.innerText = '✓';
-          selectedCustomizations.push({
-            groupTitle: group.groupTitle,
-            optionName: opt.name,
-            extraPrice: opt.priceAdjustment || 0,
-            isMulti: true
-          });
-        } else {
-          if (checkEl) checkEl.innerText = '+';
-          selectedCustomizations = selectedCustomizations.filter(c => !(c.groupTitle === group.groupTitle && c.optionName === opt.name));
-        }
-      }
+      selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
+      selectedCustomizations.push({
+        groupTitle: group.groupTitle,
+        optionName: optName,
+        extraPrice: extraPrice || 0,
+        isMulti: false
+      });
+      updateModalAddButtonPrice();
+    }
+
+    function changeModalQty(delta) {
+      modalItemQty = Math.max(1, modalItemQty + delta);
+      document.getElementById('modalQtyDisplay').innerText = modalItemQty;
       updateModalAddButtonPrice();
     }
 
@@ -6279,6 +7535,9 @@ class KdsServerService {
       setTimeout(() => {
         const notes = '';
         const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
+        const itemImg = selectedItem.imageBase64
+          ? ('data:image/png;base64,' + selectedItem.imageBase64)
+          : (selectedItem.imageUrl || (selectedItem.imagePath ? (selectedItem.imagePath.startsWith('assets/') ? ('/' + selectedItem.imagePath) : `/api/item-image?id=\${selectedItem.id}`) : ''));
 
         cart.push({
           id: selectedItem.id,
@@ -6288,7 +7547,10 @@ class KdsServerService {
           unitPrice: selectedItem.price + extraTotal,
           quantity: modalItemQty,
           customizations: [...selectedCustomizations],
-          notes: notes
+          notes: notes,
+          category: selectedItem.category,
+          imageUrl: itemImg,
+          icon: selectedItem.icon
         });
 
         if (btn) btn.disabled = false;
@@ -6324,27 +7586,48 @@ class KdsServerService {
       const total = cart.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
 
       list.innerHTML = cart.map((item, idx) => {
+        const mItem = (typeof menuData !== 'undefined' && Array.isArray(menuData))
+          ? menuData.find(m => m.id === item.id || (m.name && item.name && m.name.toLowerCase() === item.name.toLowerCase()))
+          : null;
+
+        const rawImg = item.imageUrl ||
+          (item.imageBase64 ? ('data:image/png;base64,' + item.imageBase64) : null) ||
+          (mItem ? (mItem.imageBase64 ? ('data:image/png;base64,' + mItem.imageBase64) : (mItem.imageUrl || (mItem.imagePath ? (mItem.imagePath.startsWith('assets/') ? ('/' + mItem.imagePath) : `/api/item-image?id=\${mItem.id}`) : ''))) : '');
+        const itemIcon = item.icon || (mItem && mItem.icon) || '☕';
+
         const customsBadges = (item.customizations || []).map(c => {
           const priceTxt = (c.extraPrice && c.extraPrice > 0) ? ` (+₱\${Math.round(c.extraPrice)})` : '';
           return `<span style="display: inline-block; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.3); color: var(--gold-light); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-right: 4px; margin-top: 3px;">\${c.optionName}\${priceTxt}</span>`;
         }).join('');
-        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich') ||
-          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => (item.name || '').toLowerCase().includes(k));
+        const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich' || item.category === 'dinner') ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast', 'bbq', 'barbeque', 'combo', 'rice', 'inasal', 'sisig'].some(k => (item.name || '').toLowerCase().includes(k));
         const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.2);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:5px;">KITCHEN</span>' : '';
 
+        const imgBoxHtml = rawImg ? `
+          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: #181310; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; position: relative;">
+            <img src="\${rawImg}" alt="\${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%); font-size: 22px; color: var(--gold-light);">\${itemIcon}</div>
+          </div>
+        ` : `
+          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--gold-light);">
+            \${itemIcon}
+          </div>
+        `;
+
         return `
-          <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-            <div style="flex: 1; min-width: 0; padding-right: 4px;">
+          <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px;">
+            \${imgBoxHtml}
+            <div style="flex: 1; min-width: 0; padding-right: 2px;">
               <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center; flex-wrap: wrap;">\${item.name}\${kitchenBadge}</div>
               \${customsBadges ? `<div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">\${customsBadges}</div>` : ''}
               \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 4px;">Note: "\${item.notes}"</div>` : ''}
-              <div style="font-weight: 800; font-size: 14.5px; color: var(--gold-light); margin-top: 5px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
+              <div style="font-weight: 800; font-size: 14.5px; color: #FFFFFF; margin-top: 5px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
               <div style="display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                <button onclick="changeTrayItemQty(\${idx}, -1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer;">−</button>
-                <span style="font-size: 13px; font-weight: 800; color: var(--gold-light); min-width: 20px; text-align: center;">\${item.quantity}</span>
-                <button onclick="changeTrayItemQty(\${idx}, 1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer;">+</button>
+                <button onclick="changeTrayItemQty(\${idx}, -1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">−</button>
+                <span style="font-size: 13px; font-weight: 800; color: var(--gold-light); min-width: 18px; text-align: center;">\${item.quantity}</span>
+                <button onclick="changeTrayItemQty(\${idx}, 1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
               </div>
               <button onclick="removeFromCart(\${idx})" style="background: rgba(231,29,54,0.15); border: 1px solid rgba(231,29,54,0.4); color: var(--rose); border-radius: 8px; width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
             </div>
@@ -6438,14 +7721,20 @@ class KdsServerService {
       successModalCallback = options.onDismiss;
       if (btn) {
         btn.onclick = function() {
-          closeModal('successModal');
-          if (typeof successModalCallback === 'function') {
-            successModalCallback();
-          }
+          closeSuccessModal();
         };
       }
 
       if (modal) modal.style.display = 'flex';
+    }
+
+    function closeSuccessModal() {
+      closeModal('successModal');
+      if (typeof successModalCallback === 'function') {
+        const cb = successModalCallback;
+        successModalCallback = null;
+        try { cb(); } catch(e) {}
+      }
     }
 
     function closeModal(modalId) {
@@ -6460,7 +7749,8 @@ class KdsServerService {
         if (!_custVolProbeAudio) {
           _custVolProbeAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
           _custVolProbeAudio.loop = true;
-          _custVolProbeAudio.volume = 0.5;
+          _custVolProbeAudio.volume = 0;
+          _custVolProbeAudio.muted = true;
           _custVolProbeAudio.addEventListener('volumechange', function() {
             if (isCustVolumeModalOpen && !isCustVolumeDismissing) {
               handleCustVolumeAction('hardware');
@@ -6480,12 +7770,28 @@ class KdsServerService {
     }
 
     function showCustomerVolumeModal(force = false) {
-      const targetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
-      const cleanKey = targetId ? String(targetId).replace('#','').trim() : 'active_order';
+      const numKey = activeTrackedOrderNum || _store.getItem('activeOrderNum');
+      const idKey = activeTrackedOrderId || _store.getItem('activeOrderId');
+      const cleanNum = numKey ? String(numKey).replace('#','').trim() : '';
+      const cleanId = idKey ? String(idKey).replace('#','').trim() : '';
+
       if (!force) {
-        if (_store.getItem('custVolumeSeen_' + cleanKey) === 'true') {
-          return; // Already seen and acknowledged for this order
-        }
+        try {
+          if (cleanNum && (
+            sessionStorage.getItem('custVolumeSeen_' + cleanNum) === 'true' ||
+            sessionStorage.getItem('custVolumeSeen_#' + cleanNum) === 'true' ||
+            _store.getItem('custVolumeSeen_' + cleanNum) === 'true' ||
+            _store.getItem('custVolumeSeen_#' + cleanNum) === 'true'
+          )) {
+            return;
+          }
+          if (cleanId && (
+            sessionStorage.getItem('custVolumeSeen_' + cleanId) === 'true' ||
+            _store.getItem('custVolumeSeen_' + cleanId) === 'true'
+          )) {
+            return;
+          }
+        } catch(_) {}
       }
 
       const modal = document.getElementById('customerVolumeModal');
@@ -6493,6 +7799,17 @@ class KdsServerService {
       modal.style.display = 'flex';
       isCustVolumeModalOpen = true;
       isCustVolumeDismissing = false;
+
+      // Update description text based on current payment/order status
+      const descEl = document.getElementById('custVolumeModalDesc');
+      if (descEl) {
+        const isPaidOrder = ['confirmed', 'inqueue', 'queue', 'preparing', 'brewing', 'kitchen'].includes((prevTrackStatus || '').toLowerCase());
+        if (isPaidOrder) {
+          descEl.innerHTML = 'Payment confirmed! Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alert and voice call when your order is ready for pickup!';
+        } else {
+          descEl.innerHTML = 'Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alert when your order is ready for pickup!';
+        }
+      }
 
       // Reset icon and title to default state if previously dismissed
       const iconBox = document.getElementById('custVolumeIconBox');
@@ -6509,8 +7826,16 @@ class KdsServerService {
         titleEl.style.color = 'var(--gold-light)';
       }
 
-      // Pre-initialize / unlock Web Audio API on customer phone
+      const confirmBtn = document.getElementById('btnCustVolumeConfirm');
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '1';
+        confirmBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay, Got It!</span>';
+      }
+
+      // Pre-initialize / unlock Web Audio API and pre-load voice audio
       initAudio();
+      loadVoiceAudio();
       _startCustVolumeProbe();
     }
 
@@ -6519,33 +7844,73 @@ class KdsServerService {
       isCustVolumeDismissing = true;
       _stopCustVolumeProbe();
 
-      const targetId = activeTrackedOrderId || activeTrackedOrderNum || _store.getItem('activeOrderId') || _store.getItem('activeOrderNum');
-      const cleanKey = targetId ? String(targetId).replace('#','').trim() : 'active_order';
+      const confirmBtn = document.getElementById('btnCustVolumeConfirm');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.style.opacity = '0.8';
+      }
+
+      const numKey = activeTrackedOrderNum || _store.getItem('activeOrderNum');
+      const idKey = activeTrackedOrderId || _store.getItem('activeOrderId');
+      const cleanNum = numKey ? String(numKey).replace('#','').trim() : '';
+      const cleanId = idKey ? String(idKey).replace('#','').trim() : '';
+
       try {
-        _store.setItem('custVolumeSeen_' + cleanKey, 'true');
-        _store.setItem('custVolumeSeen_current', cleanKey);
+        if (cleanNum) {
+          sessionStorage.setItem('custVolumeSeen_' + cleanNum, 'true');
+          sessionStorage.setItem('custVolumeSeen_#' + cleanNum, 'true');
+          _store.setItem('custVolumeSeen_' + cleanNum, 'true');
+          _store.setItem('custVolumeSeen_#' + cleanNum, 'true');
+        }
+        if (cleanId) {
+          sessionStorage.setItem('custVolumeSeen_' + cleanId, 'true');
+          _store.setItem('custVolumeSeen_' + cleanId, 'true');
+        }
+        _store.setItem('custVolumeSeen_current', 'true');
       } catch(_) {}
 
-      // Audio feedback tone
+      // Direct user gesture: unlock AudioContext and prime speech & voice buffer
       try {
         initAudio();
-        const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx) {
-          if (ctx.state === 'suspended') ctx.resume();
-          const now = ctx.currentTime;
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(actionType === 'down' ? 659.25 : 880, now);
-          osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.18);
-          gain.gain.setValueAtTime(0.35, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(now);
-          osc.stop(now + 0.25);
-        }
+        _primeSpeechSynthesis();
+        loadVoiceAudio();
       } catch(_) {}
+
+      // Unlock AudioContext and set global audioUnlocked flag
+      try {
+        if (!audioContext) { try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioContext = new AC(); } catch(_ac) {} }
+        if (audioContext) {
+          if (audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+              _startAudioKeepAlive();
+            }).catch(() => {});
+          } else if (audioContext.state === 'running') {
+            _startAudioKeepAlive();
+          }
+        }
+        audioUnlocked = true;
+      } catch(_) {}
+
+      // Play a quick, pleasant 2-tone preview chime on button tap so the customer can verify volume level
+      if (actionType === 'button') {
+        try {
+          if (audioContext && audioContext.state === 'running') {
+            const now = audioContext.currentTime;
+            [1046.50, 1567.98].forEach((freq, idx) => {
+              const osc = audioContext.createOscillator();
+              const gain = audioContext.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+              gain.gain.setValueAtTime(0.22, now + idx * 0.09);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.22);
+              osc.connect(gain);
+              gain.connect(audioContext.destination);
+              osc.start(now + idx * 0.09);
+              osc.stop(now + idx * 0.09 + 0.22);
+            });
+          }
+        } catch(_) {}
+      }
 
       // Visual success acknowledgment
       const iconBox = document.getElementById('custVolumeIconBox');
@@ -6575,7 +7940,7 @@ class KdsServerService {
         if (modal) modal.style.display = 'none';
         isCustVolumeModalOpen = false;
         isCustVolumeDismissing = false;
-      }, 380);
+      }, 420);
     }
 
     // Global physical volume button event listener (hardware keydown + keyup)
@@ -6654,6 +8019,18 @@ class KdsServerService {
 
       let submitTimeout = null;
       try {
+        if (currentOrderType === 'dineIn') {
+          if (!isTableVerified || !currentTable || !currentTableToken) {
+            closeModal('trayModal');
+            showUnverifiedTableModal(unverifiedTableAttempt || 'the table');
+            if (btn) {
+              btn.innerHTML = 'Submit Order to Cashier';
+              btn.disabled = false;
+            }
+            return;
+          }
+        }
+
         const custNameEl = document.getElementById('custNameInput');
         const defaultGuest = currentOrderType === 'takeaway' ? 'Guest (Takeout)' : `Guest (\${currentTable})`;
         const custName = (custNameEl && custNameEl.value.trim()) ? custNameEl.value.trim() : defaultGuest;
@@ -6661,6 +8038,7 @@ class KdsServerService {
         const payload = {
           orderType: currentOrderType,
           tableNumber: currentOrderType === 'takeaway' ? 'Takeout' : currentTable,
+          tableToken: currentTableToken || '',
           customerName: custName,
           paymentMethod: selectedPayment || 'cash',
           items: cart.map(i => ({
@@ -6709,11 +8087,15 @@ class KdsServerService {
           try { _store.removeItem('pendingCart'); } catch(_) {}
           updateCartBar();
           closeModal('trayModal');
+          initAudio();
           try {
             startOrderTracking(data.orderId, data.orderNumber, data.totalAmount, (data.items && data.items.length > 0) ? data.items : submittedItems);
           } catch(trackErr) {
             console.error('Tracking UI render notice:', trackErr);
           }
+        } else if (data && data.requiresQrScan) {
+          closeModal('trayModal');
+          showUnverifiedTableModal(currentTable || 'the table');
         } else {
           closeModal('trayModal');
           if (data && data.existingOrderId) {
@@ -6738,7 +8120,7 @@ class KdsServerService {
         closeModal('trayModal');
         showSuccessModal({
           title: 'Order Notice',
-          message: 'An unexpected issue occurred while preparing your ticket. Please try again.',
+          message: 'An unexpected issue occurred while preparing your order. Please try again.',
           buttonText: 'OK'
         });
       } finally {
@@ -6751,7 +8133,20 @@ class KdsServerService {
 
     let activeTrackedItems = [];
 
+    function toggleTrackerOrderDetails() {
+      const list = document.getElementById('trackerOrderDetailsList');
+      const chevron = document.getElementById('trackerDetailsChevron');
+      if (!list) return;
+      const isHidden = list.style.display === 'none' || !list.style.display;
+      list.style.display = isHidden ? 'block' : 'none';
+      if (chevron) {
+        chevron.classList.toggle('open', isHidden);
+      }
+    }
+
     function startOrderTracking(orderId, orderNumber, total, items, initialStatus) {
+      const prevOrderId = activeTrackedOrderId;
+      const prevOrderNum = activeTrackedOrderNum;
       activeTrackedOrderId = orderId;
       activeTrackedOrderNum = orderNumber;
       const statusToUse = initialStatus || 'pending';
@@ -6760,13 +8155,14 @@ class KdsServerService {
         activeTrackedItems = items;
       }
 
-      // Only reset alarm dismissal if this is a genuinely new/different order
+      // Reset alarm dismissal if different order or if status is not ready
       const newCleanId = String(orderId || '').replace('#', '').trim();
       const newCleanNum = String(orderNumber || '').replace('#', '').trim();
-      const isDifferentOrder = (activeTrackedOrderId && newCleanId && newCleanId !== String(activeTrackedOrderId).replace('#', '').trim()) ||
-                              (activeTrackedOrderNum && newCleanNum && newCleanNum !== String(activeTrackedOrderNum).replace('#', '').trim());
+      const isDifferentOrder = (!prevOrderId || (newCleanId && newCleanId !== String(prevOrderId).replace('#', '').trim())) ||
+                              (!prevOrderNum || (newCleanNum && newCleanNum !== String(prevOrderNum).replace('#', '').trim()));
 
-      if (isDifferentOrder || !activeTrackedOrderId) {
+      if (isDifferentOrder || statusToUse !== 'ready') {
+        stopAlarm(null, false);
         isAlarmPermanentlyDismissed = false;
         dismissedOrderNumber = null;
         dismissedOrderId = null;
@@ -6782,6 +8178,9 @@ class KdsServerService {
             _store.removeItem('alarmDismissed_' + newCleanId);
           }
           _store.removeItem('alarmDismissed_#1');
+          _store.removeItem('alarmDismissed_1');
+          _store.removeItem('alarmDismissed_#2');
+          _store.removeItem('alarmDismissed_2');
         } catch(e) {}
       }
 
@@ -6795,25 +8194,54 @@ class KdsServerService {
         }
         _store.removeItem('pendingCart');
         if (orderNumber) {
-          _store.removeItem('custVolumeSeen_' + String(orderNumber).replace('#','').trim());
+          const _cleanN = String(orderNumber).replace('#','').trim();
+          _store.removeItem('custVolumeSeen_' + _cleanN);
+          try { sessionStorage.removeItem('custVolumeSeen_' + _cleanN); sessionStorage.removeItem('custVolumeSeen_#' + _cleanN); } catch(_s) {}
         }
         if (orderId) {
-          _store.removeItem('custVolumeSeen_' + String(orderId).replace('#','').trim());
+          const _cleanI = String(orderId).replace('#','').trim();
+          _store.removeItem('custVolumeSeen_' + _cleanI);
+          try { sessionStorage.removeItem('custVolumeSeen_' + _cleanI); } catch(_s) {}
         }
         _store.removeItem('custVolumeSeen_current');
         _store.removeItem('custVolumeSeen_1');
         _store.removeItem('custVolumeSeen_active_order');
+        try { sessionStorage.removeItem('custVolumeSeen_current'); } catch(_s) {}
       } catch(e) {}
+
+      // Keep browser URL cleanly in sync with active table & order
+      try {
+        const cleanT = String(currentTable || '').replace(/[^0-9]/g, '').trim();
+        const fullT = (cleanT && currentTableToken) ? ('T' + cleanT + '-' + currentTableToken) : cleanT;
+        const cleanN = String(orderNumber || '').replace('#', '').trim();
+        const targetSearch = (fullT && cleanN)
+            ? ('?table=' + encodeURIComponent(fullT) + '&order=' + encodeURIComponent(cleanN))
+            : (fullT ? ('?table=' + encodeURIComponent(fullT)) : (cleanN ? ('?order=' + encodeURIComponent(cleanN)) : ''));
+        if (targetSearch && window.location.search !== targetSearch) {
+          window.history.replaceState({ orderId, orderNumber, table: currentTable, token: currentTableToken }, document.title, window.location.pathname + targetSearch);
+        }
+      } catch(_) {}
 
       document.getElementById('controlsWrapper').style.display = 'none';
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('cartBar').style.display = 'none';
       document.getElementById('trackerView').style.display = 'block';
 
+      // Hide previous ready alert notice banner on new order tracking
+      const readyNotice = document.getElementById('readyNotice');
+      if (readyNotice && statusToUse !== 'ready') {
+        readyNotice.style.display = 'none';
+      }
+      const readyNum = document.getElementById('readyNoticeOrderNum');
+      if (readyNum) readyNum.innerText = orderNumber || '#1';
+
       document.getElementById('trackOrderNum').innerText = orderNumber;
       const promptNum = document.getElementById('promptOrderNum');
       if (promptNum) promptNum.innerText = orderNumber;
-      document.getElementById('trackTableInfo').innerText = `\${currentTable} • Dine-In`;
+      const isTk = currentOrderType === 'takeaway' || String(currentTable).toLowerCase().includes('take');
+      const tableLabel = isTk ? 'Takeout / To-Go' : `\${currentTable} (Dine-In at Table)`;
+      const tableInfoEl = document.getElementById('trackTableInfo');
+      if (tableInfoEl) tableInfoEl.innerText = tableLabel;
       document.getElementById('trackTotal').innerText = `Total: ₱\${Math.round(total)}`;
 
       const cancelBtn = document.getElementById('btnCancelOrder');
@@ -6825,11 +8253,15 @@ class KdsServerService {
       renderTrackedItemsList(activeTrackedItems, total);
       updateTrackerUI(statusToUse);
 
-      // Do NOT show volume modal on initial order placement while pending cashier payment.
-      // It will forcefully pop up when the cashier confirms and settles payment!
-      if (statusToUse === 'confirmed' || statusToUse === 'inqueue' || statusToUse === 'queue' || statusToUse === 'preparing' || statusToUse === 'brewing') {
-        setTimeout(() => showCustomerVolumeModal(true), 300);
-      }
+      // Keep screen awake while tracking order so phone doesn't sleep
+      try {
+        if ('wakeLock' in navigator) {
+          navigator.wakeLock.request('screen').catch(() => {});
+        }
+      } catch(_) {}
+
+      // Prompt customer to turn up volume immediately when tracking their order!
+      setTimeout(() => showCustomerVolumeModal(false), 350);
 
       if (pollInterval) clearInterval(pollInterval);
       if (statusToUse !== 'completed' && statusToUse !== 'cancelled') {
@@ -7003,8 +8435,8 @@ class KdsServerService {
       }
 
       const tableBadge = chip.tableText
-        ? `<span style="font-size: 11px; font-weight: 700; color: \${isMine ? 'var(--gold-light)' : 'var(--text-muted)'}; display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.28); padding: 2px 7px; border-radius: 6px;">
-            \${chip.isTakeout ? '🥡' : '🍽️'} \${chip.tableText}
+        ? `<span style="font-size: 11px; font-weight: 700; color: \${isMine ? 'var(--gold-light)' : 'var(--text-muted)'}; display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.28); padding: 2px 7px; border-radius: 6px;">
+            \${chip.isTakeout ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path></svg>' : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>'} <span>\${chip.tableText}</span>
            </span>`
         : '';
 
@@ -7040,7 +8472,7 @@ class KdsServerService {
         headerQueueText.innerText = preps.length > 0 ? `\${preps.length} Brewing` : (queue.length > 0 ? `\${queue.length} in Queue` : 'Kitchen Queue');
       }
       if (nowPrepCount) nowPrepCount.innerText = `\${preps.length} order\${preps.length !== 1 ? 's' : ''}`;
-      if (inQueueCount) inQueueCount.innerText = `\${queue.length} ticket\${queue.length !== 1 ? 's' : ''}`;
+      if (inQueueCount) inQueueCount.innerText = `\${queue.length} order\${queue.length !== 1 ? 's' : ''}`;
       if (readyCount) readyCount.innerText = `\${ready.length} ready`;
 
       // Customer Active Order Hero Highlight inside Modal
@@ -7061,7 +8493,7 @@ class KdsServerService {
           activeBanner.innerHTML = `
             <div style="background: rgba(212,175,55,0.14); border: 1.5px solid var(--gold-primary); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
               <div>
-                <div style="font-size: 11px; font-weight: 800; color: var(--gold-primary); text-transform: uppercase; letter-spacing: 0.5px;">Your Tracked Ticket</div>
+                <div style="font-size: 11px; font-weight: 800; color: var(--gold-primary); text-transform: uppercase; letter-spacing: 0.5px;">Your Order Number</div>
                 <div style="font-size: 15px; font-weight: 900; color: var(--gold-light); font-family: 'Cinzel', serif;">\${currentNum}</div>
               </div>
               <span style="font-size: 11px; font-weight: 800; color: \${myStatusColor}; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); padding: 4px 10px; border-radius: 10px;">\${myStatusLabel}</span>
@@ -7074,7 +8506,7 @@ class KdsServerService {
 
       if (nowPrepContainer) {
         if (preps.length === 0) {
-          nowPrepContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">☕</span> <span>Barista station is standing by for new items</span></div>';
+          nowPrepContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path></svg> <span>Barista station is standing by for new items</span></div>';
         } else {
           nowPrepContainer.innerHTML = preps.map(item => renderChipHtml(item, 'preparing', currentNum)).join('');
         }
@@ -7082,7 +8514,7 @@ class KdsServerService {
 
       if (inQueueContainer) {
         if (queue.length === 0) {
-          inQueueContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">✨</span> <span>Queue is clear — orders start prep immediately!</span></div>';
+          inQueueContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg> <span>Queue is clear — orders start prep immediately!</span></div>';
         } else {
           inQueueContainer.innerHTML = queue.map(item => renderChipHtml(item, 'queue', currentNum)).join('');
         }
@@ -7090,7 +8522,7 @@ class KdsServerService {
 
       if (readyContainer) {
         if (ready.length === 0) {
-          readyContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><span style="font-size: 15px;">🛎️</span> <span>All prepared orders have been collected</span></div>';
+          readyContainer.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 6px 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg> <span>All prepared orders have been collected</span></div>';
         } else {
           readyContainer.innerHTML = ready.map(item => renderChipHtml(item, 'ready', currentNum)).join('');
         }
@@ -7110,11 +8542,43 @@ class KdsServerService {
       const countEl = document.getElementById('trackedItemsCount');
       const modalListEl = document.getElementById('modalOrderItemsList');
       const modalTotalEl = document.getElementById('modalReceiptTotal');
+      const trackerListEl = document.getElementById('trackerOrderDetailsList');
 
       const itemList = items || [];
       const totalQty = itemList.reduce((sum, i) => sum + (i.quantity || 1), 0);
       if (countEl) countEl.innerText = totalQty;
       if (modalTotalEl && total) modalTotalEl.innerText = `₱\${Math.round(total)}`;
+
+      // Render into collapsible tracker accordion list
+      if (trackerListEl) {
+        if (itemList.length === 0) {
+          trackerListEl.innerHTML = '<div style="font-size:12.5px;color:var(--text-muted);text-align:center;padding:12px;">Order details registered with Cashier.</div>';
+        } else {
+          trackerListEl.innerHTML = itemList.map(i => {
+            const itemName = i.name || i.menuItem?.name || 'Item';
+            const customsList = i.customizations || [];
+            const customsText = customsList.map(c => typeof c === 'string' ? c : (c.optionName || c.name || '')).filter(Boolean).join(', ');
+            const notesText = i.notes ? `<div style="font-size:11px;color:var(--rose);margin-top:3px;font-weight:600;">Note: "\${i.notes}"</div>` : '';
+            const customsHtml = customsText ? `<div style="font-size:11.5px;color:#A89B91;margin-top:2px;">› \${customsText}</div>` : '';
+            const itemPrice = i.price || i.totalPrice || ((i.unitPrice || 0) * (i.quantity || 1));
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+                <div style="flex:1;padding-right:12px;">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-weight:800;color:var(--caramel-accent);font-size:12.5px;">\${i.quantity || 1}x</span>
+                    <span style="font-weight:700;color:var(--text-light);font-size:13.5px;">\${itemName}</span>
+                  </div>
+                  \${customsHtml}
+                  \${notesText}
+                </div>
+                <div style="font-weight:700;color:#FFFFFF;font-size:13.5px;white-space:nowrap;">
+                  ₱\${Math.round(itemPrice || 0)}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
 
       if (!modalListEl) return;
       if (itemList.length === 0) {
@@ -7125,8 +8589,8 @@ class KdsServerService {
       modalListEl.innerHTML = itemList.map(i => {
         const itemName = i.name || i.menuItem?.name || 'Item';
         const isKitchen = i.isKitchen === true ||
-          ['streetBites', 'pastaDishes', 'sandwich'].includes((i.category || '').toLowerCase()) ||
-          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast'].some(k => itemName.toLowerCase().includes(k));
+          ['streetBites', 'pastaDishes', 'sandwich', 'dinner'].includes((i.category || '').toLowerCase()) ||
+          ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast', 'bbq', 'barbeque', 'combo', 'rice', 'inasal', 'sisig'].some(k => itemName.toLowerCase().includes(k));
         const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.22);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:900;padding:2px 6px;border-radius:4px;margin-left:6px;">KITCHEN</span>' : '';
 
         const customsList = i.customizations || [];
@@ -7185,7 +8649,7 @@ class KdsServerService {
 
       if (orderNumEl) orderNumEl.innerText = orderNum;
       const isTkReceipt = (r.orderType === 'takeaway' || r.orderType === 'takeout' || (r.tableNumber && r.tableNumber.toLowerCase().includes('take')) || currentOrderType === 'takeaway');
-      if (tableTypeEl) tableTypeEl.innerText = isTkReceipt ? '🥡 Takeout / To-Go' : `\${r.tableNumber || currentTable} • Dine-In`;
+      if (tableTypeEl) tableTypeEl.innerText = isTkReceipt ? 'Takeout / To-Go' : `\${r.tableNumber || currentTable} • Dine-In`;
       if (cashierEl) cashierEl.innerText = r.cashierName || (isPaid ? 'Cashier Staff' : 'Awaiting Cashier');
       if (custEl) custEl.innerText = r.customerName || 'Guest Patron';
 
@@ -7260,8 +8724,13 @@ class KdsServerService {
       const confirmedNotice = document.getElementById('confirmedPaymentNotice');
       const brewingNotice = document.getElementById('brewingNotice');
       const compNotice = document.getElementById('completedNotice');
+      const readyNotice = document.getElementById('readyNotice');
       const headerTag = document.getElementById('trackerHeaderTag');
       const pendingActions = document.getElementById('pendingActionButtons');
+      const instTitle = document.getElementById('trackerInstructionTitle');
+      const instStatus = document.getElementById('trackerStatusDisplay');
+      const waitTime = document.getElementById('trackerWaitTime');
+      const currentOrderDisplayNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
 
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       const btnOpenOrderModal = document.getElementById('btnOpenOrderModal');
@@ -7280,69 +8749,83 @@ class KdsServerService {
       }
 
       if (s === 'pending') {
-        if (headerTag) headerTag.innerText = 'ORDER PLACED • AWAITING CASHIER';
+        if (headerTag) {
+          headerTag.className = 'tracker-status-pill status-pill-pending';
+          headerTag.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span>Order Placed • Awaiting Cashier</span>';
+        }
+        if (instTitle) instTitle.innerHTML = 'SHOW ORDER NUMBER <span id="promptOrderNum">' + currentOrderDisplayNum + '</span> AT CASHIER TO PAY AND CONFIRM';
+        if (instStatus) instStatus.innerText = 'Awaiting Cashier';
+        if (waitTime) waitTime.innerText = '5 Minutes';
         if (pendingNotice) pendingNotice.style.display = 'block';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'none';
         if (compNotice) compNotice.style.display = 'none';
+        if (readyNotice) readyNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'block';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step active';
         step2.className = 'status-step';
         step3.className = 'status-step';
       } else if (s === 'confirmed' || s === 'inqueue' || s === 'queue') {
-        if (headerTag) headerTag.innerText = 'PAYMENT CONFIRMED • IN QUEUE';
+        if (headerTag) {
+          headerTag.className = 'tracker-status-pill status-pill-confirmed';
+          headerTag.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Payment Confirmed • In Queue</span>';
+        }
+        if (instTitle) instTitle.innerHTML = 'ORDER CONFIRMED • IN QUEUE';
+        if (instStatus) instStatus.innerText = 'Payment Confirmed';
+        if (waitTime) waitTime.innerText = '5-10 Minutes';
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'block';
         if (brewingNotice) brewingNotice.style.display = 'none';
         if (compNotice) compNotice.style.display = 'none';
+        if (readyNotice) readyNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step completed';
         step2.className = 'status-step'; // Awaiting barista to tap Start Brewing
         step3.className = 'status-step';
 
-        // Force pop up Customer Turn Up Volume modal when cashier approves and settles payment
-        if (prevTrackStatus === 'pending' || !prevTrackStatus) {
-          showCustomerVolumeModal(true);
+        // Pop up Customer Turn Up Volume modal when cashier approves and settles payment
+        if (prevTrackStatus === 'pending') {
+          setTimeout(() => showCustomerVolumeModal(true), 350);
         } else {
-          showCustomerVolumeModal(false);
+          setTimeout(() => showCustomerVolumeModal(false), 350);
         }
       } else if (s === 'preparing' || s === 'brewing' || s === 'kitchen') {
-        if (headerTag) headerTag.innerText = 'NOW BREWING & PREPARING';
+        if (headerTag) {
+          headerTag.className = 'tracker-status-pill status-pill-preparing';
+          headerTag.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg><span>Now Brewing & Preparing</span>';
+        }
+        if (instTitle) instTitle.innerHTML = 'NOW BREWING & PREPARING';
+        if (instStatus) instStatus.innerText = 'Barista at Work';
+        if (waitTime) waitTime.innerText = '2-4 Minutes';
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'block';
         if (compNotice) compNotice.style.display = 'none';
+        if (readyNotice) readyNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) orderAnotherBtn.style.display = 'none';
         step1.className = 'status-step completed';
         step2.className = 'status-step active'; // Step 2 lights up now!
         step3.className = 'status-step';
 
-        if (prevTrackStatus === 'pending' || prevTrackStatus === 'confirmed' || !prevTrackStatus) {
-          showCustomerVolumeModal(true);
-          try {
-            const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.4);
-          } catch(e) {}
+        if (prevTrackStatus === 'pending') {
+          setTimeout(() => showCustomerVolumeModal(true), 350);
         }
+
+
       } else if (s === 'ready') {
-        if (headerTag) headerTag.innerText = 'ORDER READY FOR PICKUP!';
+        if (headerTag) {
+          headerTag.className = 'tracker-status-pill status-pill-ready';
+          headerTag.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span>Ready For Pickup!</span>';
+        }
+        if (instTitle) instTitle.innerHTML = 'ORDER READY FOR PICKUP!';
+        if (instStatus) instStatus.innerText = 'Ready at Pickup Counter';
+        if (waitTime) waitTime.innerText = 'Ready Now!';
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'none';
-        const readyNotice = document.getElementById('readyNotice');
         if (readyNotice) {
           readyNotice.style.display = 'block';
           const readyNum = document.getElementById('readyNoticeOrderNum');
@@ -7353,27 +8836,59 @@ class KdsServerService {
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) {
           orderAnotherBtn.style.display = 'inline-flex';
-          orderAnotherBtn.innerText = '+ Order More / New Order';
+          orderAnotherBtn.className = 'btn-order-another';
+          orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Order More / New Order</span>';
         }
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step active';
+
+        // When order enters 'ready' state from any non-ready state, reset stale dismissal
+        if (prevTrackStatus !== 'ready') {
+          isAlarmPermanentlyDismissed = false;
+          dismissedOrderNumber = null;
+          dismissedOrderId = null;
+          const currentNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '';
+          const currentId = activeTrackedOrderId || _store.getItem('activeOrderId') || '';
+          const cleanNum = String(currentNum).replace('#', '').trim();
+          const cleanId = String(currentId).replace('#', '').trim();
+          try {
+            _store.removeItem('alarmDismissed_global');
+            if (cleanNum) {
+              _store.removeItem('alarmDismissed_' + cleanNum);
+              _store.removeItem('alarmDismissed_#' + cleanNum);
+            }
+            if (cleanId) {
+              _store.removeItem('alarmDismissed_' + cleanId);
+            }
+            _store.removeItem('alarmDismissed_1');
+            _store.removeItem('alarmDismissed_#1');
+          } catch(_) {}
+        }
 
         // Trigger alarm if order is ready and not yet dismissed
         if (!isOrderAlarmDismissed()) {
           startRepeatingAlarm();
         }
       } else if (s === 'completed') {
-        if (headerTag) headerTag.innerText = 'ORDER COMPLETED • ENJOY!';
+        if (headerTag) {
+          headerTag.className = 'tracker-status-pill status-pill-confirmed';
+          headerTag.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span>Order Served & Completed</span>';
+        }
+        if (instTitle) instTitle.innerHTML = 'ORDER SERVED & COMPLETED';
+        if (instStatus) instStatus.innerText = 'Served & Enjoy';
+        if (waitTime) waitTime.innerText = 'Completed';
         if (pendingNotice) pendingNotice.style.display = 'none';
         if (confirmedNotice) confirmedNotice.style.display = 'none';
         if (brewingNotice) brewingNotice.style.display = 'none';
+        if (readyNotice) readyNotice.style.display = 'none';
         const compNotice = document.getElementById('completedNotice');
         if (compNotice) compNotice.style.display = 'block';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) {
           orderAnotherBtn.style.display = 'inline-flex';
-          orderAnotherBtn.innerText = '+ Order More / New Order';
+          orderAnotherBtn.className = 'btn-order-another';
+          orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Order More / New Order</span>';
         }
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
@@ -7411,7 +8926,7 @@ class KdsServerService {
       const displayNum = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
       if (compNum) compNum.innerText = displayNum;
       const isTkComp = (currentOrderType === 'takeaway' || (activeReceiptData && (activeReceiptData.orderType === 'takeaway' || (activeReceiptData.tableNumber && activeReceiptData.tableNumber.toLowerCase().includes('take')))));
-      if (compTable) compTable.innerText = isTkComp ? '🥡 Takeout / To-Go' : `\${currentTable} • Dine-In`;
+      if (compTable) compTable.innerText = isTkComp ? 'Takeout / To-Go' : `\${currentTable} • Dine-In`;
 
       compModal.style.display = 'flex';
       compModal.style.zIndex = '99999';
@@ -7424,11 +8939,8 @@ class KdsServerService {
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       if (orderAnotherBtn) {
         orderAnotherBtn.style.display = 'inline-flex';
-        orderAnotherBtn.innerText = 'Back to Menu';
-        orderAnotherBtn.style.background = 'rgba(255,255,255,0.06)';
-        orderAnotherBtn.style.border = '1px solid rgba(255,255,255,0.18)';
-        orderAnotherBtn.style.color = 'var(--text-muted)';
-        orderAnotherBtn.style.boxShadow = 'none';
+        orderAnotherBtn.className = 'btn-order-another secondary';
+        orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg><span>Back to Menu</span>';
       }
     }
 
@@ -7442,7 +8954,7 @@ class KdsServerService {
 
       showConfirmModal({
         title: `Cancel Order \${orderNum}?`,
-        message: 'This will cancel your pending ticket at the cashier. Are you sure you want to cancel this order?',
+        message: 'This will cancel your pending order at the cashier. Are you sure you want to cancel this order?',
         confirmText: 'Yes, Cancel Order',
         cancelText: 'Keep Order',
         isDestructive: true,
@@ -7542,7 +9054,10 @@ class KdsServerService {
         });
         return;
       }
-      stopAlarm();
+      stopAlarm(null, false);
+      isAlarmPermanentlyDismissed = false;
+      dismissedOrderNumber = null;
+      dismissedOrderId = null;
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
@@ -7564,6 +9079,22 @@ class KdsServerService {
         _store.removeItem('custVolumeSeen_current');
         _store.removeItem('custVolumeSeen_1');
         _store.removeItem('custVolumeSeen_active_order');
+
+        // Also clean up sessionStorage to prevent suppression on subsequent orders
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            const sessKeys = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const sk = sessionStorage.key(i);
+              if (sk && (sk.startsWith('alarmDismissed_') || sk.startsWith('custVolumeSeen_'))) sessKeys.push(sk);
+            }
+            sessKeys.forEach(sk => sessionStorage.removeItem(sk));
+            sessionStorage.removeItem('custVolumeSeen_current');
+            sessionStorage.removeItem('custVolumeSeen_1');
+            sessionStorage.removeItem('custVolumeSeen_active_order');
+          }
+        } catch(_) {}
+
         _store.removeItem('activeOrderId');
         _store.removeItem('activeOrderNum');
         _store.removeItem('activeOrderTotal');
@@ -7590,6 +9121,8 @@ class KdsServerService {
       if (breakdown) breakdown.style.display = 'none';
 
       // Reset all notice banners
+      const readyNotice = document.getElementById('readyNotice');
+      if (readyNotice) readyNotice.style.display = 'none';
       const compNotice = document.getElementById('completedNotice');
       if (compNotice) compNotice.style.display = 'none';
       const pendingNotice = document.getElementById('pendingPaymentNotice');
@@ -7603,10 +9136,7 @@ class KdsServerService {
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       if (orderAnotherBtn) {
         orderAnotherBtn.style.display = 'none';
-        orderAnotherBtn.style.background = '';
-        orderAnotherBtn.style.border = '';
-        orderAnotherBtn.style.color = '';
-        orderAnotherBtn.style.boxShadow = '';
+        orderAnotherBtn.className = 'btn-order-another';
       }
       closeModal('trayModal');
       closeModal('customModal');
@@ -7618,55 +9148,99 @@ class KdsServerService {
       closeModal('orderCompletedModal');
       closeModal('customerVolumeModal');
       isCustVolumeModalOpen = false;
+
+      // Keep browser URL cleanly in sync with active table when returning to menu
+      try {
+        const cleanT = String(currentTable || '').replace(/[^0-9]/g, '').trim();
+        const fullT = (cleanT && currentTableToken) ? ('T' + cleanT + '-' + currentTableToken) : cleanT;
+        const targetSearch = fullT ? ('?table=' + encodeURIComponent(fullT)) : '';
+        if (window.location.search !== targetSearch) {
+          window.history.replaceState({ table: currentTable, token: currentTableToken }, document.title, window.location.pathname + targetSearch);
+        }
+      } catch(_) {}
       _stopCustVolumeProbe();
 
       document.getElementById('trackerView').style.display = 'none';
       document.getElementById('controlsWrapper').style.display = 'block';
       document.getElementById('menuView').style.display = 'block';
+      renderMenu();
       updateCartBar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('id');
-        url.searchParams.delete('orderId');
-        url.searchParams.delete('order');
-        window.history.replaceState({}, document.title, url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
-      } catch(e) {}
       try {
         sessionStorage.removeItem('celestial_dining_chosen');
       } catch(e) {}
       setTimeout(showDiningOptionModal, 250);
     }
 
+    function _verifySavedOrder(savedId, savedNum, savedTotal, savedItems) {
+      const qId = savedId || savedNum;
+      fetch('/api/order-status?orderId=' + encodeURIComponent(qId))
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.status === 'completed') {
+            const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
+            const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
+            startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, 'completed');
+            showOrderCompletedModal();
+            return;
+          }
+          if (!data || data.success === false || data.status === 'cancelled' || data.status === 'not_found' || (data.error && data.error.toLowerCase().includes('not found'))) {
+            newOrder(true);
+            return;
+          }
+          if (data && data.status) {
+            if (data.success) {
+              activeReceiptData = data;
+              try { _store.setItem('activeReceiptData', JSON.stringify(data)); } catch(e) {}
+            }
+            const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
+            const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
+            startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, data.status);
+            renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
+          }
+        })
+        .catch(() => {
+          startOrderTracking(savedId || savedNum, savedNum || savedId, savedTotal, savedItems, 'pending');
+        });
+    }
+
     function restoreActiveOrderIfAny() {
       try {
+        const urlInfo = getUrlParamsInfo();
         const savedId  = _store.getItem('activeOrderId');
         const savedNum = _store.getItem('activeOrderNum');
         const savedTotal = parseFloat(_store.getItem('activeOrderTotal') || '0');
-        const savedTable = _store.getItem('activeTableNumber');
-        if (savedTable) {
-          currentTable = savedTable;
-          const tableSel = document.getElementById('tableSelect');
-          if (tableSel) tableSel.value = savedTable;
-        }
+        const savedTable = _store.getItem('activeTableNumber') || _store.getItem('celestial_customer_table');
 
         let savedItems = [];
         try { savedItems = JSON.parse(_store.getItem('activeOrderItems') || '[]'); } catch(e) {}
 
-        // ── Path A0: Direct Order Tracking from URL (Scanned from Cashier Screen or Receipt) ──
-        const trackUrlParams = new URLSearchParams(window.location.search);
-        const urlOrderId = trackUrlParams.get('id') || trackUrlParams.get('orderId') || trackUrlParams.get('order');
-        if (urlOrderId) {
-          fetch(`/api/order-status?orderId=\${encodeURIComponent(urlOrderId)}`)
+        // If URL explicitly specifies a table, enforce currentTable only if verified by actual QR scan
+        if (urlInfo.table && isTableVerified && currentTable === urlInfo.table) {
+          try { _store.setItem('celestial_customer_table', currentTable); } catch(e) {}
+          updateOrderTypeHeaderPill();
+          _updateDiningModalUI();
+        } else if (urlInfo.table && !isTableVerified) {
+          showUnverifiedTableModal(urlInfo.table);
+        }
+
+        // ── SCENARIO 1: URL contains an explicit Order parameter (e.g. ?order=2, ?id=..., /track?order=3) ──
+        if (urlInfo.order) {
+          fetch('/api/order-status?orderId=' + encodeURIComponent(urlInfo.order))
             .then(r => r.json())
             .then(data => {
               if (data && data.success && data.orderId) {
                 activeReceiptData = data;
                 try { _store.setItem('activeReceiptData', JSON.stringify(data)); } catch(e) {}
+                if (data.tableNumber && !data.tableNumber.toLowerCase().includes('take')) {
+                  currentTable = data.tableNumber;
+                  try { _store.setItem('celestial_customer_table', currentTable); } catch(e) {}
+                  updateOrderTypeHeaderPill();
+                  _updateDiningModalUI();
+                }
                 startOrderTracking(data.orderId, data.orderNumber, data.totalAmount || 0, data.items || [], data.status || 'pending');
                 renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
 
-                // Prompt for notification & audio permissions
                 try {
                   if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
                     Notification.requestPermission();
@@ -7679,61 +9253,63 @@ class KdsServerService {
                 } else if (data.status === 'completed') {
                   showOrderCompletedModal();
                 }
-              } else if (!data || data.success === false || data.status === 'not_found' || (data.error && data.error.toLowerCase().includes('not found'))) {
+              } else {
                 showSuccessModal({
                   title: 'Order Notice',
-                  message: 'Order not found in cafe records. Please select your items from the menu.',
+                  message: 'Order #' + urlInfo.order + ' was not found in cafe records. Returning to menu.',
                   buttonText: 'OK',
                   onDismiss: () => newOrder(true)
                 });
               }
             })
-            .catch(err => {
-              console.warn('Track URL recovery error:', err);
-            });
-          return;
-        }
-
-        if (savedId || savedNum) {
-          // Verify with server FIRST before showing tracker view
-          const qId = savedId || savedNum;
-          fetch(`/api/order-status?orderId=\${encodeURIComponent(qId)}`)
-            .then(r => r.json())
-            .then(data => {
-              if (data && data.status === 'completed') {
-                const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
-                const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
-                startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, 'completed');
-                showOrderCompletedModal();
-                return;
-              }
-              if (!data || data.success === false || data.status === 'cancelled' || data.status === 'not_found' || (data.error && data.error.toLowerCase().includes('not found'))) {
-                // If cancelled or doesn't exist, reset to menu directly!
-                newOrder(true);
-                return;
-              }
-              if (data && data.status) {
-                if (data.success) {
-                  activeReceiptData = data;
-                  try { _store.setItem('activeReceiptData', JSON.stringify(data)); } catch(e) {}
-                }
-                const itemsToUse = (data.items && Array.isArray(data.items) && data.items.length > 0) ? data.items : savedItems;
-                const totalToUse = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : savedTotal;
-                startOrderTracking(savedId || savedNum, savedNum || savedId, totalToUse, itemsToUse, data.status);
-                renderLiveQueue(data.currentlyPreparing, data.currentlyInQueue, data.currentlyReady);
-              }
-            })
             .catch(() => {
-              // If offline or network error, stay locked to tracker view since active order was placed
-              startOrderTracking(savedId || savedNum, savedNum || savedId, savedTotal, savedItems, 'pending');
+              _restorePendingCartIfAny();
             });
           return;
         }
 
-        // ── Path B: No saved order — try cross-device recovery by table number ──
-        const urlTable = (new URLSearchParams(window.location.search)).get('table');
-        if (urlTable) {
-          fetch(`/api/table-order?table=\${encodeURIComponent(urlTable)}`)
+        // ── SCENARIO 2: URL contains an explicit Table parameter (e.g. ?table=2, /table/2) ──
+        if (urlInfo.table) {
+          if (!isTableVerified || currentTable !== urlInfo.table || !currentTableToken) {
+            showUnverifiedTableModal(urlInfo.table);
+            _restorePendingCartIfAny();
+            return;
+          }
+          const cleanUrlTable = urlInfo.table.toLowerCase().replace('table', '').trim();
+          const cleanSavedTable = (savedTable || '').toLowerCase().replace('table', '').trim();
+          const isDifferentTable = cleanSavedTable && cleanUrlTable !== cleanSavedTable;
+
+          if (isDifferentTable) {
+            // User changed the table in URL to a different table! Check if this new table has an active order:
+            fetch('/api/table-order?table=' + encodeURIComponent(cleanUrlTable))
+              .then(r => r.json())
+              .then(data => {
+                if (data && data.success && data.orderId && data.status &&
+                    data.status !== 'completed' && data.status !== 'cancelled') {
+                  const items = (data.items && Array.isArray(data.items)) ? data.items : [];
+                  const total = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : 0;
+                  startOrderTracking(data.orderId, data.orderNumber, total, items, data.status);
+                } else {
+                  // New table has no active order -> reset old table tracking and show menu for new table!
+                  newOrder(true);
+                  currentTable = urlInfo.table;
+                  try { _store.setItem('celestial_customer_table', currentTable); } catch(e) {}
+                  updateOrderTypeHeaderPill();
+                  _updateDiningModalUI();
+                }
+              })
+              .catch(() => {
+                newOrder(true);
+                currentTable = urlInfo.table;
+                try { _store.setItem('celestial_customer_table', currentTable); } catch(e) {}
+                updateOrderTypeHeaderPill();
+                _updateDiningModalUI();
+              });
+            return;
+          }
+
+          // Same table or no prior saved table: check active order on this table first
+          fetch('/api/table-order?table=' + encodeURIComponent(cleanUrlTable))
             .then(r => r.json())
             .then(data => {
               if (data && data.success && data.orderId && data.status &&
@@ -7741,17 +9317,35 @@ class KdsServerService {
                 const items = (data.items && Array.isArray(data.items)) ? data.items : [];
                 const total = (data.totalAmount !== undefined && data.totalAmount !== null) ? data.totalAmount : 0;
                 startOrderTracking(data.orderId, data.orderNumber, total, items, data.status);
+              } else if (savedId || savedNum) {
+                _verifySavedOrder(savedId, savedNum, savedTotal, savedItems);
               } else {
-                // ── Path C: No active order at all — restore pending cart if any ──
                 _restorePendingCartIfAny();
               }
             })
-            .catch(() => { _restorePendingCartIfAny(); });
-        } else {
-          _restorePendingCartIfAny();
+            .catch(() => {
+              if (savedId || savedNum) {
+                _verifySavedOrder(savedId, savedNum, savedTotal, savedItems);
+              } else {
+                _restorePendingCartIfAny();
+              }
+            });
+          return;
         }
+
+        // ── SCENARIO 3: Generic URL without table or order param ──
+        if (savedId || savedNum) {
+          _verifySavedOrder(savedId, savedNum, savedTotal, savedItems);
+          return;
+        }
+
+        _restorePendingCartIfAny();
       } catch(e) {}
     }
+
+    window.addEventListener('popstate', () => {
+      restoreActiveOrderIfAny();
+    });
 
     // Restore a cart the customer built before accidentally refreshing/closing.
     function _restorePendingCartIfAny() {
@@ -7784,9 +9378,29 @@ class KdsServerService {
     }
 
     // Instant local render with inlined menu
-    renderMenu();
-    connectCustomerWs();
-    restoreActiveOrderIfAny();
+    if (_tableAuth.hasTableAttempt && !_tableAuth.isVerified) {
+      showUnverifiedTableModal(_tableAuth.tableNumber);
+    } else {
+      updateCategoryBar();
+      renderMenu();
+      connectCustomerWs();
+      restoreActiveOrderIfAny();
+      loadVoiceAudio();
+
+      // Fallback: If inlined menu was empty or missing, fetch from /api/menu
+      if (!menuData || menuData.length === 0) {
+        fetch('/api/menu')
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.success && Array.isArray(data.menu) && data.menu.length > 0) {
+              menuData = data.menu;
+              updateCategoryBar();
+              renderMenu();
+            }
+          })
+          .catch(() => {});
+      }
+    }
   </script>
 </body>
 </html>

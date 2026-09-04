@@ -440,7 +440,7 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                                   const SizedBox(width: 5),
                                   Flexible(
                                     child: Text(
-                                      'Press physical volume button on device to dismiss',
+                                      'Press physical volume button or tap Okay below',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.outfit(
                                         fontSize: 11.5,
@@ -449,9 +449,41 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                                       ),
                                     ),
                                   ),
-                                ],
+                                 ],
+                               ),
+                             ],
+                           ),
+                         ),
+
+                        const SizedBox(height: 14),
+
+                        // Okay Confirmation Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isDismissing
+                                ? null
+                                : () => _confirmAndClose('Volume Acknowledged ✓'),
+                            icon: const Icon(Icons.check_rounded, size: 18),
+                            label: Text(
+                              _isDismissing ? 'Volume Confirmed' : 'Okay, Got It!',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ],
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: CelestialTheme.goldPrimary,
+                              foregroundColor: CelestialTheme.bgDark,
+                              disabledBackgroundColor:
+                                  CelestialTheme.emeraldReady.withValues(alpha: 0.8),
+                              disabledForegroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 3,
+                            ),
                           ),
                         ),
                       ],

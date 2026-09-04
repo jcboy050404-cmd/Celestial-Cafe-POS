@@ -186,7 +186,6 @@ class TableQrPdfService {
     final darkBrown = PdfColor.fromHex('#1E1720');
     final accentBrown = PdfColor.fromHex('#432C1D');
     final goldText = PdfColor.fromHex('#F5D77F');
-    final instructionGrey = PdfColor.fromHex('#4A4A4A');
     final cardBorder = PdfColor.fromHex('#E2DCD5');
 
     const coffeeCupSvg = '''<svg viewBox="0 0 24 24" width="16" height="16">
@@ -274,38 +273,38 @@ class TableQrPdfService {
 
           pw.SizedBox(height: isCompactGrid ? 8 : 10),
 
-          // 3-Step Scan Instructions matching image
+          // 3-Step Scan Instructions matching Set A (Solid Black for maximum visibility)
           pw.Column(
             children: [
               pw.Text(
-                '1. Connect to Cafe Hotspot',
+                '1. Connect to Celestial Cafe Wi-Fi',
                 style: pw.TextStyle(
-                  font: pw.Font.helvetica(),
-                  fontSize: isCompactGrid ? 8.5 : 10,
+                  font: pw.Font.helveticaBold(),
+                  fontSize: isCompactGrid ? 7.8 : 9.5,
                   fontWeight: pw.FontWeight.bold,
-                  color: instructionGrey,
+                  color: PdfColors.black,
                 ),
                 textAlign: pw.TextAlign.center,
               ),
               pw.SizedBox(height: 2),
               pw.Text(
-                '2. Scan QR code with Phone Camera',
+                '2. Scan with Camera (iOS) or Google Lens (Android)',
                 style: pw.TextStyle(
-                  font: pw.Font.helvetica(),
-                  fontSize: isCompactGrid ? 8.5 : 10,
+                  font: pw.Font.helveticaBold(),
+                  fontSize: isCompactGrid ? 7.2 : 9,
                   fontWeight: pw.FontWeight.bold,
-                  color: instructionGrey,
+                  color: PdfColors.black,
                 ),
                 textAlign: pw.TextAlign.center,
               ),
               pw.SizedBox(height: 2),
               pw.Text(
-                '3. Order & Phone Buzzes when Ready!',
+                '3. Order & your phone buzzes when ready!',
                 style: pw.TextStyle(
-                  font: pw.Font.helvetica(),
-                  fontSize: isCompactGrid ? 8.5 : 10,
+                  font: pw.Font.helveticaBold(),
+                  fontSize: isCompactGrid ? 7.8 : 9.5,
                   fontWeight: pw.FontWeight.bold,
-                  color: instructionGrey,
+                  color: PdfColors.black,
                 ),
                 textAlign: pw.TextAlign.center,
               ),

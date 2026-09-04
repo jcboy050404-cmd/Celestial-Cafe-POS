@@ -13,6 +13,7 @@ import 'widgets/header_bar.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  PosProvider.repairCorruptedStorage();
   runApp(const CelestialCafePosApp());
 }
 

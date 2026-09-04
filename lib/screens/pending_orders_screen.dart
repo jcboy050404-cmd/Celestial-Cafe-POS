@@ -23,9 +23,13 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
   @override
   void initState() {
     super.initState();
-    // Update live elapsed times every 30 seconds
+    // Update live elapsed times every 30 seconds only if screen is actively displayed
     _tickerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final posProvider = Provider.of<PosProvider>(context, listen: false);
+      if (posProvider.currentNavIndex == 1) {
+        setState(() {});
+      }
     });
   }
 
@@ -148,7 +152,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: CelestialTheme.goldPrimary,
+                              color: CelestialTheme.caramelAccent,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -182,7 +186,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                   decoration: BoxDecoration(
                     color: CelestialTheme.bgCard,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    border: Border.all(color: CelestialTheme.borderSubtle),
                   ),
                   child: Row(
                     children: [
@@ -193,7 +197,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                       Text(
                         '₱${totalAmount.toStringAsFixed(0)}',
                         style: GoogleFonts.outfit(
-                          color: CelestialTheme.goldLight,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -214,8 +218,8 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _searchQuery.isNotEmpty
-                    ? CelestialTheme.goldPrimary
-                    : Colors.white.withValues(alpha: 0.12),
+                    ? CelestialTheme.caramelAccent
+                    : CelestialTheme.borderSubtle,
                 width: 1.2,
               ),
             ),
@@ -226,7 +230,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
               decoration: InputDecoration(
                 hintText: 'Search by Order # (e.g. #1, 1), Table number, or Customer name...',
                 hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12.5),
-                prefixIcon: const Icon(Icons.search_rounded, color: CelestialTheme.goldLight, size: 20),
+                prefixIcon: const Icon(Icons.search_rounded, color: CelestialTheme.caramelAccent, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear_rounded, color: CelestialTheme.textMuted, size: 18),
@@ -309,20 +313,8 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
     final timeFormatted = DateFormat('hh:mm a').format(order.createdAt);
 
     return Container(
-      decoration: BoxDecoration(
-        color: CelestialTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      decoration: CelestialTheme.softCard(
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,9 +323,9 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: CelestialTheme.goldPrimary.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
+              color: CelestialTheme.caramelAccent.withValues(alpha: 0.10),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+              border: Border(bottom: BorderSide(color: CelestialTheme.borderSubtle)),
             ),
             child: Row(
               children: [
@@ -341,7 +333,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: CelestialTheme.goldPrimary,
+                    color: CelestialTheme.caramelAccent,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -715,7 +707,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: CelestialTheme.goldLight,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -744,9 +736,10 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: CelestialTheme.goldPrimary,
+                          backgroundColor: CelestialTheme.caramelAccent,
+                          foregroundColor: CelestialTheme.bgDark,
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),

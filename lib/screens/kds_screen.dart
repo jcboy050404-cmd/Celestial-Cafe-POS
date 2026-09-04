@@ -131,11 +131,11 @@ class _KdsScreenState extends State<KdsScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Kitchen Display System',
+                      'Celestial Cafe',
                       style: GoogleFonts.outfit(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: CelestialTheme.textLight,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -295,11 +295,11 @@ class _KdsScreenState extends State<KdsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Kitchen Display System (KDS)',
+                      'Celestial Cafe',
                       style: GoogleFonts.outfit(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
-                        color: CelestialTheme.textLight,
+                        color: Colors.white,
                       ),
                     ),
                     Text(

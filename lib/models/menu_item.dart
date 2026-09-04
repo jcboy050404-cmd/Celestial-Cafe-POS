@@ -7,31 +7,107 @@ enum ItemCategory {
   cheesecakeSeries('Cheesecake Series', '🍰'),
   streetBites('Street Bites', '🍟'),
   pastaDishes('Pasta Dishes', '🍝'),
-  sandwich('Sandwich', '🥪');
+  sandwich('Sandwich', '🥪'),
+  dinner('Dinner & Rice Meals', '🍛'),
+  custom('Custom', '🏷️');
 
   final String label;
   final String icon;
   const ItemCategory(this.label, this.icon);
 }
 
+class CustomCategory {
+  final String id;
+  final String name;
+  final String icon;
+  final bool isKitchenDish;
+
+  const CustomCategory({
+    required this.id,
+    required this.name,
+    this.icon = '🏷️',
+    this.isKitchenDish = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'icon': icon,
+        'isKitchenDish': isKitchenDish,
+      };
+
+  factory CustomCategory.fromJson(Map<String, dynamic> json) => CustomCategory(
+        id: json['id'] as String? ?? 'custom_${json['name'] ?? 'cat'}',
+        name: json['name'] as String? ?? 'Custom',
+        icon: json['icon'] as String? ?? '🏷️',
+        isKitchenDish: json['isKitchenDish'] as bool? ?? false,
+      );
+
+  CustomCategory copyWith({
+    String? id,
+    String? name,
+    String? icon,
+    bool? isKitchenDish,
+  }) {
+    return CustomCategory(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      isKitchenDish: isKitchenDish ?? this.isKitchenDish,
+    );
+  }
+}
+
+class CategoryTabItem {
+  final String id;
+  final String label;
+  final String icon;
+  final bool isCustom;
+  final bool isKitchenDish;
+
+  const CategoryTabItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.isCustom = false,
+    this.isKitchenDish = false,
+  });
+}
+
 class CustomizationOption {
   final String name;
   final double extraPrice;
+  final bool isAvailable;
 
   const CustomizationOption({
     required this.name,
     this.extraPrice = 0.0,
+    this.isAvailable = true,
   });
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'extraPrice': extraPrice,
+        'isAvailable': isAvailable,
       };
 
   factory CustomizationOption.fromJson(Map<String, dynamic> json) {
     return CustomizationOption(
       name: json['name'] as String? ?? '',
       extraPrice: (json['extraPrice'] as num?)?.toDouble() ?? 0.0,
+      isAvailable: json['isAvailable'] as bool? ?? true,
+    );
+  }
+
+  CustomizationOption copyWith({
+    String? name,
+    double? extraPrice,
+    bool? isAvailable,
+  }) {
+    return CustomizationOption(
+      name: name ?? this.name,
+      extraPrice: extraPrice ?? this.extraPrice,
+      isAvailable: isAvailable ?? this.isAvailable,
     );
   }
 }
@@ -75,12 +151,31 @@ class CustomizationGroup {
       defaultIndex: json['defaultIndex'] as int? ?? 0,
     );
   }
+
+  CustomizationGroup copyWith({
+    String? id,
+    String? title,
+    List<CustomizationOption>? options,
+    bool? isMultiSelect,
+    bool? isRequired,
+    int? defaultIndex,
+  }) {
+    return CustomizationGroup(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      options: options ?? this.options,
+      isMultiSelect: isMultiSelect ?? this.isMultiSelect,
+      isRequired: isRequired ?? this.isRequired,
+      defaultIndex: defaultIndex ?? this.defaultIndex,
+    );
+  }
 }
 
 class MenuItem {
   final String id;
   final String name;
   final ItemCategory category;
+  final String? customCategory;
   final double price;
   final String description;
   final String icon;
@@ -96,6 +191,7 @@ class MenuItem {
     required this.id,
     required this.name,
     required this.category,
+    this.customCategory,
     required this.price,
     required this.description,
     required this.icon,
@@ -108,10 +204,19 @@ class MenuItem {
     this.customizationGroups = const [],
   });
 
+  String get categoryLabel {
+    if (customCategory != null && customCategory!.trim().isNotEmpty) {
+      return customCategory!.trim();
+    }
+    return category.label;
+  }
+
   bool get isKitchenDish {
+    if (tags.any((t) => t.toLowerCase().contains('kitchen'))) return true;
     if (category == ItemCategory.streetBites ||
         category == ItemCategory.pastaDishes ||
-        category == ItemCategory.sandwich) {
+        category == ItemCategory.sandwich ||
+        category == ItemCategory.dinner) {
       return true;
     }
     final n = name.toLowerCase();
@@ -125,13 +230,50 @@ class MenuItem {
         n.contains('carbonara') ||
         n.contains('aglio') ||
         n.contains('sandwich') ||
-        n.contains('toast');
+        n.contains('toast') ||
+        n.contains('bbq') ||
+        n.contains('barbeque') ||
+        n.contains('combo') ||
+        n.contains('rice') ||
+        n.contains('inasal') ||
+        n.contains('sisig');
+  }
+
+  bool get hasUnavailableOptions {
+    for (final group in customizationGroups) {
+      for (final option in group.options) {
+        if (!option.isAvailable) return true;
+      }
+    }
+    return false;
+  }
+
+  int get unavailableOptionsCount {
+    int count = 0;
+    for (final group in customizationGroups) {
+      for (final option in group.options) {
+        if (!option.isAvailable) count++;
+      }
+    }
+    return count;
+  }
+
+  List<CustomizationOption> get allUnavailableOptions {
+    final list = <CustomizationOption>[];
+    for (final group in customizationGroups) {
+      for (final option in group.options) {
+        if (!option.isAvailable) list.add(option);
+      }
+    }
+    return list;
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'category': category.name,
+        'customCategory': customCategory,
+        'categoryLabel': categoryLabel,
         'price': price,
         'description': description,
         'icon': icon,
@@ -149,6 +291,8 @@ class MenuItem {
         'id': id,
         'name': name,
         'category': category.name,
+        'customCategory': customCategory,
+        'categoryLabel': categoryLabel,
         'price': price,
         'description': description,
         'icon': icon,
@@ -165,11 +309,13 @@ class MenuItem {
       (c) => c.name == catName,
       orElse: () => ItemCategory.coffee,
     );
+    final customCat = json['customCategory'] as String?;
 
     return MenuItem(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       category: cat,
+      customCategory: customCat,
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       description: json['description'] as String? ?? '',
       icon: json['icon'] as String? ?? '☕',
@@ -190,6 +336,8 @@ class MenuItem {
     String? id,
     String? name,
     ItemCategory? category,
+    String? customCategory,
+    bool clearCustomCategory = false,
     double? price,
     String? description,
     String? icon,
@@ -205,6 +353,7 @@ class MenuItem {
       id: id ?? this.id,
       name: name ?? this.name,
       category: category ?? this.category,
+      customCategory: clearCustomCategory ? null : (customCategory ?? this.customCategory),
       price: price ?? this.price,
       description: description ?? this.description,
       icon: icon ?? this.icon,
@@ -379,6 +528,44 @@ class MenuItem {
       ],
     ),
   ];
+
+  // Dinner & Rice Meals Customizations
+  static List<CustomizationGroup> get defaultDinnerCustomizations => [
+    const CustomizationGroup(
+      id: 'rice_choice',
+      title: 'Rice Choice',
+      isRequired: true,
+      defaultIndex: 0,
+      options: [
+        CustomizationOption(name: 'Steamed White Rice', extraPrice: 0.00),
+        CustomizationOption(name: 'Garlic Fried Rice', extraPrice: 15.00),
+        CustomizationOption(name: 'Extra Steamed Rice', extraPrice: 20.00),
+      ],
+    ),
+    const CustomizationGroup(
+      id: 'dinner_flavor',
+      title: 'Flavor & Spice',
+      isRequired: true,
+      defaultIndex: 0,
+      options: [
+        CustomizationOption(name: 'Regular (Sweet BBQ Glaze)', extraPrice: 0.00),
+        CustomizationOption(name: 'Spicy (Chili Flakes & Scallions)', extraPrice: 0.00),
+      ],
+    ),
+    const CustomizationGroup(
+      id: 'dinner_addons',
+      title: 'Add-ons & Sides',
+      isMultiSelect: true,
+      options: [
+        CustomizationOption(name: 'Extra 1 Pc BBQ Skewer', extraPrice: 35.00),
+        CustomizationOption(name: 'Extra 2 Pcs Lumpia Shanghai', extraPrice: 30.00),
+        CustomizationOption(name: 'Fried Egg (Sunny-Side Up)', extraPrice: 20.00),
+        CustomizationOption(name: 'House Blend Iced Tea (16oz)', extraPrice: 25.00),
+        CustomizationOption(name: 'Spicy Vinegar Dip', extraPrice: 10.00),
+        CustomizationOption(name: 'Sweet Chili Sauce', extraPrice: 10.00),
+      ],
+    ),
+  ];
 }
 
 // Complete Official Celestial Cafe Menu
@@ -391,6 +578,7 @@ final List<MenuItem> initialCelestialMenu = [
     price: 90.00,
     description: 'Rich freshly pulled espresso shots diluted with hot or iced filtered water.',
     icon: '☕',
+    imagePath: 'assets/images/hero_coffee_splash.jpg',
     tags: ['Classic', 'Hot/Iced'],
     stockCount: 100,
     customizationGroups: MenuItem.defaultCoffeeCustomizations,
@@ -402,6 +590,7 @@ final List<MenuItem> initialCelestialMenu = [
     price: 95.00,
     description: 'Espresso with textured milk and sweet condensed milk for a creamy finish.',
     icon: '☕',
+    imagePath: 'assets/images/hero_latte_art.jpg',
     tags: ['Sweet Cream', 'Hot/Iced'],
     stockCount: 80,
     customizationGroups: MenuItem.defaultCoffeeCustomizations,
@@ -413,6 +602,7 @@ final List<MenuItem> initialCelestialMenu = [
     price: 90.00,
     description: 'Freshly steamed milk with vanilla, marked with espresso and finished with caramel drizzle.',
     icon: '🌟',
+    imagePath: 'assets/images/hero_iced_caramel.jpg',
     tags: ['Caramel Drizzle', 'Classic'],
     stockCount: 75,
     customizationGroups: MenuItem.defaultCoffeeCustomizations,
@@ -446,6 +636,7 @@ final List<MenuItem> initialCelestialMenu = [
     price: 90.00,
     description: 'Chilled espresso poured over fresh milk and ice cubes.',
     icon: '🧊',
+    imagePath: 'assets/images/hero_latte_art.jpg',
     tags: ['Refreshing', 'Classic'],
     stockCount: 85,
     customizationGroups: MenuItem.defaultCoffeeCustomizations,
@@ -459,6 +650,7 @@ final List<MenuItem> initialCelestialMenu = [
     price: 100.00,
     description: 'House specialty handcrafted celestial latte blend with silky sweet foam.',
     icon: '✨',
+    imagePath: 'assets/images/hero_coffee_splash.jpg',
     tags: ['Signature', 'House Special'],
     stockCount: 90,
     customizationGroups: MenuItem.defaultCoffeeCustomizations,
@@ -716,5 +908,63 @@ final List<MenuItem> initialCelestialMenu = [
     tags: ['Sweet Toast', 'Breakfast'],
     stockCount: 30,
     customizationGroups: MenuItem.defaultFoodCustomizations,
+  ),
+
+  // 9. DINNER & RICE MEALS
+  MenuItem(
+    id: 'dn_1',
+    name: 'Special Combo Meal',
+    category: ItemCategory.dinner,
+    price: 99.00,
+    description: '2 pcs savory grilled pork barbeque & 3 pcs crispy lumpia shanghai served with steamed rice, toasted garlic, chili & dipping sauce.',
+    icon: '🍛',
+    imagePath: 'assets/images/special_combo_meal.jpg',
+    tags: ['Dinner Special', 'Combo Meal', 'Best Seller', 'Hot Rice Meal'],
+    stockCount: 50,
+    customizationGroups: MenuItem.defaultDinnerCustomizations,
+  ),
+  MenuItem(
+    id: 'dn_2',
+    name: 'Pork Barbeque Rice Meal',
+    category: ItemCategory.dinner,
+    price: 89.00,
+    description: '3 pcs tender skewered pork barbeque grilled in signature sweet savory Filipino glaze, served with steamed rice.',
+    icon: '🍢',
+    tags: ['Pork BBQ', 'Dinner Meal'],
+    stockCount: 45,
+    customizationGroups: MenuItem.defaultDinnerCustomizations,
+  ),
+  MenuItem(
+    id: 'dn_3',
+    name: 'Lumpia Shanghai Rice Meal',
+    category: ItemCategory.dinner,
+    price: 85.00,
+    description: '6 pcs crispy golden pork spring rolls served with steamed rice and sweet chili dipping sauce.',
+    icon: '🥢',
+    tags: ['Crispy Lumpia', 'Dinner Meal'],
+    stockCount: 50,
+    customizationGroups: MenuItem.defaultDinnerCustomizations,
+  ),
+  MenuItem(
+    id: 'dn_4',
+    name: 'Chicken Inasal Rice Meal',
+    category: ItemCategory.dinner,
+    price: 99.00,
+    description: 'Char-grilled marinated chicken quarter infused with lemongrass, calamansi and achuete oil, served with garlic rice.',
+    icon: '🍗',
+    tags: ['Chicken Inasal', 'Chef Special'],
+    stockCount: 40,
+    customizationGroups: MenuItem.defaultDinnerCustomizations,
+  ),
+  MenuItem(
+    id: 'dn_5',
+    name: 'Sizzling Pork Sisig Rice Meal',
+    category: ItemCategory.dinner,
+    price: 109.00,
+    description: 'Crispy minced pork seasoned with calamansi, onions, chili peppers, topped with egg and served with steamed rice.',
+    icon: '🍳',
+    tags: ['Sizzling Sisig', 'Filipino Classic'],
+    stockCount: 35,
+    customizationGroups: MenuItem.defaultDinnerCustomizations,
   ),
 ];

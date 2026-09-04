@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
@@ -125,15 +128,15 @@ class CartPanel extends StatelessWidget {
             ? const BorderRadius.vertical(top: Radius.circular(24))
             : BorderRadius.zero,
         border: isMobileModal
-            ? Border(
+            ? const Border(
                 top: BorderSide(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.3),
+                  color: CelestialTheme.borderSubtle,
                   width: 1.5,
                 ),
               )
-            : Border(
+            : const Border(
                 left: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: CelestialTheme.borderSubtle,
                   width: 1,
                 ),
               ),
@@ -225,7 +228,7 @@ class CartPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.goldPrimary, size: 20),
+              const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.caramelAccent, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Current Order',
@@ -239,8 +242,9 @@ class CartPanel extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
+                  color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: CelestialTheme.borderSubtle),
                 ),
                 child: Text(
                   '${provider.cartItemCount}',
@@ -304,14 +308,23 @@ class CartPanel extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? CelestialTheme.goldPrimary
+                            ? CelestialTheme.caramelAccent
                             : CelestialTheme.bgCard,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: isSelected
-                              ? CelestialTheme.goldPrimary
-                              : Colors.white.withValues(alpha: 0.06),
+                              ? CelestialTheme.caramelAccent
+                              : CelestialTheme.borderSubtle,
                         ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -457,11 +470,80 @@ class CartPanel extends StatelessWidget {
     );
   }
 
+  Widget _buildItemThumbnail(MenuItem item) {
+    final bool hasBase64 = item.imageBase64 != null && item.imageBase64!.isNotEmpty;
+    final bool hasAsset = item.imagePath != null && item.imagePath!.isNotEmpty && item.imagePath!.startsWith('assets/');
+    final bool hasFile = item.imagePath != null && item.imagePath!.isNotEmpty && !hasAsset && File(item.imagePath!).existsSync();
+
+    Widget? imageWidget;
+    if (hasBase64) {
+      try {
+        imageWidget = Image.memory(
+          base64Decode(item.imageBase64!),
+          fit: BoxFit.cover,
+          width: 56,
+          height: 56,
+          errorBuilder: (_, __, ___) => _buildIconFallback(item),
+        );
+      } catch (_) {
+        imageWidget = _buildIconFallback(item);
+      }
+    } else if (hasAsset) {
+      imageWidget = Image.asset(
+        item.imagePath!,
+        fit: BoxFit.cover,
+        width: 56,
+        height: 56,
+        errorBuilder: (_, __, ___) => _buildIconFallback(item),
+      );
+    } else if (hasFile) {
+      imageWidget = Image.file(
+        File(item.imagePath!),
+        fit: BoxFit.cover,
+        width: 56,
+        height: 56,
+        errorBuilder: (_, __, ___) => _buildIconFallback(item),
+      );
+    }
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFF181310),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: imageWidget ?? _buildIconFallback(item),
+    );
+  }
+
+  Widget _buildIconFallback(MenuItem item) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 0.8,
+          colors: [Color(0xFF2C1F16), Color(0xFF181310)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          item.icon.isNotEmpty ? item.icon : '☕',
+          style: const TextStyle(fontSize: 22),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCartItemsList(PosProvider provider) {
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: provider.cart.length,
-      separatorBuilder: (ctx, idx) => const SizedBox(height: 8),
+      separatorBuilder: (ctx, idx) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = provider.cart[index];
 
@@ -470,141 +552,182 @@ class CartPanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: CelestialTheme.bgCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: CelestialTheme.borderSubtle),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Title & Price & Remove
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.menuItem.icon, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // Item Image on Left Side
+              _buildItemThumbnail(item.menuItem),
+              const SizedBox(width: 12),
+
+              // Item details (Middle)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title & Kitchen badge
+                    Row(
                       children: [
-                        Text(
-                          item.menuItem.name,
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: CelestialTheme.textLight,
+                        Flexible(
+                          child: Text(
+                            item.menuItem.name,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.textLight,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Text(
-                          '₱${item.unitPrice.toStringAsFixed(0)} each',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: CelestialTheme.textMuted,
+                        if (item.isKitchenDish) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF5722).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFFF5722).withValues(alpha: 0.55)),
+                            ),
+                            child: const Text(
+                              'KITCHEN',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFFF7043),
+                                letterSpacing: 0.4,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
-                  ),
-                  Text(
-                    '₱${item.totalPrice.toStringAsFixed(0)}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: CelestialTheme.goldLight,
-                    ),
-                  ),
-                ],
-              ),
 
-              // Customizations pills
-              if (item.customizations.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children: item.customizations.map((c) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: CelestialTheme.brownWarm.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
-                        ),
+                    // Customizations pills
+                    if (item.customizations.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: item.customizations.map((c) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              c.summary,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: CelestialTheme.goldLight,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
-                      child: Text(
-                        c.summary,
+                    ],
+
+                    // Notes
+                    if (item.notes != null && item.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Note: "${item.notes}"',
                         style: const TextStyle(
                           fontSize: 10,
-                          color: CelestialTheme.goldLight,
+                          fontStyle: FontStyle.italic,
+                          color: CelestialTheme.roseAlert,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    );
-                  }).toList(),
+                    ],
+
+                    const SizedBox(height: 4),
+
+                    // Price
+                    Text(
+                      '₱${item.totalPrice.toStringAsFixed(0)}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              const SizedBox(width: 8),
 
-              // Notes
-              if (item.notes != null && item.notes!.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Note: "${item.notes}"',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontStyle: FontStyle.italic,
-                    color: CelestialTheme.amberWarm,
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 8),
-
-              // Quantity Controls & Trash
+              // Quantity Controls & Delete (Right side)
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     height: 28,
                     decoration: BoxDecoration(
-                      color: CelestialTheme.bgSurface,
+                      color: Colors.white.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
                           onPressed: () => provider.updateCartQuantity(item.id, -1),
                           icon: const Icon(Icons.remove_rounded, size: 14),
-                          color: CelestialTheme.goldPrimary,
+                          color: CelestialTheme.textLight,
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          constraints: const BoxConstraints(minWidth: 26, minHeight: 28),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Text(
                             '${item.quantity}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.bold,
-                              color: CelestialTheme.textLight,
+                              color: CelestialTheme.goldLight,
                             ),
                           ),
                         ),
                         IconButton(
                           onPressed: () => provider.updateCartQuantity(item.id, 1),
                           icon: const Icon(Icons.add_rounded, size: 14),
-                          color: CelestialTheme.goldPrimary,
+                          color: CelestialTheme.textLight,
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          constraints: const BoxConstraints(minWidth: 26, minHeight: 28),
                         ),
                       ],
                     ),
                   ),
-
-                  IconButton(
-                    onPressed: () => provider.removeFromCart(item.id),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 16, color: CelestialTheme.textSubtle),
-                    splashRadius: 16,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+                    ),
+                    child: IconButton(
+                      onPressed: () => provider.removeFromCart(item.id),
+                      icon: const Icon(Icons.close_rounded, size: 15, color: CelestialTheme.roseAlert),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      tooltip: 'Remove Item',
+                    ),
                   ),
                 ],
               ),
@@ -692,7 +815,7 @@ class CartPanel extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: CelestialTheme.goldLight,
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -728,14 +851,14 @@ class CartPanel extends StatelessWidget {
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: CelestialTheme.goldPrimary,
+                backgroundColor: CelestialTheme.caramelAccent,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.06),
                 foregroundColor: CelestialTheme.bgDark,
-                elevation: 6,
-                shadowColor: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                elevation: 3,
+                shadowColor: Colors.black.withValues(alpha: 0.35),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
               child: Row(

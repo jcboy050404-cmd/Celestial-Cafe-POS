@@ -89,8 +89,9 @@ class _HeaderBarState extends State<HeaderBar> {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                            color: Colors.black.withValues(alpha: 0.25),
                             blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -158,12 +159,13 @@ class _HeaderBarState extends State<HeaderBar> {
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
-                        gradient: CelestialTheme.goldGradient,
+                        gradient: CelestialTheme.caramelGradient,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
-                            blurRadius: 8,
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -612,9 +614,9 @@ class _HeaderBarState extends State<HeaderBar> {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    spreadRadius: 1,
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
@@ -681,14 +683,14 @@ class _HeaderBarState extends State<HeaderBar> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? CelestialTheme.goldPrimary.withValues(alpha: 0.15)
+              ? CelestialTheme.caramelAccent.withValues(alpha: 0.16)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? CelestialTheme.goldPrimary
+                ? CelestialTheme.caramelAccent
                 : Colors.transparent,
-            width: 1.2,
+            width: 1.0,
           ),
         ),
         child: Row(
@@ -698,8 +700,8 @@ class _HeaderBarState extends State<HeaderBar> {
               icon,
               size: 18,
               color: isSelected
-                  ? CelestialTheme.goldPrimary
-                  : CelestialTheme.textMuted,
+                  ? CelestialTheme.caramelAccent
+                  : CelestialTheme.warmGray,
             ),
             const SizedBox(width: 8),
             Text(
@@ -708,8 +710,8 @@ class _HeaderBarState extends State<HeaderBar> {
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: isSelected
-                    ? CelestialTheme.goldLight
-                    : CelestialTheme.textMuted,
+                    ? CelestialTheme.creamLight
+                    : CelestialTheme.warmGray,
               ),
             ),
             if (badgeCount != null) ...[

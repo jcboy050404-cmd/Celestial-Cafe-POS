@@ -64,16 +64,10 @@ class _OrderCardKdsState extends State<OrderCardKds> {
           width: order.hasKitchenDishes ? 1.6 : 1.2,
         ),
         boxShadow: [
-          if (order.hasKitchenDishes)
-            BoxShadow(
-              color: const Color(0xFFFF5722).withValues(alpha: 0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),

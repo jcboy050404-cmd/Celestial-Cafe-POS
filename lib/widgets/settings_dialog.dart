@@ -1,14 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key});
+  final int initialTab;
+  const SettingsDialog({super.key, this.initialTab = 0});
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -19,17 +22,26 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late TextEditingController _taglineController;
   late TextEditingController _addressController;
   late TextEditingController _pinController;
+  late TextEditingController _availabilitySearchController;
   bool _isPickingImage = false;
   bool _isSavingSettings = false;
+  int _activeTab = 0; // 0 = Store & Branding, 1 = Item & Modifier Availability (86 List)
+  String _availabilitySearchQuery = '';
+  ItemCategory _selectedAvailabilityCategory = ItemCategory.all;
+  String _selectedAvailabilityCategoryId = 'all';
+  bool _showOnlyUnavailable = false;
+  final Set<String> _expandedItemIds = {};
 
   @override
   void initState() {
     super.initState();
+    _activeTab = widget.initialTab;
     final provider = Provider.of<PosProvider>(context, listen: false);
     _nameController = TextEditingController(text: provider.storeName);
     _taglineController = TextEditingController(text: provider.storeTagline);
     _addressController = TextEditingController(text: provider.storeAddress);
     _pinController = TextEditingController(text: provider.baristaPin);
+    _availabilitySearchController = TextEditingController();
   }
 
   @override
@@ -38,6 +50,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _taglineController.dispose();
     _addressController.dispose();
     _pinController.dispose();
+    _availabilitySearchController.dispose();
     super.dispose();
   }
 
@@ -116,8 +129,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
         horizontal: isMobile ? 12 : 24,
         vertical: isMobile ? 16 : 24,
       ),
-      child: Container(
-        width: isMobile ? double.infinity : 560,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        width: isMobile ? double.infinity : (_activeTab == 1 ? 760.0 : 560.0),
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
@@ -140,7 +154,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: const BoxDecoration(
                 color: CelestialTheme.bgCard,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -150,10 +164,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.storefront_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                      Icon(
+                        _activeTab == 0 ? Icons.storefront_rounded : Icons.do_not_disturb_on_outlined,
+                        color: CelestialTheme.goldPrimary,
+                        size: 22,
+                      ),
                       const SizedBox(width: 10),
                       Text(
-                        'Store Settings & Logo',
+                        _activeTab == 0 ? 'Store Settings & Logo' : 'Item & Modifier Availability (86 List)',
                         style: GoogleFonts.outfit(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -171,13 +189,47 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
 
+            // Tab Navigation Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgCard.withValues(alpha: 0.6),
+                border: Border(
+                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildTabButton(
+                      title: 'Store & Branding',
+                      icon: Icons.storefront_rounded,
+                      isSelected: _activeTab == 0,
+                      onTap: () => setState(() => _activeTab = 0),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildTabButton(
+                      title: 'Item Availability (86)',
+                      icon: Icons.do_not_disturb_on_outlined,
+                      badgeCount: provider.totalUnavailableItemsCount + provider.totalUnavailableOptionsCount,
+                      isSelected: _activeTab == 1,
+                      onTap: () => setState(() => _activeTab = 1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const Divider(height: 1),
 
-            // Form Content
+            // Tab Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              child: _activeTab == 0
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Section 1: Logo Upload & Preview
@@ -647,49 +699,1004 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     ),
                   ],
                 ),
+              )
+            : _buildAvailabilityTab(context, provider, isMobile),
+          ),
+
+          const Divider(height: 1),
+
+          // Footer Actions
+          _buildFooterActions(provider),
+        ],
+      ),
+    ),
+  );
+}
+
+  Widget _buildFooterActions(PosProvider provider) {
+    if (_activeTab == 1) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: const BoxDecoration(
+          color: CelestialTheme.bgCard,
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.flash_on_rounded, size: 16, color: CelestialTheme.goldLight),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Changes apply live to POS workstations & self-order web menus.',
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  color: CelestialTheme.textMuted,
+                ),
               ),
             ),
-
-            const Divider(height: 1),
-
-            // Footer Actions
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: CelestialTheme.bgCard,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
-                    icon: _isSavingSettings
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
-                          )
-                        : const Icon(Icons.check_rounded, size: 16),
-                    label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: CelestialTheme.goldPrimary,
-                      foregroundColor: CelestialTheme.bgDark,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Done'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CelestialTheme.goldPrimary,
+                foregroundColor: CelestialTheme.bgDark,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
         ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
       ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton.icon(
+            onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
+            icon: _isSavingSettings
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                  )
+                : const Icon(Icons.check_rounded, size: 16),
+            label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.goldPrimary,
+              foregroundColor: CelestialTheme.bgDark,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton({
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? CelestialTheme.goldPrimary.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? CelestialTheme.goldPrimary.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 1.4 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                title,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? CelestialTheme.textLight : CelestialTheme.textMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (badgeCount > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: CelestialTheme.roseAlert,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvailabilityTab(BuildContext context, PosProvider provider, bool isMobile) {
+    final allItems = provider.menuItems;
+    final unavailableItems = allItems.where((i) => !i.inStock).length;
+    final unavailableOpts = allItems.fold(0, (sum, i) => sum + i.unavailableOptionsCount);
+
+    final filtered = allItems.where((item) {
+      if (_selectedAvailabilityCategoryId != 'all') {
+        final matchesCat = item.customCategory != null && item.customCategory!.isNotEmpty
+            ? item.customCategory == _selectedAvailabilityCategoryId || item.category.name == _selectedAvailabilityCategoryId
+            : item.category.name == _selectedAvailabilityCategoryId || item.category == _selectedAvailabilityCategory;
+        if (!matchesCat) return false;
+      }
+      if (_showOnlyUnavailable && item.inStock && !item.hasUnavailableOptions) {
+        return false;
+      }
+      if (_availabilitySearchQuery.isNotEmpty) {
+        final q = _availabilitySearchQuery.toLowerCase();
+        final matchName = item.name.toLowerCase().contains(q);
+        final matchCategory = item.category.label.toLowerCase().contains(q);
+        final matchOptions = item.customizationGroups.any(
+          (g) => g.options.any((o) => o.name.toLowerCase().contains(q)),
+        );
+        if (!matchName && !matchCategory && !matchOptions) return false;
+      }
+      return true;
+    }).toList();
+
+    return Column(
+      children: [
+        // Top Toolbar: Search Bar + Filter Options
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          decoration: BoxDecoration(
+            color: CelestialTheme.bgCard.withValues(alpha: 0.5),
+            border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Search Field & Quick Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 38,
+                      child: TextField(
+                        controller: _availabilitySearchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _availabilitySearchQuery = val.trim();
+                          });
+                        },
+                        style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                        decoration: InputDecoration(
+                          hintText: 'Search items or modifiers (e.g. Oat Milk, Pearls, Latte)...',
+                          hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
+                          prefixIcon: const Icon(Icons.search_rounded, color: CelestialTheme.goldPrimary, size: 18),
+                          suffixIcon: _availabilitySearchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
+                                  onPressed: () {
+                                    _availabilitySearchController.clear();
+                                    setState(() => _availabilitySearchQuery = '');
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: CelestialTheme.bgSurface,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Global Modifier 86 Button
+                  Tooltip(
+                    message: '86 common ingredients across all drinks at once',
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showGlobalModifiersDialog(context, provider),
+                      icon: const Icon(Icons.tune_rounded, size: 15),
+                      label: Text(isMobile ? 'Global' : 'Global 86', style: const TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CelestialTheme.goldLight,
+                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Reset All Available Button
+                  Tooltip(
+                    message: 'Reset all items & modifiers to available',
+                    child: IconButton(
+                      onPressed: (unavailableItems > 0 || unavailableOpts > 0)
+                          ? () => _confirmResetAllAvailability(context, provider)
+                          : null,
+                      icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                      color: CelestialTheme.goldLight,
+                      disabledColor: Colors.white24,
+                      style: IconButton.styleFrom(
+                        backgroundColor: CelestialTheme.bgSurface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Categories Row + 86'd Filter Pill
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    // Only Unavailable Filter Pill
+                    FilterChip(
+                      selected: _showOnlyUnavailable,
+                      onSelected: (val) => setState(() => _showOnlyUnavailable = val),
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 13,
+                            color: _showOnlyUnavailable ? CelestialTheme.bgDark : CelestialTheme.roseAlert,
+                          ),
+                          const SizedBox(width: 5),
+                          Text('86\'d Only (${unavailableItems + unavailableOpts})'),
+                        ],
+                      ),
+                      labelStyle: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _showOnlyUnavailable ? CelestialTheme.bgDark : CelestialTheme.roseAlert,
+                      ),
+                      backgroundColor: CelestialTheme.roseAlert.withValues(alpha: 0.12),
+                      selectedColor: CelestialTheme.roseAlert,
+                      side: BorderSide(
+                        color: _showOnlyUnavailable ? CelestialTheme.roseAlert : CelestialTheme.roseAlert.withValues(alpha: 0.4),
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Categories
+                    ...provider.allCategoryTabs.map((tab) {
+                      final isSelected = _selectedAvailabilityCategoryId == tab.id;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text('${tab.icon} ${tab.label}'),
+                          selected: isSelected,
+                          onSelected: (_) => setState(() {
+                            _selectedAvailabilityCategoryId = tab.id;
+                            final matchedEnum = ItemCategory.values.firstWhere(
+                              (c) => c.name == tab.id,
+                              orElse: () => ItemCategory.custom,
+                            );
+                            _selectedAvailabilityCategory = matchedEnum;
+                          }),
+                          labelStyle: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
+                          ),
+                          selectedColor: CelestialTheme.goldPrimary,
+                          backgroundColor: CelestialTheme.bgSurface,
+                          side: BorderSide(
+                            color: isSelected
+                                ? CelestialTheme.goldPrimary
+                                : Colors.white.withValues(alpha: 0.1),
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Content Area: List of items
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _showOnlyUnavailable ? Icons.check_circle_outline_rounded : Icons.search_off_rounded,
+                          size: 44,
+                          color: _showOnlyUnavailable ? CelestialTheme.emeraldReady : CelestialTheme.textMuted,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _showOnlyUnavailable
+                              ? 'All Items & Modifiers Are In Stock!'
+                              : 'No matching items or modifiers found',
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _showOnlyUnavailable
+                              ? 'No items are currently marked as not available.'
+                              : 'Try adjusting your search or category filter.',
+                          style: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    return _buildItemAvailabilityCard(context, provider, item, isMobile);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemAvailabilityCard(BuildContext context, PosProvider provider, MenuItem item, bool isMobile) {
+    final isExpanded = _expandedItemIds.contains(item.id);
+    final hasGroups = item.customizationGroups.isNotEmpty;
+    final unavailCount = item.unavailableOptionsCount;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: !item.inStock
+              ? CelestialTheme.roseAlert.withValues(alpha: 0.5)
+              : item.hasUnavailableOptions
+                  ? CelestialTheme.amberBrewing.withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.08),
+          width: (!item.inStock || item.hasUnavailableOptions) ? 1.3 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Main Item Row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                // Item Icon or Image Thumbnail
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: item.inStock
+                        ? CelestialTheme.brownWarm.withValues(alpha: 0.4)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: item.inStock
+                          ? CelestialTheme.goldPrimary.withValues(alpha: 0.3)
+                          : Colors.white12,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(9),
+                    child: item.imageBase64 != null && item.imageBase64!.isNotEmpty
+                        ? Image.memory(
+                            base64Decode(item.imageBase64!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
+                          )
+                        : (item.imagePath != null && item.imagePath!.isNotEmpty && item.imagePath!.startsWith('assets/'))
+                            ? Image.asset(
+                                item.imagePath!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
+                              )
+                            : item.imagePath != null && item.imagePath!.isNotEmpty && File(item.imagePath!).existsSync()
+                                ? Image.file(
+                                    File(item.imagePath!),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
+                                  )
+                                : Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Name, Category & Price
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.name,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: item.inStock ? CelestialTheme.textLight : CelestialTheme.textSubtle,
+                                decoration: item.inStock ? null : TextDecoration.lineThrough,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Status Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: !item.inStock
+                                  ? CelestialTheme.roseAlert.withValues(alpha: 0.18)
+                                  : item.hasUnavailableOptions
+                                      ? CelestialTheme.amberBrewing.withValues(alpha: 0.18)
+                                      : CelestialTheme.emeraldReady.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: !item.inStock
+                                    ? CelestialTheme.roseAlert
+                                    : item.hasUnavailableOptions
+                                        ? CelestialTheme.amberBrewing
+                                        : CelestialTheme.emeraldReady.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Text(
+                              !item.inStock
+                                  ? '86\'D / OUT OF STOCK'
+                                  : item.hasUnavailableOptions
+                                      ? '⚠️ $unavailCount MODIFIER 86\'D'
+                                      : 'IN STOCK',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: !item.inStock
+                                    ? CelestialTheme.roseAlert
+                                    : item.hasUnavailableOptions
+                                        ? CelestialTheme.amberBrewing
+                                        : CelestialTheme.emeraldReady,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Text(
+                            '${item.category.icon} ${item.category.label} • ₱${item.price.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                          ),
+                          if (hasGroups) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '• ${item.customizationGroups.fold(0, (s, g) => s + g.options.length)} modifiers',
+                              style: TextStyle(fontSize: 11, color: CelestialTheme.goldLight.withValues(alpha: 0.8)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Entire Item In-Stock Switch
+                Column(
+                  children: [
+                    SizedBox(
+                      height: 28,
+                      child: Switch(
+                        value: item.inStock,
+                        activeThumbColor: CelestialTheme.emeraldReady,
+                        inactiveThumbColor: CelestialTheme.roseAlert,
+                        inactiveTrackColor: CelestialTheme.roseAlert.withValues(alpha: 0.3),
+                        onChanged: (val) {
+                          provider.setItemAvailability(item.id, val);
+                        },
+                      ),
+                    ),
+                    Text(
+                      item.inStock ? 'Available' : 'Unavailable',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: item.inStock ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Expand/Collapse Modifier Group Button
+                if (hasGroups) ...[
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedItemIds.remove(item.id);
+                        } else {
+                          _expandedItemIds.add(item.id);
+                        }
+                      });
+                    },
+                    icon: Icon(
+                      isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      color: CelestialTheme.goldLight,
+                      size: 22,
+                    ),
+                    splashRadius: 18,
+                    tooltip: isExpanded ? 'Hide Modifiers' : 'Manage Modifiers (86)',
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Expanded Customization Groups & Modifiers
+          if (isExpanded && hasGroups) ...[
+            const Divider(height: 1, color: Colors.white10),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgSurface.withValues(alpha: 0.7),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'MODIFIER AVAILABILITY FOR ${item.name.toUpperCase()}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                          color: CelestialTheme.goldLight,
+                        ),
+                      ),
+                      if (item.hasUnavailableOptions)
+                        InkWell(
+                          onTap: () => provider.resetAllItemOptionsAvailability(item.id),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.restart_alt_rounded, size: 13, color: CelestialTheme.emeraldReady),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Make All Available',
+                                  style: GoogleFonts.outfit(fontSize: 10.5, color: CelestialTheme.emeraldReady, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  ...item.customizationGroups.map((group) {
+                    return _buildGroupAvailabilitySection(context, provider, item, group);
+                  }),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupAvailabilitySection(
+    BuildContext context,
+    PosProvider provider,
+    MenuItem item,
+    CustomizationGroup group,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                group.title,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: CelestialTheme.textLight,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  group.isRequired ? 'REQUIRED' : 'OPTIONAL',
+                  style: const TextStyle(fontSize: 8.5, color: CelestialTheme.textMuted, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: group.options.map((option) {
+              final isAvailable = option.isAvailable;
+              return InkWell(
+                onTap: () {
+                  provider.toggleOptionAvailability(
+                    item.id,
+                    group.id,
+                    option.name,
+                    !isAvailable,
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isAvailable
+                        ? CelestialTheme.bgCard
+                        : CelestialTheme.roseAlert.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isAvailable
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : CelestialTheme.roseAlert,
+                      width: isAvailable ? 1.0 : 1.3,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isAvailable ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        size: 14,
+                        color: isAvailable ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        option.name,
+                        style: GoogleFonts.outfit(
+                          fontSize: 11.5,
+                          fontWeight: isAvailable ? FontWeight.w500 : FontWeight.bold,
+                          color: isAvailable ? CelestialTheme.textLight : CelestialTheme.roseAlert,
+                          decoration: isAvailable ? null : TextDecoration.lineThrough,
+                        ),
+                      ),
+                      if (option.extraPrice > 0) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          '+₱${option.extraPrice.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isAvailable ? CelestialTheme.goldLight : CelestialTheme.roseAlert.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: isAvailable
+                              ? CelestialTheme.emeraldReady.withValues(alpha: 0.15)
+                              : CelestialTheme.roseAlert.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          isAvailable ? 'AVAILABLE' : '86\'D OUT',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: isAvailable ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmResetAllAvailability(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.restart_alt_rounded, color: CelestialTheme.goldPrimary, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Reset All Availability?',
+              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+            ),
+          ],
+        ),
+        content: const Text(
+          'This will mark all out-of-stock items and unavailable modifiers back to AVAILABLE across the entire store menu.',
+          style: TextStyle(fontSize: 12.5, color: CelestialTheme.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              provider.resetAllAvailability();
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: CelestialTheme.bgCard,
+                  content: Text('✨ All items and modifiers have been reset to Available!'),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.goldPrimary,
+              foregroundColor: CelestialTheme.bgDark,
+            ),
+            child: const Text('Reset All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGlobalModifiersDialog(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            // Find unique option names across all menu items
+            final Map<String, List<MenuItem>> optionToItems = {};
+
+            for (final item in provider.menuItems) {
+              for (final group in item.customizationGroups) {
+                for (final opt in group.options) {
+                  final key = opt.name.trim();
+                  optionToItems.putIfAbsent(key, () => []).add(item);
+                }
+              }
+            }
+
+            final sortedKeys = optionToItems.keys.toList()..sort();
+
+            return Dialog(
+              backgroundColor: CelestialTheme.bgSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+              ),
+              child: Container(
+                width: 520,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.tune_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Global Modifier / Ingredient 86',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.textLight,
+                                ),
+                              ),
+                              const Text(
+                                'Toggle an ingredient or modifier across all drinks at once',
+                                style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: sortedKeys.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.white10),
+                        itemBuilder: (context, idx) {
+                          final optName = sortedKeys[idx];
+                          final itemsWithOpt = optionToItems[optName]!;
+                          final anyUnavailable = itemsWithOpt.any((item) {
+                            return item.customizationGroups.any((g) => g.options.any((o) => o.name.trim() == optName && !o.isAvailable));
+                          });
+                          final isAvailable = !anyUnavailable;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        optName,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: isAvailable ? CelestialTheme.textLight : CelestialTheme.roseAlert,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Used in ${itemsWithOpt.length} item(s)',
+                                        style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  margin: const EdgeInsets.only(right: 10),
+                                  decoration: BoxDecoration(
+                                    color: isAvailable
+                                        ? CelestialTheme.emeraldReady.withValues(alpha: 0.15)
+                                        : CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isAvailable ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    isAvailable ? 'AVAILABLE' : '86\'D OUT',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isAvailable ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
+                                    ),
+                                  ),
+                                ),
+                                Switch(
+                                  value: isAvailable,
+                                  activeThumbColor: CelestialTheme.emeraldReady,
+                                  inactiveThumbColor: CelestialTheme.roseAlert,
+                                  inactiveTrackColor: CelestialTheme.roseAlert.withValues(alpha: 0.3),
+                                  onChanged: (newVal) {
+                                    provider.toggleOptionAvailabilityGlobally(optName, newVal);
+                                    setDlgState(() {});
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: CelestialTheme.goldPrimary,
+                          foregroundColor: CelestialTheme.bgDark,
+                        ),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

@@ -363,19 +363,14 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
           color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
-            width: 1.5,
+            color: CelestialTheme.borderSubtle,
+            width: 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 30,
+              color: Colors.black.withValues(alpha: 0.65),
+              blurRadius: 28,
               offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
-              blurRadius: 20,
-              spreadRadius: 1,
             ),
           ],
         ),
@@ -465,10 +460,11 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  gradient: CelestialTheme.goldGradient,
+                  color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.4)),
                 ),
-                child: const Icon(Icons.receipt_long_rounded, color: CelestialTheme.bgDark, size: 20),
+                child: const Icon(Icons.receipt_long_rounded, color: CelestialTheme.caramelAccent, size: 20),
               ),
               const SizedBox(width: 12),
               Column(
@@ -481,7 +477,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                         style: GoogleFonts.outfit(
                           fontSize: isMobile ? 17 : 20,
                           fontWeight: FontWeight.bold,
-                          color: CelestialTheme.goldLight,
+                          color: CelestialTheme.creamLight,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -587,17 +583,17 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
-                      color: CelestialTheme.goldLight,
+                      color: CelestialTheme.creamLight,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
-                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                      color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text('Editable', style: TextStyle(fontSize: 9, color: CelestialTheme.goldLight, fontWeight: FontWeight.bold)),
+                    child: const Text('Editable', style: TextStyle(fontSize: 9, color: CelestialTheme.caramelAccent, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -624,7 +620,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                       icon: const Icon(Icons.add_rounded, size: 14),
                       label: const Text('Add Items from Menu', style: TextStyle(fontSize: 11)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: CelestialTheme.goldPrimary,
+                        backgroundColor: CelestialTheme.caramelAccent,
                         foregroundColor: CelestialTheme.bgDark,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
@@ -741,7 +737,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                     // Item Price
                     Text(
                       '₱${item.totalPrice.toStringAsFixed(0)}',
-                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     const SizedBox(width: 4),
 
@@ -1242,10 +1238,11 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: CelestialTheme.goldPrimary,
+                backgroundColor: CelestialTheme.caramelAccent,
+                foregroundColor: CelestialTheme.bgDark,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 3,
               ),
             ),
           ),
@@ -1278,11 +1275,11 @@ class _PendingCustomerOrdersListDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+          border: Border.all(color: CelestialTheme.borderSubtle),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 30,
+              color: Colors.black.withValues(alpha: 0.65),
+              blurRadius: 28,
               offset: const Offset(0, 10),
             ),
           ],
