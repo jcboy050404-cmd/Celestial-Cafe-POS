@@ -326,7 +326,7 @@ const String kdsHtmlTemplate = '''
       color: #000000 !important;
       font-weight: 900 !important;
       border: 1px solid #FFA000 !important;
-      box-shadow: 0 0 12px rgba(255, 159, 28, 0.5);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
     .ticket.takeout-ticket {
       border-left: 5px solid #FF9F1C !important;
@@ -468,7 +468,7 @@ const String kdsHtmlTemplate = '''
       background: #2EC4B6;
       border-color: #2EC4B6;
       color: #0D0B10;
-      box-shadow: 0 0 8px rgba(46, 196, 182, 0.45);
+      box-shadow: none;
     }
     .item-prepared-badge {
       display: inline-flex;
@@ -509,11 +509,6 @@ const String kdsHtmlTemplate = '''
       font-weight: 800;
       text-align: center;
       letter-spacing: 0.3px;
-      animation: kdsGlow 1.5s infinite alternate ease-in-out;
-    }
-    @keyframes kdsGlow {
-      0% { box-shadow: 0 0 3px rgba(46,196,182,0.2); }
-      100% { box-shadow: 0 0 12px rgba(46,196,182,0.55); }
     }
     
     .item-title-row { display: flex; align-items: center; gap: calc(8px * var(--kds-zoom, 1)); flex-wrap: wrap; }
@@ -814,7 +809,6 @@ const String kdsHtmlTemplate = '''
       right: 15%;
       height: 2px;
       background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
-      box-shadow: 0 0 12px var(--gold-primary);
     }
     @keyframes pinPopCard {
       0% { opacity: 0; transform: scale(0.9) translateY(16px); }
@@ -885,8 +879,7 @@ const String kdsHtmlTemplate = '''
     .pin-dot.filled {
       background: linear-gradient(135deg, #FFF0B3 0%, var(--gold-primary) 50%, #B89025 100%);
       border-color: #FFF0B3;
-      box-shadow: 0 0 16px rgba(212, 175, 55, 0.9), 0 0 28px rgba(212, 175, 55, 0.4);
-      transform: scale(1.25);
+      transform: scale(1.15);
     }
     .pin-dots-container.shake {
       animation: shakeDots 0.45s ease;
@@ -903,7 +896,6 @@ const String kdsHtmlTemplate = '''
       min-height: 20px;
       margin-bottom: 14px;
       letter-spacing: 0.3px;
-      text-shadow: 0 0 10px rgba(231, 29, 54, 0.35);
     }
     .pin-keypad {
       display: grid;
@@ -1324,7 +1316,6 @@ const String kdsHtmlTemplate = '''
       if (card) {
         card.style.transform = 'scale(1.02)';
         card.style.borderColor = 'var(--emerald-ready)';
-        card.style.boxShadow = '0 0 50px rgba(46,196,182,0.4)';
       }
       setTimeout(() => {
         document.getElementById('pinModal').style.display = 'none';
@@ -1572,8 +1563,8 @@ const String kdsHtmlTemplate = '''
         const takeoutTicketClass = isTakeout ? 'takeout-ticket' : '';
         const orderTypeBadgeClass = isTakeout ? 'order-type-badge takeout-badge' : 'order-type-badge';
         const tableInfo = order.tableNumber ? ` • \${order.tableNumber}` : '';
-        const orderTypeLabel = isTakeout ? '🥡 TAKEOUT / TO-GO' : (order.orderType === 'dineIn' ? `Dine-In\${tableInfo}` : 'Takeaway');
-        const takeoutBannerHtml = isTakeout ? `<div class="takeout-banner"><span>🛍️</span> <span>TAKEOUT / TO-GO • PACK IN BAG (USE PAPER CUPS & LIDS)</span></div>` : '';
+        const orderTypeLabel = isTakeout ? '🥡 TAKE OUT' : (order.orderType === 'dineIn' ? `Dine-In\${tableInfo}` : 'Takeaway');
+        const takeoutBannerHtml = isTakeout ? `<div class="takeout-banner"><span>🛍️</span> <span>TAKE OUT • PACK IN BAG (USE PAPER CUPS & LIDS)</span></div>` : '';
 
         const itemsHtml = (order.items || []).map((item, itemIdx) => {
           const itemName = item.name || item.menuItem?.name || 'Item';
@@ -1599,7 +1590,7 @@ const String kdsHtmlTemplate = '''
             : '';
 
           const isItemTakeout = isTakeout || (item.notes && (item.notes.toLowerCase().includes('take') || item.notes.toLowerCase().includes('to-go') || item.notes.toLowerCase().includes('togo') || item.notes.toLowerCase().includes('balot')));
-          const takeoutItemBadge = isItemTakeout ? '<span class="takeout-item-badge">🥡 TO-GO</span>' : '';
+          const takeoutItemBadge = isItemTakeout ? '<span class="takeout-item-badge">🥡 TAKE OUT</span>' : '';
 
           const noteHtml = item.notes ? `<div class="note-box">📝 Note: \${item.notes}</div>` : '';
           const doneClass = isDone ? 'item-done' : '';
@@ -1637,8 +1628,7 @@ const String kdsHtmlTemplate = '''
           statusBadgeHtml = `<div style="background: rgba(255,159,28,0.15); border: 1px solid rgba(255,159,28,0.4); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: bold; color: var(--amber-brewing); margin-bottom: 8px; text-align: center;">Awaiting Cashier Payment</div>`;
           actionBtn = `<button class="action-btn btn-brew" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'preparing')">Start Brewing / Confirm</button>`;
         } else if (order.status === 'preparing') {
-          const readyGlow = allItemsDone ? 'style="box-shadow: 0 0 16px rgba(46,196,182,0.7);"' : '';
-          actionBtn = `<button class="action-btn btn-ready" \${readyGlow} onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'ready')">Mark Ready for Pickup</button>`;
+          actionBtn = `<button class="action-btn btn-ready" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'ready')">Mark Ready for Pickup</button>`;
         } else if (order.status === 'ready') {
           actionBtn = `<button class="action-btn btn-done" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'completed')">Complete & Hand Over</button>`;
         }

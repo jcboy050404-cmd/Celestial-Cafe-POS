@@ -3,9 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 class CelestialTheme {
   // Brand Canvas & Dark Espresso Surfaces (Black & Brown Theme)
-  static const Color bgDark = Color(0xFF180E02);         // Rich dark espresso canvas (#180E02)
-  static const Color bgSurface = Color(0xFF0C0A09);      // Deep dark mocha surface
-  static const Color bgSurfaceLight = Color(0xFF16120E); // Soft elevated dark mocha
+  static const Color bgDark = Color(0xFF000000);         // Pure sleek black canvas (#000000)
+  static const Color bgSurface = Color(0xFF000000);      // Pure sleek black surface (#000000)
+  static const Color bgSurfaceLight = Color(0xFF0A0A0A); // Soft elevated dark mocha
   static const Color bgCard = Color(0xFF14100D);         // Warm dark espresso card base
   static const Color bgCardHover = Color(0xFF1F1814);    // Hovered card
   static const Color bgCardActive = Color(0xFF2B201A);   // Selected / active card

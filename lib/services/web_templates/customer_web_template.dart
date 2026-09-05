@@ -207,6 +207,12 @@ const String customerOrderHtmlTemplate = '''
       cursor: pointer;
       user-select: none;
       transition: all 0.18s ease;
+      font-family: inherit;
+      outline: none;
+    }
+    .table-pill:hover {
+      border-color: var(--gold-light);
+      background: rgba(212, 175, 55, 0.25);
     }
     .table-pill:active { transform: scale(0.95); }
     .table-pill.takeout {
@@ -214,6 +220,10 @@ const String customerOrderHtmlTemplate = '''
       border-color: var(--amber);
       color: #FFC27D;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .table-pill.takeout:hover {
+      border-color: #FFA726;
+      background: rgba(255, 159, 28, 0.28);
     }
     .dining-card {
       background: #14100D;
@@ -387,7 +397,7 @@ const String customerOrderHtmlTemplate = '''
     .hero-spotlight-order-btn:hover {
       background: #D9965B;
       transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(196, 130, 72, 0.35);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     }
     .hero-spotlight-order-btn:active {
       transform: scale(0.95);
@@ -448,7 +458,7 @@ const String customerOrderHtmlTemplate = '''
     .search-input:focus {
       border-color: var(--caramel-accent);
       background: var(--bg-card-elevated);
-      box-shadow: 0 0 10px rgba(196, 130, 72, 0.25);
+      box-shadow: none;
     }
     .search-icon-pos {
       position: absolute;
@@ -1984,33 +1994,23 @@ const String customerOrderHtmlTemplate = '''
       transform: scale(0.97);
     }
 
-    /* READY ALARM BANNER & SILENT-MODE HIGH-CONTRAST STROBE */
+    /* READY ALARM BANNER & NON-NEON ALERT */
     body.alarm-active {
-      animation: screenStrobe 0.65s infinite alternate !important;
-    }
-    @keyframes screenStrobe {
-      0% {
-        background-color: #0D0A0F;
-      }
-      50% {
-        background-color: #0F221F;
-      }
-      100% {
-        background-color: #21190D;
-      }
+      /* Clean non-strobe state */
     }
     .ready-alarm-box {
-      background: rgba(40, 140, 120, 0.15);
-      border: 1px solid var(--emerald);
+      background: rgba(40, 26, 18, 0.78);
+      border: 1.5px solid var(--caramel-accent);
       border-radius: var(--radius-lg);
       padding: 20px 16px;
       margin-top: 16px;
+      box-shadow: none;
     }
     @keyframes alertPulse {
       0% { transform: scale(0.99); }
       100% { transform: scale(1.0); }
     }
-    .ready-alarm-title { font-size: 20px; font-weight: 800; font-family: 'Cinzel', serif; color: var(--emerald); letter-spacing: 1px; }
+    .ready-alarm-title { font-size: 20px; font-weight: 800; font-family: 'Cinzel', serif; color: var(--caramel-accent); letter-spacing: 1px; }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
@@ -2208,12 +2208,8 @@ const String customerOrderHtmlTemplate = '''
       </div>
     </div>
     <div class="header-right" style="display: flex; align-items: center; gap: 8px;">
-      <button type="button" onclick="handleBackToMenu()" id="headerBackToMenuBtn" style="display: none; align-items: center; gap: 5px; background: rgba(212, 175, 55, 0.12); border: 1.2px solid rgba(212, 175, 55, 0.35); color: var(--gold-light); border-radius: 18px; padding: 5px 11px; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        <span>Back to Menu</span>
-      </button>
       <div class="live-dot-pulse" title="Connected to Cafe Hotspot"></div>
-      <div id="tablePill" class="table-pill" style="cursor: default; pointer-events: none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">Table 1</span></div>
+      <button type="button" id="tablePill" class="table-pill" onclick="showDiningOptionModal()" title="Tap to switch between Take Out and Dine-In" style="cursor: pointer; pointer-events: auto;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 3px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">Table 1</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7; margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
     </div>
   </header>
 
@@ -2423,12 +2419,6 @@ const String customerOrderHtmlTemplate = '''
                 </button>
               </div>
 
-              <!-- Back to Menu Button (Shown only when order is completed or cancelled) -->
-              <button onclick="handleBackToMenu()" id="btnTrackerBackToMenu" class="btn-order-another secondary" style="width: 100%; justify-content: center; display: none;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                <span>Back to Menu</span>
-              </button>
-
               <!-- Order More / New Order Button -->
               <button onclick="newOrder(true)" id="btnOrderAnotherItem" class="btn-order-another" style="display: none; width: 100%; justify-content: center;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg>
@@ -2523,18 +2513,24 @@ const String customerOrderHtmlTemplate = '''
             <div style="font-size: 11.5px; color: var(--text-muted);" id="trayDineInTableText">Table 1 (Dine-In at Table)</div>
           </div>
         </div>
-        <span style="font-size: 10.5px; font-weight: 800; background: rgba(212,175,55,0.22); color: var(--gold-light); padding: 3px 8px; border-radius: 5px;">CONFIRMED</span>
+        <button type="button" onclick="showDiningOptionModal()" style="font-size: 11px; font-weight: 800; background: rgba(212,175,55,0.22); color: var(--gold-light); border: 1px solid rgba(212,175,55,0.45); padding: 5px 11px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.15s ease;">
+          <span>Change</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
       </div>
 
       <div id="trayTakeoutBanner" style="display: none; margin-bottom: 14px; background: rgba(255,159,28,0.14); border: 1.2px solid #FF9F1C; border-radius: var(--radius-md); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
           <div>
-            <div style="font-size: 13px; font-weight: 800; color: #FFB74D; font-family: 'Cinzel', serif;">Takeout / To-Go Order</div>
+            <div style="font-size: 13px; font-weight: 800; color: #FFB74D; font-family: 'Cinzel', serif;">Take Out Order</div>
             <div style="font-size: 11px; color: var(--text-light);">Packed in paper cups & bags for counter pickup</div>
           </div>
         </div>
-        <span style="font-size: 10.5px; font-weight: 800; background: rgba(255,159,28,0.25); color: #FFB74D; padding: 3px 8px; border-radius: 5px;">TO-GO</span>
+        <button type="button" onclick="showDiningOptionModal()" style="font-size: 11px; font-weight: 800; background: rgba(255,159,28,0.25); color: #FFB74D; border: 1px solid rgba(255,159,28,0.45); padding: 5px 11px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.15s ease;">
+          <span>Change</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
       </div>
 
       <div class="opt-group-title" id="custNameLabel">Guest Name</div>
@@ -2561,7 +2557,7 @@ const String customerOrderHtmlTemplate = '''
   <div class="modal-overlay" id="unverifiedTableModal" style="display: none; z-index: 999999; background: rgba(0, 0, 0, 0.94); backdrop-filter: blur(8px);">
     <div class="modal-content" style="max-width: 430px; margin: 0 auto; background: #161219; border: 2px solid rgba(229, 57, 53, 0.7); border-radius: 24px; padding: 28px 22px; box-shadow: 0 16px 60px rgba(0,0,0,0.98); text-align: center; animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
       
-      <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(229, 57, 53, 0.16); border: 2.2px solid rgba(229, 57, 53, 0.6); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; box-shadow: 0 0 28px rgba(229, 57, 53, 0.35);">
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(229, 57, 53, 0.16); border: 2.2px solid rgba(229, 57, 53, 0.6); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; box-shadow: none;">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#E53935" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
           <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -2623,14 +2619,14 @@ const String customerOrderHtmlTemplate = '''
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-weight: 800; font-size: 15px; color: #FFFFFF; font-family: 'Cinzel', serif;">Takeout / To-Go</span>
+              <span style="font-weight: 800; font-size: 15px; color: #FFFFFF; font-family: 'Cinzel', serif;">Take Out</span>
               <span id="takeoutCheck" style="font-size: 16px; color: var(--caramel-accent); font-weight: 900; display: none;">✓</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Packed in to-go paper cups, lids, and bags. Pick up freshly at the counter.</div>
+            <div style="font-size: 12px; color: var(--text-light); margin-top: 3px; line-height: 1.35;">Packed in take out paper cups, lids, and bags. Pick up freshly at the counter.</div>
             <div style="margin-top: 8px;">
               <span style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #D6C8BD; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                <span>TO-GO PACKAGING</span>
+                <span>TAKE OUT PACKAGING</span>
               </span>
             </div>
           </div>
@@ -2826,33 +2822,34 @@ const String customerOrderHtmlTemplate = '''
       </div>
       <div class="modal-title" id="successModalTitle" style="font-size: 18.5px; color: var(--text-light); margin-bottom: 8px;">Success!</div>
       <div class="modal-desc" id="successModalMsg" style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 22px;">Your request was completed successfully.</div>
-      <button id="btnSuccessDismiss" onclick="closeSuccessModal()" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(212,175,55,0.35);">
+      <button id="btnSuccessDismiss" onclick="closeSuccessModal()" style="width: 100%; background: linear-gradient(135deg, var(--gold-primary) 0%, #B89025 100%); border: none; color: #0D0A0F; border-radius: var(--radius-md); padding: 13px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: none;">
         Continue
       </button>
     </div>
   </div>
 
-  <!-- Ready For Pickup Pop-Up Alarm Modal -->
+  <!-- Ready For Pickup Pop-Up Alarm Modal (Clean Non-Neon Dark Brown) -->
   <div class="modal-overlay" id="readyAlarmModal" style="align-items: center; justify-content: center; padding: 20px; z-index: 300;">
-    <div class="modal-content" style="max-width: 420px; border-radius: var(--radius-xl); border: 1px solid var(--emerald); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.8); background: #14100D;">
-      <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(40,140,120,0.18); border: 1px solid var(--emerald); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--emerald); box-shadow: none;">
+    <div class="modal-content" style="max-width: 420px; width: 100%; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.12); padding: 28px 22px; text-align: center; margin: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.85); background: #1C120C;">
+      <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 255, 255, 0.06); border: 1.5px solid var(--caramel-accent); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: var(--caramel-accent); box-shadow: none;">
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
       </div>
 
-      <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--emerald); margin-bottom: 6px;">Order Is Ready For Pickup</div>
+      <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--caramel-accent); margin-bottom: 6px;">Order Is Ready For Pickup</div>
       
-      <div class="modal-title" id="alarmModalOrderNum" style="font-size: 42px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 2px; text-shadow: none;">#1</div>
-      <div id="alarmModalTableInfo" style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 4px;">Table 1 • Dine-In</div>
+      <div class="modal-title" id="alarmModalOrderNum" style="font-size: 42px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 2px; text-shadow: none; line-height: 1.15;">#1</div>
+      <div id="alarmModalTableInfo" style="font-size: 13px; font-weight: 700; color: var(--warm-beige); margin-top: 5px;">Table 1 • Dine-In</div>
 
-      <div style="font-size: 13.5px; color: var(--text-light); line-height: 1.5; margin-top: 16px; padding: 12px 14px; background: rgba(40,140,120,0.1); border-radius: var(--radius-md); border: 1px dashed rgba(40,140,120,0.3);">
+      <div style="font-size: 13.5px; color: #F6EFE9; line-height: 1.5; margin-top: 16px; padding: 14px 16px; background: rgba(255, 255, 255, 0.05); border-radius: var(--radius-md); border: 1px dashed rgba(255, 255, 255, 0.15);">
         Your handcrafted drinks & food are freshly prepared. Please proceed to the <b>Pickup Counter</b> to claim your order.
       </div>
 
-      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm(event)" style="width: 100%; background: #288C78; border: none; color: #FFFFFF; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: none; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-        <span>Okay</span>
+      <button id="btnDismissReadyAlarmModal" onclick="stopAlarm(event)" style="width: 100%; background: var(--caramel-accent); border: none; color: #110E0C; border-radius: var(--radius-md); padding: 15px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: none; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Okay, Claim Order</span>
       </button>
     </div>
   </div>
@@ -3025,9 +3022,9 @@ const String customerOrderHtmlTemplate = '''
     </div>
   </div>
 
-  <!-- Customer Turn Up Volume Pop-Up Modal (Triggered when Cashier Confirms Payment or Settles) -->
-  <div class="modal-overlay" id="customerVolumeModal" onclick="if(event.target === this) handleCustVolumeAction('close')" style="display: none; align-items: center; justify-content: center; padding: 18px; z-index: 999999;">
-    <div class="modal-content" style="max-width: 410px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.12); background: #14100D; padding: 26px 20px; text-align: center; margin: auto; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.8);">
+  <!-- Customer Turn Up Volume Pop-Up Modal -->
+  <div class="modal-overlay" id="customerVolumeModal" onclick="if(event.target === this) handleCustVolumeAction('close')" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; min-height: 100%; align-items: center; justify-content: center; padding: 18px; z-index: 999999; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
+    <div class="modal-content" style="max-width: 410px; width: 100%; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.14); background: #14100D; padding: 26px 20px; text-align: center; margin: auto; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.85); animation: popIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);">
       
       <!-- Close Button -->
       <button type="button" onclick="handleCustVolumeAction('close')" aria-label="Close" style="position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #C8B29E; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
@@ -3052,34 +3049,38 @@ const String customerOrderHtmlTemplate = '''
       </div>
 
       <div id="custVolumeModalSubtitle" style="font-size: 10.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--caramel-accent); margin-bottom: 5px;">
-        PAYMENT CONFIRMED • LIVE CHIME READY
+        LIVE ORDER ACTIVE • AUDIO READY
       </div>
 
       <div class="modal-title" id="custVolumeModalTitle" style="font-size: 21px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 0.5px; line-height: 1.25;">
-        Payment Confirmed! Turn Up Volume
+        Please Turn Up Your Phone Volume
       </div>
 
       <div id="custVolumeModalDesc" style="font-size: 13px; color: var(--text-light); line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(255,255,255,0.05); border-radius: var(--radius-md); border: 1px dashed rgba(255,255,255,0.15);">
-        Payment confirmed & settled! Please ensure your phone volume is turned <b>UP</b> so you will hear the chime alert and voice announcement when your order is ready for pickup!
+        Please ensure your phone volume is turned <b>UP</b> so you will hear the live chime alert and voice announcement when your order is ready for pickup!
       </div>
 
-      <!-- Volume Key Advice Box -->
+      <!-- Volume Key Advice Box with iPhone Tip -->
       <div id="custVolumeKeyBox" style="margin-top: 14px; background: rgba(0,0,0,0.52); border: 1px dashed rgba(255,255,255,0.2); border-radius: 16px; padding: 14px 12px; user-select: none;">
-        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 6px;">
           <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 14px; color: #FFFFFF; font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
             <span>DEVICE VOLUME UP</span>
           </div>
         </div>
         <div style="font-size: 12px; font-weight: 600; color: #FFFFFF; line-height: 1.4;">
-          Turn up your phone volume, then tap Okay below to test sound.
+          Turn up your phone volume, then tap below to test sound and enable audio.
+        </div>
+        <div style="margin-top: 8px; font-size: 11.5px; color: #FFB74D; background: rgba(255,183,77,0.12); border: 1px solid rgba(255,183,77,0.25); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>📱</span>
+          <span><b>iPhone Users:</b> Switch side <b>Silent/Mute</b> switch <b>OFF</b> to hear alerts!</span>
         </div>
       </div>
 
-      <!-- Okay Confirmation Button -->
-      <button type="button" onclick="handleCustVolumeAction('button')" id="btnCustVolumeConfirm" style="margin-top: 15px; width: 100%; background: var(--caramel-accent); color: #110E0C; border: none; border-radius: var(--radius-md); padding: 14px 18px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; transition: all 0.15s ease;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>Okay, Got It!</span>
+      <!-- Okay / Test Sound Confirmation Button -->
+      <button type="button" onclick="handleCustVolumeAction('button')" id="btnCustVolumeConfirm" style="margin-top: 15px; width: 100%; background: var(--caramel-accent); color: #110E0C; border: none; border-radius: var(--radius-md); padding: 14px 18px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.3); transition: all 0.15s ease;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        <span>Test Sound & Confirm Volume</span>
       </button>
     </div>
   </div>
@@ -3340,14 +3341,18 @@ const String customerOrderHtmlTemplate = '''
     function updateOrderTypeHeaderPill() {
       const pill = document.getElementById('tablePill');
       if (!pill) return;
-      pill.style.cursor = 'default';
-      pill.style.pointerEvents = 'none';
+      pill.style.cursor = 'pointer';
+      pill.style.pointerEvents = 'auto';
+      pill.onclick = showDiningOptionModal;
       if (currentOrderType === 'takeaway' || !isTableVerified || !currentTable) {
         pill.className = 'table-pill takeout';
-        pill.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg><span id="tablePillLabel">Takeout / To-Go</span>';
+        pill.title = 'Take Out - Tap to change to Dine-In';
+        pill.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 3px;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg><span id="tablePillLabel">Take Out</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7; margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>';
       } else {
         pill.className = 'table-pill';
-        pill.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">\${currentTable}</span>`;
+        const displayLabel = currentTable || 'Dine-In';
+        pill.title = displayLabel + ' - Tap to change to Take Out';
+        pill.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 3px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">\${displayLabel}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7; margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
       }
       _updateTrayDiningUI();
     }
@@ -3677,6 +3682,26 @@ const String customerOrderHtmlTemplate = '''
     ['click','touchstart','touchend','keydown','pointerdown']
       .forEach(ev => document.addEventListener(ev, _unlockAudioOnGesture, { once: false, passive: true }));
 
+    // iOS WebKit background resume & wake handlers
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+        if (activeTrackedOrderId || activeTrackedOrderNum) {
+          checkOrderStatus();
+        }
+      }
+    });
+    window.addEventListener('pageshow', () => {
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+      }
+      if (activeTrackedOrderId || activeTrackedOrderNum) {
+        checkOrderStatus();
+      }
+    });
+
     function playAlarmSound() {
       if (!isAlarmRunning) return;
       if (fallbackChimeTimeout) {
@@ -3831,12 +3856,12 @@ const String customerOrderHtmlTemplate = '''
       const tableEl = document.getElementById('alarmModalTableInfo');
       if (numEl) numEl.innerText = activeTrackedOrderNum || _store.getItem('activeOrderNum') || '#1';
       const isTk = currentOrderType === 'takeaway' || String(currentTable).toLowerCase().includes('take');
-      if (tableEl) tableEl.innerText = isTk ? 'Takeout / To-Go' : `\${currentTable} • Dine-In`;
+      if (tableEl) tableEl.innerText = isTk ? 'Take Out' : `\${currentTable} • Dine-In`;
 
       const btn = document.getElementById('btnDismissReadyAlarmModal');
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<span>Okay</span>';
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay, Claim Order</span>';
       }
 
       const modal = document.getElementById('readyAlarmModal');
@@ -3996,7 +4021,7 @@ const String customerOrderHtmlTemplate = '''
       // Update button text for immediate touch feedback
       const btn = document.getElementById('btnDismissReadyAlarmModal');
       if (btn) {
-        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay</span>';
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay, Claim Order</span>';
       }
 
       if (userDismiss) {
@@ -4812,29 +4837,28 @@ const String customerOrderHtmlTemplate = '''
       const cleanNum = numKey ? String(numKey).replace('#','').trim() : '';
       const cleanId = idKey ? String(idKey).replace('#','').trim() : '';
 
-      // NEVER show volume pop-up while order is still pending cashier payment settlement!
-      const currentTrackStatus = (prevTrackStatus || _store.getItem('activeOrderStatus') || '').toLowerCase();
-      if ((currentTrackStatus === 'pending' || currentTrackStatus === '') && !force) {
-        return;
-      }
-
       if (!force) {
         try {
-          if (cleanNum && (
-            sessionStorage.getItem('custPaymentVolumeSeen_' + cleanNum) === 'true' ||
-            sessionStorage.getItem('custPaymentVolumeSeen_#' + cleanNum) === 'true' ||
-            _store.getItem('custPaymentVolumeSeen_' + cleanNum) === 'true' ||
-            _store.getItem('custPaymentVolumeSeen_#' + cleanNum) === 'true'
+          if (cleanId && (
+            sessionStorage.getItem('custVolumeSeen_' + cleanId) === 'true' ||
+            sessionStorage.getItem('custPaymentVolumeSeen_' + cleanId) === 'true'
           )) {
             return;
           }
-          if (cleanId && (
-            sessionStorage.getItem('custPaymentVolumeSeen_' + cleanId) === 'true' ||
-            _store.getItem('custPaymentVolumeSeen_' + cleanId) === 'true'
+          if (cleanNum && (
+            sessionStorage.getItem('custVolumeSeen_' + cleanNum) === 'true' ||
+            sessionStorage.getItem('custPaymentVolumeSeen_' + cleanNum) === 'true'
           )) {
             return;
           }
         } catch(_) {}
+      }
+
+      // Prompt volume pop-up ONLY when cashier settles / confirms the order (never when pending!)
+      const currentTrackStatus = (prevTrackStatus || _store.getItem('activeOrderStatus') || '').toLowerCase();
+      const isSettled = ['confirmed', 'inqueue', 'queue', 'preparing', 'brewing', 'kitchen'].includes(currentTrackStatus);
+      if (!isSettled && !force) {
+        return;
       }
 
       const modal = document.getElementById('customerVolumeModal');
@@ -4843,20 +4867,24 @@ const String customerOrderHtmlTemplate = '''
       isCustVolumeModalOpen = true;
       isCustVolumeDismissing = false;
 
-      // Update subtitle, title and description text based on payment confirmation
+      // Update subtitle, title and description text based on order / payment status
       const subtitleEl = document.getElementById('custVolumeModalSubtitle');
       const titleEl = document.getElementById('custVolumeModalTitle');
       const descEl = document.getElementById('custVolumeModalDesc');
 
       if (subtitleEl) {
-        subtitleEl.innerText = 'PAYMENT CONFIRMED • LIVE CHIME READY';
+        subtitleEl.innerText = isSettled ? 'PAYMENT CONFIRMED • LIVE CHIME READY' : 'LIVE ORDER ACTIVE • AUDIO READY';
       }
       if (titleEl) {
-        titleEl.innerText = 'Payment Confirmed! Turn Up Volume';
+        titleEl.innerText = isSettled ? 'Payment Confirmed! Turn Up Volume' : 'Please Turn Up Your Phone Volume';
         titleEl.style.color = '#FFFFFF';
       }
       if (descEl) {
-        descEl.innerHTML = 'Payment confirmed & settled! Please ensure your phone volume is turned <b>UP</b> so you will hear the live chime alert and voice announcement when your order is ready for pickup!';
+        if (isSettled) {
+          descEl.innerHTML = 'Payment confirmed & settled! Please ensure your phone volume is turned <b>UP</b> so you will hear the live chime alert and announcement when your order is ready for pickup!';
+        } else {
+          descEl.innerHTML = 'Your order is active! Please ensure your phone volume is turned <b>UP</b> so you will hear the live chime alert and announcement when your order is ready for pickup!';
+        }
       }
 
       // Reset icon and title to default state if previously dismissed
@@ -4873,42 +4901,20 @@ const String customerOrderHtmlTemplate = '''
       if (confirmBtn) {
         confirmBtn.disabled = false;
         confirmBtn.style.opacity = '1';
-        confirmBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay, Got It!</span>';
+        confirmBtn.style.background = 'var(--caramel-accent)';
+        confirmBtn.style.color = '#110E0C';
+        confirmBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg><span>Test Sound & Confirm Volume</span>';
       }
 
       // Pre-initialize / unlock Web Audio API and pre-load voice audio
       initAudio();
       loadVoiceAudio();
-
-      // Play soft attention ping tone on modal reveal if AudioContext is running
-      try {
-        if (audioContext && audioContext.state === 'running') {
-          const now = audioContext.currentTime;
-          const osc = audioContext.createOscillator();
-          const gain = audioContext.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, now);
-          osc.frequency.exponentialRampToValueAtTime(1318.51, now + 0.12);
-          gain.gain.setValueAtTime(0.18, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-          osc.connect(gain);
-          gain.connect(audioContext.destination);
-          osc.start(now);
-          osc.stop(now + 0.33);
-        }
-      } catch(_) {}
     }
 
     function handleCustVolumeAction(actionType) {
       if (!isCustVolumeModalOpen || isCustVolumeDismissing) return;
-      isCustVolumeDismissing = true;
 
       const confirmBtn = document.getElementById('btnCustVolumeConfirm');
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.style.opacity = '0.85';
-      }
-
       const numKey = activeTrackedOrderNum || _store.getItem('activeOrderNum');
       const idKey = activeTrackedOrderId || _store.getItem('activeOrderId');
       const cleanNum = numKey ? String(numKey).replace('#','').trim() : '';
@@ -4916,92 +4922,118 @@ const String customerOrderHtmlTemplate = '''
 
       try {
         if (cleanNum) {
-          sessionStorage.setItem('custPaymentVolumeSeen_' + cleanNum, 'true');
-          sessionStorage.setItem('custPaymentVolumeSeen_#' + cleanNum, 'true');
-          _store.setItem('custPaymentVolumeSeen_' + cleanNum, 'true');
-          _store.setItem('custPaymentVolumeSeen_#' + cleanNum, 'true');
           sessionStorage.setItem('custVolumeSeen_' + cleanNum, 'true');
-          _store.setItem('custVolumeSeen_' + cleanNum, 'true');
+          sessionStorage.setItem('custPaymentVolumeSeen_' + cleanNum, 'true');
         }
         if (cleanId) {
-          sessionStorage.setItem('custPaymentVolumeSeen_' + cleanId, 'true');
-          _store.setItem('custPaymentVolumeSeen_' + cleanId, 'true');
           sessionStorage.setItem('custVolumeSeen_' + cleanId, 'true');
-          _store.setItem('custVolumeSeen_' + cleanId, 'true');
+          sessionStorage.setItem('custPaymentVolumeSeen_' + cleanId, 'true');
         }
       } catch(_) {}
 
-      // Direct user gesture: unlock AudioContext and prime speech & voice buffer
-      try {
-        initAudio();
-        _primeSpeechSynthesis();
-        loadVoiceAudio();
-      } catch(_) {}
-
-      // Unlock AudioContext and set global audioUnlocked flag
-      try {
-        if (!audioContext) { try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioContext = new AC(); } catch(_ac) {} }
-        if (audioContext) {
-          if (audioContext.state === 'suspended') {
-            audioContext.resume().then(() => {
-              _startAudioKeepAlive();
-            }).catch(() => {});
-          } else if (audioContext.state === 'running') {
-            _startAudioKeepAlive();
-          }
-        }
-        audioUnlocked = true;
-      } catch(_) {}
-
-      // Play a quick, pleasant 2-tone preview chime on button tap so the customer can verify volume level
-      if (actionType === 'button' || actionType === 'hardware') {
-        try {
-          if (audioContext && audioContext.state === 'running') {
-            const now = audioContext.currentTime;
-            [1046.50, 1567.98].forEach((freq, idx) => {
-              const osc = audioContext.createOscillator();
-              const gain = audioContext.createGain();
-              osc.type = 'sine';
-              osc.frequency.setValueAtTime(freq, now + idx * 0.10);
-              gain.gain.setValueAtTime(0.24, now + idx * 0.10);
-              gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.10 + 0.24);
-              osc.connect(gain);
-              gain.connect(audioContext.destination);
-              osc.start(now + idx * 0.10);
-              osc.stop(now + idx * 0.10 + 0.25);
-            });
-          }
-        } catch(_) {}
-      }
-
-      // Visual success acknowledgment
-      const iconBox = document.getElementById('custVolumeIconBox');
-      const titleEl = document.getElementById('custVolumeModalTitle');
-      if (iconBox) {
-        iconBox.style.background = 'rgba(40,140,120,0.18)';
-        iconBox.style.borderColor = '#288C78';
-        iconBox.style.color = '#6FE0AC';
-        iconBox.style.boxShadow = 'none';
-        iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-      }
-      if (titleEl) {
-        if (actionType === 'close') {
-          titleEl.innerText = 'Volume Alert Acknowledged ✓';
-        } else {
-          titleEl.innerText = 'Volume Ready & Live Chime Active ✓';
-        }
-        titleEl.style.color = '#6FE0AC';
-      }
-      if (confirmBtn) {
-        confirmBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Volume Ready ✓</span>';
-      }
-
-      setTimeout(() => {
+      if (actionType === 'close') {
+        isCustVolumeDismissing = true;
         const modal = document.getElementById('customerVolumeModal');
         if (modal) modal.style.display = 'none';
         isCustVolumeModalOpen = false;
         isCustVolumeDismissing = false;
-      }, 350);
+        return;
+      }
+
+      isCustVolumeDismissing = true;
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.style.opacity = '0.95';
+        confirmBtn.innerHTML = '<span class="btn-spinner" style="border-top-color: #110E0C; border-left-color: #110E0C;"></span><span>Testing Sound...</span>';
+      }
+
+      // 1. Direct synchronous iOS WebKit audio unlock via zero-buffer
+      try {
+        if (!audioContext) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) audioContext = new AC();
+        }
+        if (audioContext) {
+          const silentBuf = audioContext.createBuffer(1, 1, 22050);
+          const src = audioContext.createBufferSource();
+          src.buffer = silentBuf;
+          src.connect(audioContext.destination);
+          src.start(0);
+        }
+      } catch(_) {}
+
+      _primeSpeechSynthesis();
+
+      // 2. Play crystalline 3-tone chime for sound & volume verification
+      const playChimeTone = () => {
+        if (!audioContext) return;
+        try {
+          const now = audioContext.currentTime;
+          const notes = [
+            { freq: 1046.50, time: 0.00, dur: 0.28, vol: 0.40 },
+            { freq: 1318.51, time: 0.12, dur: 0.30, vol: 0.45 },
+            { freq: 1567.98, time: 0.24, dur: 0.42, vol: 0.50 }
+          ];
+          notes.forEach(n => {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(n.freq, now + n.time);
+            gain.gain.setValueAtTime(n.vol, now + n.time);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + n.time + n.dur);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start(now + n.time);
+            osc.stop(now + n.time + n.dur + 0.05);
+          });
+        } catch(_) {}
+      };
+
+      const completeUnlockAndChime = () => {
+        audioUnlocked = true;
+        _startAudioKeepAlive();
+        playChimeTone();
+
+        // Visual success acknowledgment
+        const iconBox = document.getElementById('custVolumeIconBox');
+        const titleEl = document.getElementById('custVolumeModalTitle');
+        if (iconBox) {
+          iconBox.style.background = 'rgba(40,140,120,0.18)';
+          iconBox.style.borderColor = '#288C78';
+          iconBox.style.color = '#6FE0AC';
+          iconBox.innerHTML = '<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        }
+        if (titleEl) {
+          titleEl.innerText = 'Sound Tested & Volume Confirmed ✓';
+          titleEl.style.color = '#6FE0AC';
+        }
+        if (confirmBtn) {
+          confirmBtn.style.background = '#16A34A';
+          confirmBtn.style.color = '#FFFFFF';
+          confirmBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Volume Ready & Chime Confirmed ✓</span>';
+        }
+
+        setTimeout(() => {
+          const modal = document.getElementById('customerVolumeModal');
+          if (modal) modal.style.display = 'none';
+          isCustVolumeModalOpen = false;
+          isCustVolumeDismissing = false;
+        }, 900);
+      };
+
+      if (audioContext) {
+        if (audioContext.state === 'running') {
+          completeUnlockAndChime();
+        } else {
+          audioContext.resume().then(() => {
+            completeUnlockAndChime();
+          }).catch(() => {
+            completeUnlockAndChime();
+          });
+        }
+      } else {
+        completeUnlockAndChime();
+      }
     }
 
     // Hardware volume keys dismiss & acknowledge volume when modal is visible
@@ -5224,7 +5256,7 @@ const String customerOrderHtmlTemplate = '''
 
       const currentT = currentTable || _store.getItem('activeTableNumber') || '1';
       const isTk = (currentOrderType === 'takeaway' || currentOrderType === 'takeout' || (currentT && String(currentT).toLowerCase().includes('take')));
-      if (tableTypeEl) tableTypeEl.innerText = isTk ? 'Takeout / To-Go' : `Table \${currentT} • Dine-In`;
+      if (tableTypeEl) tableTypeEl.innerText = isTk ? 'Take Out' : `Table \${currentT} • Dine-In`;
 
       const curStatus = prevTrackStatus || 'pending';
       let statusLabel = 'Awaiting Cashier';
@@ -5407,10 +5439,6 @@ const String customerOrderHtmlTemplate = '''
       document.getElementById('cartBar').style.display = 'none';
       document.getElementById('trackerView').style.display = 'block';
       const isCompleteOrCancelled = (statusToUse === 'completed' || statusToUse === 'cancelled');
-      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
-      if (headerBackBtn) headerBackBtn.style.display = isCompleteOrCancelled ? 'inline-flex' : 'none';
-      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
-      if (trackerBackBtn) trackerBackBtn.style.display = isCompleteOrCancelled ? 'inline-flex' : 'none';
 
       // Hide previous ready alert notice banner on new order tracking
       const readyNotice = document.getElementById('readyNotice');
@@ -5424,7 +5452,7 @@ const String customerOrderHtmlTemplate = '''
       const promptNum = document.getElementById('promptOrderNum');
       if (promptNum) promptNum.innerText = orderNumber;
       const isTk = currentOrderType === 'takeaway' || String(currentTable).toLowerCase().includes('take');
-      const tableLabel = isTk ? 'Takeout / To-Go' : `\${currentTable} (Dine-In at Table)`;
+      const tableLabel = isTk ? 'Take Out' : `\${currentTable} (Dine-In at Table)`;
       const tableInfoEl = document.getElementById('trackTableInfo');
       if (tableInfoEl) tableInfoEl.innerText = tableLabel;
       const trackTotalEl = document.getElementById('trackTotal');
@@ -5473,7 +5501,7 @@ const String customerOrderHtmlTemplate = '''
         }
       } catch(_) {}
 
-      // Only prompt customer to turn up volume if the order is ALREADY settled/confirmed (NEVER when pending!)
+      // Only prompt customer to turn up volume if the order is ALREADY settled/confirmed by cashier (never when pending!)
       const isSettledOrder = ['confirmed', 'inqueue', 'queue', 'preparing', 'brewing', 'kitchen'].includes((statusToUse || '').toLowerCase());
       if (isSettledOrder) {
         setTimeout(() => showCustomerVolumeModal(false), 350);
@@ -5894,7 +5922,7 @@ const String customerOrderHtmlTemplate = '''
 
       if (orderNumEl) orderNumEl.innerText = orderNum;
       const isTkReceipt = (r.orderType === 'takeaway' || r.orderType === 'takeout' || (r.tableNumber && r.tableNumber.toLowerCase().includes('take')) || currentOrderType === 'takeaway');
-      if (tableTypeEl) tableTypeEl.innerText = isTkReceipt ? 'Takeout / To-Go' : `\${r.tableNumber || currentTable} • Dine-In`;
+      if (tableTypeEl) tableTypeEl.innerText = isTkReceipt ? 'Take Out' : `\${r.tableNumber || currentTable} • Dine-In`;
       if (cashierEl) cashierEl.innerText = r.cashierName || (isPaid ? 'Cashier Staff' : 'Awaiting Cashier');
       if (custEl) custEl.innerText = r.customerName || 'Guest Patron';
 
@@ -6004,11 +6032,6 @@ const String customerOrderHtmlTemplate = '''
       const btnOpenOrderModal = document.getElementById('btnOpenOrderModal');
       const isPaid = (s === 'confirmed' || s === 'inqueue' || s === 'queue' || s === 'preparing' || s === 'brewing' || s === 'kitchen' || s === 'ready' || s === 'completed');
 
-      const isComplete = (s === 'completed' || s === 'cancelled');
-      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
-      if (headerBackBtn) headerBackBtn.style.display = isComplete ? 'inline-flex' : 'none';
-      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
-      if (trackerBackBtn) trackerBackBtn.style.display = isComplete ? 'inline-flex' : 'none';
 
       if (btnOpenOrderModal) {
         if (isPaid) {
@@ -6041,10 +6064,6 @@ const String customerOrderHtmlTemplate = '''
         step1.className = 'status-step active';
         step2.className = 'status-step';
         step3.className = 'status-step';
-        if (isCustVolumeModalOpen) {
-          closeModal('customerVolumeModal');
-          isCustVolumeModalOpen = false;
-        }
       } else if (s === 'confirmed' || s === 'inqueue' || s === 'queue') {
         if (headerTag) {
           headerTag.className = 'tracker-status-pill status-pill-confirmed';
@@ -6074,11 +6093,10 @@ const String customerOrderHtmlTemplate = '''
         const hasSeenPaymentVol = (cleanN && (
           sessionStorage.getItem('custPaymentVolumeSeen_' + cleanN) === 'true' ||
           sessionStorage.getItem('custPaymentVolumeSeen_#' + cleanN) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_' + cleanN) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_#' + cleanN) === 'true'
+          sessionStorage.getItem('custVolumeSeen_' + cleanN) === 'true'
         )) || (cleanI && (
           sessionStorage.getItem('custPaymentVolumeSeen_' + cleanI) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_' + cleanI) === 'true'
+          sessionStorage.getItem('custVolumeSeen_' + cleanI) === 'true'
         ));
 
         if (!hasSeenPaymentVol) {
@@ -6113,11 +6131,10 @@ const String customerOrderHtmlTemplate = '''
         const hasSeenPaymentVol = (cleanN && (
           sessionStorage.getItem('custPaymentVolumeSeen_' + cleanN) === 'true' ||
           sessionStorage.getItem('custPaymentVolumeSeen_#' + cleanN) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_' + cleanN) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_#' + cleanN) === 'true'
+          sessionStorage.getItem('custVolumeSeen_' + cleanN) === 'true'
         )) || (cleanI && (
           sessionStorage.getItem('custPaymentVolumeSeen_' + cleanI) === 'true' ||
-          _store.getItem('custPaymentVolumeSeen_' + cleanI) === 'true'
+          sessionStorage.getItem('custVolumeSeen_' + cleanI) === 'true'
         ));
 
         if (!hasSeenPaymentVol) {
@@ -6155,8 +6172,6 @@ const String customerOrderHtmlTemplate = '''
             orderAnotherBtn.style.display = 'none';
           }
         }
-        if (headerBackBtn) headerBackBtn.style.display = 'none';
-        if (trackerBackBtn) trackerBackBtn.style.display = 'none';
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step active';
@@ -6208,8 +6223,6 @@ const String customerOrderHtmlTemplate = '''
           orderAnotherBtn.className = 'btn-order-another';
           orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg><span>Order Again</span>';
         }
-        if (headerBackBtn) headerBackBtn.style.display = 'inline-flex';
-        if (trackerBackBtn) trackerBackBtn.style.display = 'inline-flex';
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step completed';
@@ -6387,7 +6400,7 @@ const String customerOrderHtmlTemplate = '''
         ? currentTable
         : (_store.getItem('activeTableNumber') || (typeof activeReceiptData !== 'undefined' && activeReceiptData ? activeReceiptData.tableNumber : '') || '1');
       const isTkComp = (currentOrderType === 'takeaway' || (typeof activeReceiptData !== 'undefined' && activeReceiptData && (activeReceiptData.orderType === 'takeaway' || (activeReceiptData.tableNumber && String(activeReceiptData.tableNumber).toLowerCase().includes('take')))));
-      if (compTable) compTable.innerText = isTkComp ? 'Takeout / To-Go' : `Table \${currentT} • Dine-In`;
+      if (compTable) compTable.innerText = isTkComp ? 'Take Out' : `Table \${currentT} • Dine-In`;
 
       // Reset views
       const formView = document.getElementById('custFeedbackFormView');
@@ -6632,8 +6645,6 @@ const String customerOrderHtmlTemplate = '''
       document.getElementById('trackerView').style.display = 'none';
       document.getElementById('controlsWrapper').style.display = 'block';
       document.getElementById('menuView').style.display = 'block';
-      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
-      if (headerBackBtn) headerBackBtn.style.display = 'none';
       const floatingPill = document.getElementById('menuActiveOrderFloatingPill');
       if (floatingPill) floatingPill.style.display = 'none';
       renderMenu();
@@ -6645,35 +6656,11 @@ const String customerOrderHtmlTemplate = '''
       setTimeout(showDiningOptionModal, 250);
     }
 
-    function handleBackToMenu() {
-      // If completed, cancelled, or no active order, perform a clean reset
-      if (!activeTrackedOrderId || prevTrackStatus === 'completed' || prevTrackStatus === 'cancelled') {
-        newOrder(true);
-        return;
-      }
-
-      // If active order is in progress, switch to menu view while keeping tracking active in background
-      document.getElementById('trackerView').style.display = 'none';
-      document.getElementById('controlsWrapper').style.display = 'block';
-      document.getElementById('menuView').style.display = 'block';
-      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
-      if (headerBackBtn) headerBackBtn.style.display = 'none';
-
-      updateActiveOrderFloatingPill();
-      updateCartBar();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
     function showActiveOrderTracker() {
       document.getElementById('controlsWrapper').style.display = 'none';
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('cartBar').style.display = 'none';
       document.getElementById('trackerView').style.display = 'block';
-      const isComp = prevTrackStatus === 'completed' || prevTrackStatus === 'cancelled';
-      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
-      if (headerBackBtn) headerBackBtn.style.display = isComp ? 'inline-flex' : 'none';
-      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
-      if (trackerBackBtn) trackerBackBtn.style.display = isComp ? 'inline-flex' : 'none';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 

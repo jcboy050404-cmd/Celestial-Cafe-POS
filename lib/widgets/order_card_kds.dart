@@ -148,7 +148,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                                 child: Text(
                                   order.orderType == OrderType.dineIn
                                       ? '${order.orderType.label} • ${(order.tableNumber ?? "Table").replaceAll(RegExp(r"^T+able", caseSensitive: false), "Table")}'
-                                      : 'TAKEOUT / TO-GO',
+                                      : 'TAKE OUT',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w900,
@@ -225,7 +225,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                   SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'TAKEOUT / TO-GO • PACK IN BAG (USE PAPER CUPS & LIDS)',
+                      'TAKE OUT • PACK IN BAG (USE PAPER CUPS & LIDS)',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w900,
@@ -555,7 +555,7 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                               Text('🥡', style: TextStyle(fontSize: 10)),
                               SizedBox(width: 3),
                               Text(
-                                'TO-GO',
+                                'TAKE OUT',
                                 style: TextStyle(
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w900,

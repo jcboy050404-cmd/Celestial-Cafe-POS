@@ -17,41 +17,12 @@ class CustomerOrderApprovalDialog extends StatefulWidget {
   });
 
   static Future<void> show(BuildContext context, Order order) async {
-    final approvedOrder = await showDialog<Order>(
+    await showDialog<Order>(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black.withValues(alpha: 0.8),
       builder: (ctx) => CustomerOrderApprovalDialog(order: order),
     );
-
-    if (approvedOrder != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: CelestialTheme.bgCard,
-          duration: const Duration(seconds: 3),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: CelestialTheme.emeraldReady, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Order ${approvedOrder.orderNumber} approved & moved to kitchen queue.',
-                  style: const TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      // Open receipt review & print dialog directly on host app
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: 0.8),
-        builder: (ctx) => ReceiptDialog(order: approvedOrder),
-      );
-    }
   }
 
   static void showPendingList(BuildContext context) {
@@ -265,7 +236,20 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
 
     if (mounted) setState(() => _isSubmitting = false);
     if (!mounted) return;
-    Navigator.pop(context, approvedOrder); // Close approval dialog returning approved order
+
+    // Immediately replace approval dialog with ReceiptDialog so receipt always appears on host POS
+    if (approvedOrder != null) {
+      Navigator.of(context).pushReplacement(
+        DialogRoute(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black.withValues(alpha: 0.8),
+          builder: (ctx) => ReceiptDialog(order: approvedOrder),
+        ),
+      );
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   void _handleDeclineOrder() {

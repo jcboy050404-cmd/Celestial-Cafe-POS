@@ -205,7 +205,7 @@ class CartPanel extends StatelessWidget {
           // Cart Items List
           Expanded(
             child: posProvider.cart.isEmpty
-                ? _buildEmptyCart()
+                ? _buildEmptyCart(context, posProvider)
                 : _buildCartItemsList(posProvider),
           ),
 
@@ -440,7 +440,10 @@ class CartPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyCart() {
+  Widget _buildEmptyCart(BuildContext context, PosProvider provider) {
+    final hasRecentOrder = provider.orders.isNotEmpty;
+    final lastOrder = hasRecentOrder ? provider.orders.first : null;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -477,6 +480,33 @@ class CartPanel extends StatelessWidget {
                 color: CelestialTheme.textMuted,
               ),
             ),
+            if (lastOrder != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    barrierColor: Colors.black.withValues(alpha: 0.8),
+                    builder: (ctx) => ReceiptDialog(order: lastOrder),
+                  );
+                },
+                icon: const Icon(Icons.receipt_long_rounded, size: 16, color: CelestialTheme.goldPrimary),
+                label: Text(
+                  'Print Last Receipt (${lastOrder.orderNumber})',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: CelestialTheme.goldPrimary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -786,25 +816,18 @@ class CartPanel extends StatelessWidget {
               onPressed: provider.cart.isEmpty
                   ? null
                   : () async {
+                      final rootNav = Navigator.of(context, rootNavigator: true);
                       if (isMobileModal) {
-                        Navigator.pop(context); // Close bottom sheet before opening checkout modal
+                        Navigator.of(context).pop(); // Close bottom sheet
                       }
-                      final createdOrder = await showDialog<Order>(
-                        context: context,
-                        barrierDismissible: false,
-                        barrierColor: Colors.black.withValues(alpha: 0.8),
-                        builder: (ctx) => const CheckoutModal(),
-                      );
-
-                      if (createdOrder != null && context.mounted) {
-                        // Open Receipt Dialog directly on host app
-                        showDialog(
-                          context: context,
+                      await rootNav.push(
+                        DialogRoute<Order>(
+                          context: rootNav.context,
                           barrierDismissible: false,
                           barrierColor: Colors.black.withValues(alpha: 0.8),
-                          builder: (ctx) => ReceiptDialog(order: createdOrder),
-                        );
-                      }
+                          builder: (ctx) => const CheckoutModal(),
+                        ),
+                      );
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.caramelAccent,

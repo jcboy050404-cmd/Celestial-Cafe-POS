@@ -308,7 +308,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                               border: Border.all(color: const Color(0xFFFF9F1C).withValues(alpha: 0.6)),
                             ),
                             child: const Text(
-                              '🥡 TAKEOUT / TO-GO',
+                              '🥡 TAKE OUT',
                               style: TextStyle(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w900,

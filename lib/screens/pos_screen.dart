@@ -35,7 +35,7 @@ class PosScreen extends StatelessWidget {
         // Left Menu Workstation
         Expanded(
           child: Container(
-            color: CelestialTheme.bgDark,
+            color: Colors.black,
             child: Stack(
               children: [
                 Column(
@@ -45,19 +45,12 @@ class PosScreen extends StatelessWidget {
                     if (posProvider.pendingCustomerOrders.isNotEmpty)
                       _buildPendingApprovalsBanner(context, posProvider),
 
-                    // Search Bar & Filter Tags
-                    _buildSearchAndFilters(context, posProvider),
+                    // STICKY Search Bar (Search field + Counter, slide tag buttons removed)
+                    _buildStickySearchBar(context, posProvider),
 
-                    // Hero Barista Spotlight (Micro-Skeuomorphic realistic photography hero)
-                    if (posProvider.searchQuery.isEmpty)
-                      _buildHeroBaristaSpotlight(context, posProvider, isDesktop),
-
-                    // Category Tabs Bar
-                    _buildCategoryTabs(posProvider),
-
-                    // Menu Items Grid
+                    // Scrollable Area (Signature Craft Banner + Categories + Menu Items Grid)
                     Expanded(
-                      child: _buildMenuGrid(posProvider, !isDesktop),
+                      child: _buildScrollableMenuArea(context, posProvider, isDesktop),
                     ),
                   ],
                 ),
@@ -362,100 +355,71 @@ class PosScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchAndFilters(BuildContext context, PosProvider provider) {
-    final tags = ['All', 'Signature', 'Hot/Iced', 'Classic', '16oz/22oz', 'Sweet', 'Savory', 'Specialty'];
-
+  Widget _buildStickySearchBar(BuildContext context, PosProvider provider) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      color: CelestialTheme.bgSurface,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Search Field
-              Expanded(
-                child: Container(
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: CelestialTheme.bgCard,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: CelestialTheme.borderSubtle),
-                  ),
-                  child: TextField(
-                    style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
-                    onChanged: (val) => provider.setSearchQuery(val),
-                    decoration: InputDecoration(
-                      hintText: 'Search coffees, milktea, bites...',
-                      hintStyle: const TextStyle(fontSize: 12, color: CelestialTheme.warmGray),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: CelestialTheme.caramelAccent),
-                      suffixIcon: provider.searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
-                              onPressed: () => provider.setSearchQuery(''),
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Catalog Item Counter
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: CelestialTheme.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: CelestialTheme.borderSubtle),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.auto_awesome_rounded, size: 14, color: CelestialTheme.caramelAccent),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${provider.filteredMenuItems.length}',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: CelestialTheme.goldLight,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1.0,
           ),
-          const SizedBox(height: 8),
-          // Tag Filters Bar
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Search Field
+          Expanded(
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: CelestialTheme.borderSubtle),
+              ),
+              child: TextField(
+                style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                onChanged: (val) => provider.setSearchQuery(val),
+                decoration: InputDecoration(
+                  hintText: 'Search coffees, milktea, bites...',
+                  hintStyle: const TextStyle(fontSize: 12, color: CelestialTheme.warmGray),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: CelestialTheme.caramelAccent),
+                  suffixIcon: provider.searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
+                          onPressed: () => provider.setSearchQuery(''),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Catalog Item Counter
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: CelestialTheme.bgCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: CelestialTheme.borderSubtle),
+            ),
             child: Row(
-              children: tags.map((tag) {
-                final isSelected = provider.selectedTag == tag;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(tag),
-                    selected: isSelected,
-                    selectedColor: CelestialTheme.caramelAccent.withValues(alpha: 0.22),
-                    backgroundColor: CelestialTheme.bgCard,
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    side: BorderSide(
-                      color: isSelected
-                          ? CelestialTheme.caramelAccent
-                          : CelestialTheme.borderSubtle,
-                    ),
-                    labelStyle: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? CelestialTheme.goldLight : CelestialTheme.textMuted,
-                    ),
-                    onSelected: (_) => provider.setSelectedTag(tag),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome_rounded, size: 14, color: CelestialTheme.caramelAccent),
+                const SizedBox(width: 4),
+                Text(
+                  '${provider.filteredMenuItems.length}',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: CelestialTheme.goldLight,
                   ),
-                );
-              }).toList(),
+                ),
+              ],
             ),
           ),
         ],
@@ -466,9 +430,9 @@ class PosScreen extends StatelessWidget {
   Widget _buildCategoryTabs(PosProvider provider) {
     final tabs = provider.allCategoryTabs;
     return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      color: CelestialTheme.bgSurface,
+      height: 54,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      color: Colors.black,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tabs.length,
@@ -545,36 +509,8 @@ class PosScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuGrid(PosProvider provider, bool isMobile) {
+  Widget _buildScrollableMenuArea(BuildContext context, PosProvider provider, bool isDesktop) {
     final items = provider.filteredMenuItems;
-
-    if (items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('🔍', style: TextStyle(fontSize: 36)),
-            const SizedBox(height: 12),
-            Text(
-              'No Celestial Items Found',
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: CelestialTheme.textLight,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Try changing your search query or category filter.',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: CelestialTheme.textMuted,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -602,23 +538,77 @@ class PosScreen extends StatelessWidget {
           childAspectRatio = 0.75;
         }
 
-        return GridView.builder(
-          padding: EdgeInsets.fromLTRB(
-            12,
-            12,
-            12,
-            isMobile && provider.cartItemCount > 0 ? 80 : 16,
-          ),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            childAspectRatio: childAspectRatio,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            return MenuItemCard(item: items[index]);
-          },
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            // 1. Signature Craft Banner (Hero Barista Spotlight)
+            if (provider.searchQuery.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: _buildHeroBaristaSpotlight(context, provider, isDesktop),
+                ),
+              ),
+
+            // 2. Category Tabs Bar
+            SliverToBoxAdapter(
+              child: _buildCategoryTabs(provider),
+            ),
+
+            // 3. Menu Items Grid or Empty State
+            if (items.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('🔍', style: TextStyle(fontSize: 36)),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No Celestial Items Found',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: CelestialTheme.textLight,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Try changing your search query or category filter.',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: CelestialTheme.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  8,
+                  12,
+                  !isDesktop && provider.cartItemCount > 0 ? 80 : 16,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: childAspectRatio,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      return MenuItemCard(item: items[index]);
+                    },
+                    childCount: items.length,
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );

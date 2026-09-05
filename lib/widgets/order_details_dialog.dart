@@ -230,7 +230,7 @@ class OrderDetailsDialog extends StatelessWidget {
                           border: Border.all(color: const Color(0xFFFF9F1C).withValues(alpha: 0.55)),
                         ),
                         child: const Text(
-                          '🥡 TAKEOUT / TO-GO',
+                          '🥡 TAKE OUT',
                           style: TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w900,
@@ -820,10 +820,13 @@ class OrderDetailsDialog extends StatelessWidget {
           // Print Receipt Button
           OutlinedButton.icon(
             onPressed: () {
-              Navigator.of(context).pop();
-              showDialog(
-                context: context,
-                builder: (ctx) => ReceiptDialog(order: order),
+              Navigator.of(context).pushReplacement(
+                DialogRoute(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.8),
+                  builder: (ctx) => ReceiptDialog(order: order),
+                ),
               );
             },
             icon: const Icon(Icons.receipt_rounded, size: 16, color: CelestialTheme.goldPrimary),
