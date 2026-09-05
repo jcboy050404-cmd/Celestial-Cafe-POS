@@ -225,37 +225,44 @@ class CartPanel extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.caramelAccent, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Current Order',
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: CelestialTheme.textLight,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: CelestialTheme.borderSubtle),
-                ),
-                child: Text(
-                  '${provider.cartItemCount}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: CelestialTheme.goldLight,
+          Expanded(
+            child: Row(
+              children: [
+                const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.caramelAccent, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Current Order',
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: CelestialTheme.textLight,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: CelestialTheme.borderSubtle),
+                  ),
+                  child: Text(
+                    '${provider.cartItemCount}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: CelestialTheme.goldLight,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 6),
           Row(
             children: [
               if (provider.cart.isNotEmpty)
@@ -371,16 +378,23 @@ class CartPanel extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.table_restaurant_rounded, size: 16, color: CelestialTheme.goldLight),
-                              const SizedBox(width: 6),
-                              Text(
-                                provider.tableNumber,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
-                              ),
-                            ],
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.table_restaurant_rounded, size: 16, color: CelestialTheme.goldLight),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    provider.tableNumber,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 4),
                           const Icon(Icons.arrow_drop_down, color: CelestialTheme.goldPrimary, size: 18),
                         ],
                       ),

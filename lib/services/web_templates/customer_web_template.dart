@@ -145,9 +145,9 @@ const String customerOrderHtmlTemplate = '''
     .brand-logo-frame {
       height: 40px;
       width: 40px;
-      border-radius: var(--radius-sm);
+      border-radius: 50%;
       overflow: hidden;
-      border: 1px solid var(--border-subtle);
+      border: 1.5px solid rgba(212, 175, 55, 0.45);
       box-shadow: 0 2px 8px rgba(0,0,0,0.35);
       background: var(--bg-surface);
       display: flex;
@@ -2114,67 +2114,84 @@ const String customerOrderHtmlTemplate = '''
     .cust-star-svg {
       width: 36px;
       height: 36px;
-      transition: all 0.2s ease;
-      filter: drop-shadow(0 2px 6px rgba(255, 184, 0, 0.35));
+      transition: transform 0.15s ease;
+      filter: none;
     }
     .cust-rating-descriptor {
       font-size: 13px;
-      font-weight: 800;
-      color: #F6D088;
-      letter-spacing: 0.5px;
-      margin-top: 6px;
+      font-weight: 700;
+      color: #E2DBD4;
+      letter-spacing: 0.3px;
+      margin-top: 5px;
       min-height: 20px;
-      transition: all 0.2s ease;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      text-shadow: none;
     }
     .cust-fb-chip {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #E2DBD4;
+      color: #D6C8BD;
       border-radius: 10px;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 700;
+      padding: 7px 11px;
+      font-size: 11.5px;
+      font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      transition: all 0.18s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      gap: 5px;
+      transition: all 0.15s ease;
       user-select: none;
       font-family: inherit;
     }
     .cust-fb-chip:hover {
       background: rgba(255, 255, 255, 0.09);
-      border-color: rgba(196, 130, 72, 0.4);
-      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.22);
     }
     .cust-fb-chip:active {
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
     .cust-fb-chip.active {
-      background: rgba(196, 130, 72, 0.22);
-      border-color: var(--caramel-accent);
-      color: #FFE6C7;
-      box-shadow: 0 0 12px rgba(196, 130, 72, 0.3);
+      background: #D4AF37;
+      border-color: #D4AF37;
+      color: #110E0C;
+      font-weight: 700;
+      box-shadow: none;
     }
     .cust-fb-textarea {
       width: 100%;
       box-sizing: border-box;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1.2px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
-      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 12px;
       color: #FFFFFF;
-      font-size: 13px;
+      font-size: 12.5px;
       font-family: inherit;
       resize: none;
       outline: none;
-      transition: all 0.2s ease;
+      transition: border-color 0.15s ease;
     }
     .cust-fb-textarea:focus {
-      border-color: var(--caramel-accent);
-      background: rgba(0, 0, 0, 0.6);
-      box-shadow: 0 0 14px rgba(196, 130, 72, 0.25);
+      border-color: #D4AF37;
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: none;
+    }
+    #btnCancelOrder {
+      background: #DC2626 !important;
+      color: #FFFFFF !important;
+      border: 1.5px solid #DC2626 !important;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4) !important;
+    }
+    #btnCancelOrder:hover {
+      background: #B91C1C !important;
+      border-color: #B91C1C !important;
+      box-shadow: 0 6px 18px rgba(220, 38, 38, 0.55) !important;
+    }
+    #btnCancelOrder:active {
+      transform: translateY(0);
+    }
+    #btnCancelOrder svg, #btnCancelOrder span {
+      color: #FFFFFF !important;
+      stroke: #FFFFFF !important;
     }
   </style>
 </head>
@@ -2191,6 +2208,10 @@ const String customerOrderHtmlTemplate = '''
       </div>
     </div>
     <div class="header-right" style="display: flex; align-items: center; gap: 8px;">
+      <button type="button" onclick="handleBackToMenu()" id="headerBackToMenuBtn" style="display: none; align-items: center; gap: 5px; background: rgba(212, 175, 55, 0.12); border: 1.2px solid rgba(212, 175, 55, 0.35); color: var(--gold-light); border-radius: 18px; padding: 5px 11px; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        <span>Back to Menu</span>
+      </button>
       <div class="live-dot-pulse" title="Connected to Cafe Hotspot"></div>
       <div id="tablePill" class="table-pill" style="cursor: default; pointer-events: none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-light); vertical-align: -1px; margin-right: 4px;"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg><span id="tablePillLabel">Table 1</span></div>
     </div>
@@ -2221,6 +2242,23 @@ const String customerOrderHtmlTemplate = '''
 
   <!-- Normal Menu View -->
   <div id="menuView">
+    <!-- Floating Active Order Quick Access Banner (when customer is browsing menu while order is active) -->
+    <div id="menuActiveOrderFloatingPill" onclick="showActiveOrderTracker()" style="display: none; margin: 10px 14px 14px 14px; background: linear-gradient(135deg, rgba(20, 16, 13, 0.96) 0%, rgba(27, 21, 17, 0.96) 100%); border: 1.5px solid rgba(212, 175, 55, 0.45); border-radius: 16px; padding: 11px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); cursor: pointer; transition: all 0.2s ease;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="queue-live-dot"></span>
+          <div>
+            <div style="font-size: 10px; font-weight: 800; color: #A89B91; text-transform: uppercase; letter-spacing: 0.8px;">Active Order in Kitchen</div>
+            <div id="floatingOrderPillText" style="font-size: 13.5px; font-weight: 800; color: #FFFFFF; font-family: 'Outfit', sans-serif;">Order #1 • Brewing</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 5px; background: rgba(212,175,55,0.15); border: 1px solid rgba(212,175,55,0.3); border-radius: 12px; padding: 5px 10px; color: var(--gold-light); font-size: 11.5px; font-weight: 800;">
+          <span>View Ticket</span>
+          <span>➔</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Celestial Signature Craft Hero Banner (Tactile Micro-Skeuomorphism) -->
     <div class="hero-spotlight-card" id="heroSpotlight" onclick="openSignatureLatteItem()" style="cursor: pointer;" title="Tap to customize & order Celestial Signature Latte">
       <div class="hero-spotlight-bg" style="background-image: url('/assets/images/hero_coffee_splash.jpg');"></div>
@@ -2379,14 +2417,21 @@ const String customerOrderHtmlTemplate = '''
 
               <!-- Pending Order Actions: Cancel Order -->
               <div id="pendingActionButtons">
-                <button onclick="cancelCustomerOrder()" id="btnCancelOrder" style="width: 100%; background: #FEF2F2; border: 1.5px solid #F87171; color: #DC2626; border-radius: 14px; padding: 10px 14px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; box-shadow: none;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                  <span>Cancel Order</span>
+                <button onclick="cancelCustomerOrder()" id="btnCancelOrder" style="width: 100%; background: #DC2626; border: 1.5px solid #DC2626; color: #FFFFFF; border-radius: 14px; padding: 11px 16px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                  <span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>
                 </button>
               </div>
 
+              <!-- Back to Menu Button (Shown only when order is completed or cancelled) -->
+              <button onclick="handleBackToMenu()" id="btnTrackerBackToMenu" class="btn-order-another secondary" style="width: 100%; justify-content: center; display: none;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                <span>Back to Menu</span>
+              </button>
+
               <!-- Order More / New Order Button -->
               <button onclick="newOrder(true)" id="btnOrderAnotherItem" class="btn-order-another" style="display: none; width: 100%; justify-content: center;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg>
                 <span>Order Again</span>
               </button>
             </div>
@@ -2542,7 +2587,7 @@ const String customerOrderHtmlTemplate = '''
       <div class="modal-drag-pill"></div>
 
       <div style="text-align: center; margin-bottom: 18px;">
-        <div class="brand-logo-frame" style="margin: 0 auto 10px auto; width: 48px; height: 48px; border-radius: 12px;">
+        <div class="brand-logo-frame" style="margin: 0 auto 10px auto; width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid rgba(212, 175, 55, 0.45);">
           <img src="/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='<span style=\\'font-weight:800;color:#FFFFFF;font-size:22px;\\'>C</span>'">
         </div>
         <div style="font-family: 'Cinzel', serif; font-size: 18.5px; font-weight: 800; color: #FFFFFF; letter-spacing: 1px;">WELCOME TO CELESTIAL CAFE</div>
@@ -2813,35 +2858,35 @@ const String customerOrderHtmlTemplate = '''
   </div>
 
   <!-- Order Completed & Customer Rating / Feedback Modal -->
-  <div class="modal-overlay" id="orderCompletedModal" style="align-items: center; justify-content: center; padding: 16px; z-index: 99999;" onclick="if(event.target===this) dismissCustomerFeedback(false)">
-    <div class="modal-content" style="max-width: 440px; border-radius: 26px; border: 1.5px solid rgba(212, 175, 55, 0.3); padding: 24px 20px; text-align: center; margin: auto; box-shadow: 0 24px 70px rgba(0,0,0,0.9); background: linear-gradient(180deg, #1B1511 0%, #110E0C 100%); animation: fadeInModal 0.25s ease-out; position: relative;">
+  <div class="modal-overlay" id="orderCompletedModal" style="align-items: center; justify-content: center; padding: 16px; z-index: 99999;" onclick="if(event.target===this) closeModal('orderCompletedModal')">
+    <div class="modal-content" style="max-width: 420px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.12); padding: 22px 18px; text-align: center; margin: auto; box-shadow: 0 16px 40px rgba(0,0,0,0.8); background: #14100D; position: relative;">
       
       <!-- Close button in corner -->
-      <button type="button" onclick="dismissCustomerFeedback(false)" aria-label="Close" style="position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #C8B29E; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.15s;">
+      <button type="button" onclick="closeModal('orderCompletedModal')" aria-label="Close" style="position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #C8B29E; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.15s;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
 
       <!-- VIEW 1: Rating & Feedback Form -->
       <div id="custFeedbackFormView">
         <!-- Top Handed-Over Badge -->
-        <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.15); border: 1.2px solid rgba(34,197,94,0.45); border-radius: 20px; padding: 4px 14px; margin-bottom: 12px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          <span style="font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #4ADE80;">Order Handed Over</span>
+        <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px; padding: 4px 12px; margin-bottom: 10px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #E2DBD4;">Order Handed Over</span>
         </div>
 
-        <div class="modal-title" id="completedModalOrderNum" style="font-size: 34px; font-family: 'Cinzel', serif; font-weight: 900; color: #FFFFFF; letter-spacing: 1.5px; line-height: 1.05;">#1</div>
-        <div id="completedModalTableInfo" style="font-size: 12.5px; font-weight: 700; color: #A89B91; margin-top: 4px;">Table 1 • Dine-In</div>
+        <div class="modal-title" id="completedModalOrderNum" style="font-size: 32px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 1px; line-height: 1.1;">#1</div>
+        <div id="completedModalTableInfo" style="font-size: 12px; font-weight: 600; color: #A89B91; margin-top: 3px;">Table 1 • Dine-In</div>
 
         <!-- Rating Prompt -->
-        <div style="font-size: 16px; font-weight: 800; color: #FFFFFF; margin-top: 14px; font-family: 'Outfit', sans-serif;">
+        <div style="font-size: 15px; font-weight: 700; color: #FFFFFF; margin-top: 12px; font-family: 'Outfit', sans-serif;">
           How was your celestial experience?
         </div>
-        <div style="font-size: 12px; color: #9E9187; margin-top: 3px; line-height: 1.4;">
+        <div style="font-size: 12px; color: #9E9187; margin-top: 2px;">
           Your order is served & ready to enjoy. Tap a star to rate your visit!
         </div>
 
         <!-- 5 Star Interactive Rating -->
-        <div style="margin: 12px 0 4px 0;">
+        <div style="margin: 10px 0 2px 0;">
           <div id="custStarRow" class="cust-star-row"></div>
           <div id="custRatingDescriptor" class="cust-rating-descriptor">
             ⭐⭐⭐⭐⭐ Exceptional & Delicious!
@@ -2849,9 +2894,9 @@ const String customerOrderHtmlTemplate = '''
         </div>
 
         <!-- Quick Compliment / Suggestion Chips -->
-        <div style="margin-top: 14px; text-align: left;">
-          <div style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.9px; color: #A89B91; margin-bottom: 7px; display: flex; align-items: center; gap: 5px;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C48248" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        <div style="margin-top: 12px; text-align: left;">
+          <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #A89B91; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
             <span>Tap to Select Highlights / Suggestions:</span>
           </div>
           <div id="custFeedbackChipsContainer" style="display: flex; flex-wrap: wrap; gap: 6px;">
@@ -2865,51 +2910,39 @@ const String customerOrderHtmlTemplate = '''
         </div>
 
         <!-- Suggestion / Message Textarea -->
-        <div style="margin-top: 14px; text-align: left;">
-          <div style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.9px; color: #A89B91; margin-bottom: 5px; display: flex; justify-content: space-between;">
+        <div style="margin-top: 12px; text-align: left;">
+          <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #A89B91; margin-bottom: 5px; display: flex; justify-content: space-between;">
             <span>Message or Suggestion:</span>
             <span style="color: #6E5D53; font-weight: 600;">Optional</span>
           </div>
           <textarea id="custFeedbackMessageInput" class="cust-fb-textarea" rows="3" placeholder="Tell us what you loved or how we can make your next visit even better..."></textarea>
         </div>
 
-        <!-- Actions: Submit & Skip -->
-        <div style="margin-top: 18px; display: flex; flex-direction: column; gap: 9px;">
-          <button type="button" id="btnSubmitFeedback" onclick="submitCustomerFeedback()" style="width: 100%; background: linear-gradient(135deg, #D4AF37 0%, #C48248 100%); border: none; color: #110E0C; border-radius: 14px; padding: 14px 18px; font-weight: 900; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 18px rgba(196, 130, 72, 0.35); transition: all 0.15s ease;">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        <!-- Actions: Submit Only -->
+        <div style="margin-top: 16px;">
+          <button type="button" id="btnSubmitFeedback" onclick="submitCustomerFeedback()" style="width: 100%; background: #D4AF37; border: none; color: #110E0C; border-radius: 12px; padding: 13px 16px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; transition: background 0.15s ease;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             <span id="btnSubmitFeedbackText">Submit Feedback & Rating</span>
           </button>
-
-          <div style="display: flex; gap: 8px;">
-            <button type="button" onclick="dismissCustomerFeedback(true)" style="flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #C8B29E; border-radius: 12px; padding: 11px 12px; font-weight: 700; font-size: 12.5px; cursor: pointer;">
-              Order Again
-            </button>
-            <button type="button" onclick="dismissCustomerFeedback(false)" style="flex: 1; background: transparent; border: 1px solid rgba(255,255,255,0.09); color: var(--text-muted); border-radius: 12px; padding: 11px 12px; font-weight: 600; font-size: 12.5px; cursor: pointer;">
-              Skip & Done
-            </button>
-          </div>
         </div>
       </div>
 
       <!-- VIEW 2: Thank You / Success View -->
       <div id="custFeedbackSuccessView" style="display: none; padding: 14px 4px;">
-        <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(34,197,94,0.16); border: 2px solid #22C55E; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; color: #4ADE80; box-shadow: 0 0 24px rgba(34,197,94,0.3);">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(34,197,94,0.12); border: 1.5px solid #22C55E; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; color: #22C55E; box-shadow: none;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </div>
 
-        <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #4ADE80; margin-bottom: 6px;">Feedback Saved</div>
-        <div class="modal-title" style="font-size: 24px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 0.5px;">Thank You So Much! 💫</div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #22C55E; margin-bottom: 4px;">Feedback Saved</div>
+        <div class="modal-title" style="font-size: 20px; font-family: 'Cinzel', serif; font-weight: 800; color: #FFFFFF; letter-spacing: 0.5px;">Thank You!</div>
         
-        <div style="font-size: 13px; color: #D6C8BD; line-height: 1.55; margin-top: 12px; padding: 14px 16px; background: rgba(255,255,255,0.04); border-radius: 14px; border: 1px dashed rgba(212, 175, 55, 0.3);">
-          Your rating and feedback have been sent directly to the barista and host team. We appreciate your support!
+        <div style="font-size: 12.5px; color: #A89B91; line-height: 1.5; margin-top: 10px; padding: 12px 14px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);">
+          Your rating and feedback have been sent to the barista team. We appreciate your visit!
         </div>
 
-        <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 10px;">
-          <button type="button" onclick="closeModal('orderCompletedModal'); newOrder(true);" style="width: 100%; background: linear-gradient(135deg, #D4AF37 0%, #C48248 100%); border: none; color: #110E0C; border-radius: 14px; padding: 14px; font-weight: 900; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(196, 130, 72, 0.35);">
-            <span>Order Again</span>
-          </button>
-          <button type="button" onclick="closeModal('orderCompletedModal')" style="width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #C8B29E; border-radius: 12px; padding: 12px; font-weight: 700; font-size: 13px; cursor: pointer;">
-            Done / Close
+        <div style="margin-top: 18px;">
+          <button type="button" onclick="closeModal('orderCompletedModal');" style="width: 100%; background: #D4AF37; border: none; color: #110E0C; border-radius: 12px; padding: 12px; font-weight: 800; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span>Done</span>
           </button>
         </div>
       </div>
@@ -3966,11 +3999,15 @@ const String customerOrderHtmlTemplate = '''
         btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Okay</span>';
       }
 
+      if (userDismiss) {
+        window._readyOkayClicked = true;
+      }
+
       const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
       if (orderAnotherBtn) {
         orderAnotherBtn.style.display = 'inline-flex';
         orderAnotherBtn.className = 'btn-order-another';
-        orderAnotherBtn.innerHTML = '<span>Order Again</span>';
+        orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg><span>Order Again</span>';
       }
     }
 
@@ -5369,6 +5406,11 @@ const String customerOrderHtmlTemplate = '''
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('cartBar').style.display = 'none';
       document.getElementById('trackerView').style.display = 'block';
+      const isCompleteOrCancelled = (statusToUse === 'completed' || statusToUse === 'cancelled');
+      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
+      if (headerBackBtn) headerBackBtn.style.display = isCompleteOrCancelled ? 'inline-flex' : 'none';
+      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
+      if (trackerBackBtn) trackerBackBtn.style.display = isCompleteOrCancelled ? 'inline-flex' : 'none';
 
       // Hide previous ready alert notice banner on new order tracking
       const readyNotice = document.getElementById('readyNotice');
@@ -5417,7 +5459,7 @@ const String customerOrderHtmlTemplate = '''
 
       const cancelBtn = document.getElementById('btnCancelOrder');
       if (cancelBtn) {
-        cancelBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
+        cancelBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>';
         cancelBtn.disabled = false;
       }
 
@@ -5962,6 +6004,12 @@ const String customerOrderHtmlTemplate = '''
       const btnOpenOrderModal = document.getElementById('btnOpenOrderModal');
       const isPaid = (s === 'confirmed' || s === 'inqueue' || s === 'queue' || s === 'preparing' || s === 'brewing' || s === 'kitchen' || s === 'ready' || s === 'completed');
 
+      const isComplete = (s === 'completed' || s === 'cancelled');
+      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
+      if (headerBackBtn) headerBackBtn.style.display = isComplete ? 'inline-flex' : 'none';
+      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
+      if (trackerBackBtn) trackerBackBtn.style.display = isComplete ? 'inline-flex' : 'none';
+
       if (btnOpenOrderModal) {
         if (isPaid) {
           btnOpenOrderModal.style.display = 'flex';
@@ -6098,10 +6146,17 @@ const String customerOrderHtmlTemplate = '''
         if (compNotice) compNotice.style.display = 'none';
         if (pendingActions) pendingActions.style.display = 'none';
         if (orderAnotherBtn) {
-          orderAnotherBtn.style.display = 'inline-flex';
-          orderAnotherBtn.className = 'btn-order-another';
-          orderAnotherBtn.innerHTML = '<span>Order Again</span>';
+          const isOkayClicked = window._readyOkayClicked || isOrderAlarmDismissed() || isAlarmPermanentlyDismissed;
+          if (isOkayClicked) {
+            orderAnotherBtn.style.display = 'inline-flex';
+            orderAnotherBtn.className = 'btn-order-another';
+            orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg><span>Order Again</span>';
+          } else {
+            orderAnotherBtn.style.display = 'none';
+          }
         }
+        if (headerBackBtn) headerBackBtn.style.display = 'none';
+        if (trackerBackBtn) trackerBackBtn.style.display = 'none';
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step active';
@@ -6151,8 +6206,10 @@ const String customerOrderHtmlTemplate = '''
         if (orderAnotherBtn) {
           orderAnotherBtn.style.display = 'inline-flex';
           orderAnotherBtn.className = 'btn-order-another';
-          orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Order More / New Order</span>';
+          orderAnotherBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><polyline points="8 16 3 16 3 21"></polyline></svg><span>Order Again</span>';
         }
+        if (headerBackBtn) headerBackBtn.style.display = 'inline-flex';
+        if (trackerBackBtn) trackerBackBtn.style.display = 'inline-flex';
         step1.className = 'status-step completed';
         step2.className = 'status-step completed';
         step3.className = 'status-step completed';
@@ -6307,20 +6364,11 @@ const String customerOrderHtmlTemplate = '''
         _store.removeItem('orderCompleted');
       } catch(_) {}
       closeModal('orderCompletedModal');
-      if (orderAgain) {
-        newOrder(true);
-      } else {
-        const orderAnotherBtn = document.getElementById('btnOrderAnotherItem');
-        if (orderAnotherBtn) {
-          orderAnotherBtn.style.display = 'inline-flex';
-          orderAnotherBtn.className = 'btn-order-another secondary';
-          orderAnotherBtn.innerHTML = '<span>Back to Menu</span>';
-        }
-      }
+      newOrder(true);
     }
 
     function dismissOrderCompleted() {
-      dismissCustomerFeedback(false);
+      dismissCustomerFeedback(true);
     }
 
     function showOrderCompletedModal() {
@@ -6401,7 +6449,7 @@ const String customerOrderHtmlTemplate = '''
             } catch (_) {}
 
             if (btn) {
-              btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
+              btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>';
               btn.disabled = false;
             }
 
@@ -6431,7 +6479,7 @@ const String customerOrderHtmlTemplate = '''
                   if (isNotFound) {
                     newOrder(true);
                   } else if (btn) {
-                    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
+                    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>';
                     btn.disabled = false;
                   }
                 }
@@ -6439,7 +6487,7 @@ const String customerOrderHtmlTemplate = '''
             }
           } catch (err) {
             if (btn) {
-              btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
+              btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>';
               btn.disabled = false;
             }
             showSuccessModal({
@@ -6470,6 +6518,7 @@ const String customerOrderHtmlTemplate = '''
         return;
       }
       stopAlarm(null, false);
+      window._readyOkayClicked = false;
       isAlarmPermanentlyDismissed = false;
       dismissedOrderNumber = null;
       dismissedOrderId = null;
@@ -6534,7 +6583,7 @@ const String customerOrderHtmlTemplate = '''
 
       const cancelBtn = document.getElementById('btnCancelOrder');
       if (cancelBtn) {
-        cancelBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span>Cancel Order</span>';
+        cancelBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span style="color: #FFFFFF; font-weight: 700;">Cancel Order</span>';
         cancelBtn.disabled = false;
       }
 
@@ -6583,6 +6632,10 @@ const String customerOrderHtmlTemplate = '''
       document.getElementById('trackerView').style.display = 'none';
       document.getElementById('controlsWrapper').style.display = 'block';
       document.getElementById('menuView').style.display = 'block';
+      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
+      if (headerBackBtn) headerBackBtn.style.display = 'none';
+      const floatingPill = document.getElementById('menuActiveOrderFloatingPill');
+      if (floatingPill) floatingPill.style.display = 'none';
       renderMenu();
       updateCartBar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -6590,6 +6643,57 @@ const String customerOrderHtmlTemplate = '''
         sessionStorage.removeItem('celestial_dining_chosen');
       } catch(e) {}
       setTimeout(showDiningOptionModal, 250);
+    }
+
+    function handleBackToMenu() {
+      // If completed, cancelled, or no active order, perform a clean reset
+      if (!activeTrackedOrderId || prevTrackStatus === 'completed' || prevTrackStatus === 'cancelled') {
+        newOrder(true);
+        return;
+      }
+
+      // If active order is in progress, switch to menu view while keeping tracking active in background
+      document.getElementById('trackerView').style.display = 'none';
+      document.getElementById('controlsWrapper').style.display = 'block';
+      document.getElementById('menuView').style.display = 'block';
+      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
+      if (headerBackBtn) headerBackBtn.style.display = 'none';
+
+      updateActiveOrderFloatingPill();
+      updateCartBar();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showActiveOrderTracker() {
+      document.getElementById('controlsWrapper').style.display = 'none';
+      document.getElementById('menuView').style.display = 'none';
+      document.getElementById('cartBar').style.display = 'none';
+      document.getElementById('trackerView').style.display = 'block';
+      const isComp = prevTrackStatus === 'completed' || prevTrackStatus === 'cancelled';
+      const headerBackBtn = document.getElementById('headerBackToMenuBtn');
+      if (headerBackBtn) headerBackBtn.style.display = isComp ? 'inline-flex' : 'none';
+      const trackerBackBtn = document.getElementById('btnTrackerBackToMenu');
+      if (trackerBackBtn) trackerBackBtn.style.display = isComp ? 'inline-flex' : 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateActiveOrderFloatingPill() {
+      const pill = document.getElementById('menuActiveOrderFloatingPill');
+      if (!pill) return;
+      const curNum = activeTrackedOrderNum || _store.getItem('activeOrderNum');
+      const curStatus = (prevTrackStatus || 'pending').toLowerCase();
+      if (curNum && curStatus !== 'completed' && curStatus !== 'cancelled') {
+        let statusText = 'Awaiting Cashier';
+        if (curStatus === 'confirmed' || curStatus === 'inqueue' || curStatus === 'queue') statusText = 'In Kitchen Queue';
+        else if (curStatus === 'preparing' || curStatus === 'brewing' || curStatus === 'kitchen') statusText = 'Now Brewing';
+        else if (curStatus === 'ready') statusText = 'Ready for Pickup!';
+
+        const textEl = document.getElementById('floatingOrderPillText');
+        if (textEl) textEl.innerText = curNum + ' • ' + statusText;
+        pill.style.display = 'block';
+      } else {
+        pill.style.display = 'none';
+      }
     }
 
     function _verifySavedOrder(savedId, savedNum, savedTotal, savedItems) {

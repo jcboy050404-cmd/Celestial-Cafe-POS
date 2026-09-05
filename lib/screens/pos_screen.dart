@@ -302,6 +302,7 @@ class PosScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.shopping_bag_rounded, size: 16, color: CelestialTheme.goldLight),
                   const SizedBox(width: 6),
@@ -329,6 +330,8 @@ class PosScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: CelestialTheme.bgDark,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     '${provider.orderType.label} • ${provider.orderType == OrderType.dineIn ? provider.tableNumber : provider.customerName}',
@@ -337,6 +340,8 @@ class PosScreen extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: CelestialTheme.bgDark.withValues(alpha: 0.75),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -405,6 +410,7 @@ class PosScreen extends StatelessWidget {
                   border: Border.all(color: CelestialTheme.borderSubtle),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.auto_awesome_rounded, size: 14, color: CelestialTheme.caramelAccent),
                     const SizedBox(width: 4),
@@ -505,6 +511,7 @@ class PosScreen extends StatelessWidget {
                       ],
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(tab.icon, style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 6),
@@ -664,7 +671,7 @@ class PosScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
+                      Expanded(
                         child: Text(
                           '$count CUSTOMER ORDER${count > 1 ? "S" : ""} AWAITING APPROVAL',
                           style: GoogleFonts.outfit(
@@ -678,18 +685,20 @@ class PosScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.35)),
-                        ),
-                        child: Text(
-                          tablesText,
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.35)),
+                          ),
+                          child: Text(
+                            tablesText,
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -714,6 +723,7 @@ class PosScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     count == 1 ? 'Review & Pay' : 'View All ($count)',

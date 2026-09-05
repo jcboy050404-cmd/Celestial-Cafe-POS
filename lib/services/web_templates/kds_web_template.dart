@@ -828,7 +828,7 @@ const String kdsHtmlTemplate = '''
     .pin-logo-frame {
       width: 60px;
       height: 60px;
-      border-radius: 18px;
+      border-radius: 50%;
       background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(67, 44, 29, 0.4) 100%);
       border: 1.5px solid rgba(212, 175, 55, 0.55);
       box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35);
@@ -971,7 +971,7 @@ const String kdsHtmlTemplate = '''
 <body>
   <header>
     <div class="brand">
-      <img src="/logo.png" style="height: 38px; width: 38px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(212, 175, 55, 0.4); box-shadow: 0 2px 8px rgba(212,175,55,0.25);" alt="Logo" onerror="this.style.display='none'">
+      <img src="/logo.png" style="height: 38px; width: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(212, 175, 55, 0.4); box-shadow: 0 2px 8px rgba(212,175,55,0.25);" alt="Logo" onerror="this.style.display='none'">
       <div>
         <div class="brand-title">CELESTIAL CAFE</div>
         <div class="brand-sub">KITCHEN DISPLAY SYSTEM (KDS)</div>
@@ -1004,7 +1004,7 @@ const String kdsHtmlTemplate = '''
     <div class="pin-card">
       <div class="pin-logo-box">
         <div class="pin-logo-frame">
-          <img src="/logo.png" style="height: 42px; width: 42px; border-radius: 12px; object-fit: cover;" alt="Logo" onerror="this.style.display='none'">
+          <img src="/logo.png" style="height: 42px; width: 42px; border-radius: 50%; object-fit: cover;" alt="Logo" onerror="this.style.display='none'">
         </div>
       </div>
       <div class="pin-title">BARISTA & KITCHEN CONSOLE</div>

@@ -387,7 +387,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                             // Category Tag in Warm Toasted Beige
                             Row(
                               children: [
-                                Flexible(
+                                Expanded(
                                   child: Text(
                                     item.category.label.toUpperCase(),
                                     maxLines: 1,
@@ -443,15 +443,20 @@ class _MenuItemCardState extends State<MenuItemCard> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text(
-                                  '₱${item.price.toStringAsFixed(0)}',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: isCompact ? 16 : 18.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: item.inStock ? Colors.white : CelestialTheme.textSubtle,
+                                Expanded(
+                                  child: Text(
+                                    '₱${item.price.toStringAsFixed(0)}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: isCompact ? 16 : 18.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: item.inStock ? Colors.white : CelestialTheme.textSubtle,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if (item.inStock)
+                                if (item.inStock) ...[
+                                  const SizedBox(width: 4),
                                   InkWell(
                                     onTap: () => _openCustomization(context),
                                     borderRadius: BorderRadius.circular(20),
@@ -477,6 +482,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                       ),
                                     ),
                                   ),
+                                ],
                               ],
                             ),
                           ],

@@ -258,7 +258,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             height: 76,
                             decoration: BoxDecoration(
                               color: CelestialTheme.bgSurface,
-                              borderRadius: BorderRadius.circular(12),
+                              shape: BoxShape.circle,
                               border: Border.all(
                                 color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
                                 width: 1.5,
@@ -270,8 +270,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                 ),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
+                            child: ClipOval(
                               child: provider.hasCustomLogo
                                   ? Image.memory(
                                       provider.customLogoBytes!,

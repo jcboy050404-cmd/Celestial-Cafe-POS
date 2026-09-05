@@ -72,7 +72,7 @@ class _HeaderBarState extends State<HeaderBar> {
             curve: Curves.easeOutCubic,
             height: widget.isScrolled ? 54 : 60,
             padding: EdgeInsets.symmetric(
-              horizontal: 16,
+              horizontal: 12,
               vertical: widget.isScrolled ? 6 : 8,
             ),
             decoration: CelestialTheme.liquidGlassHeader(
@@ -86,14 +86,18 @@ class _HeaderBarState extends State<HeaderBar> {
             Expanded(
               child: InkWell(
                 onTap: () => _openSettings(context),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(20),
                 child: Row(
                   children: [
                     Container(
                       height: 38,
                       width: 38,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                          width: 1.2,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.25),
@@ -102,8 +106,7 @@ class _HeaderBarState extends State<HeaderBar> {
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                      child: ClipOval(
                         child: posProvider.hasCustomLogo
                             ? Image.memory(
                                 posProvider.customLogoBytes!,
@@ -116,7 +119,7 @@ class _HeaderBarState extends State<HeaderBar> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Flexible(
+                    Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,21 +130,23 @@ class _HeaderBarState extends State<HeaderBar> {
                               color: CelestialTheme.goldPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
+                              letterSpacing: 1.2,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
                           Text(
                             'Cozy&Classic',
                             style: GoogleFonts.outfit(
                               color: CelestialTheme.goldLight.withValues(alpha: 0.7),
                               fontSize: 8,
-                              letterSpacing: 0.8,
+                              letterSpacing: 0.6,
                               fontWeight: FontWeight.w600,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
                         ],
                       ),
@@ -199,33 +204,33 @@ class _HeaderBarState extends State<HeaderBar> {
                   onPressed: () => TableQrDialog.show(context),
                   icon: const Icon(Icons.qr_code_scanner_rounded, color: CelestialTheme.goldLight, size: 20),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                   tooltip: 'Table QR Self-Ordering',
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
 
                 // Text Size / Accessibility Button
                 IconButton(
                   onPressed: () => _showQuickTextSizeModal(context),
                   icon: const Icon(Icons.format_size_rounded, color: CelestialTheme.goldLight, size: 19),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                   tooltip: 'Adjust Text Size',
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
 
                 // Settings Button
                 IconButton(
                   onPressed: () => _openSettings(context),
                   icon: const Icon(Icons.settings_outlined, color: CelestialTheme.goldLight, size: 19),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                   tooltip: 'Store Settings & Logo',
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
 
                 // Cart Trigger
                 Stack(
@@ -235,7 +240,7 @@ class _HeaderBarState extends State<HeaderBar> {
                       onPressed: () => _openMobileCartSheet(context),
                       icon: const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.goldPrimary, size: 20),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       style: IconButton.styleFrom(
                         backgroundColor: CelestialTheme.bgCard,
                       ),
@@ -610,7 +615,7 @@ class _HeaderBarState extends State<HeaderBar> {
   Widget _buildBrand(BuildContext context, PosProvider posProvider) {
     return InkWell(
       onTap: () => _openSettings(context),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(28),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Row(
@@ -620,7 +625,11 @@ class _HeaderBarState extends State<HeaderBar> {
               height: 52,
               width: 52,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.35),
@@ -629,8 +638,7 @@ class _HeaderBarState extends State<HeaderBar> {
                   ),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+              child: ClipOval(
                 child: posProvider.hasCustomLogo
                     ? Image.memory(
                         posProvider.customLogoBytes!,
