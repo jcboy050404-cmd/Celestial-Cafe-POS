@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -6,12 +7,12 @@ import 'package:provider/provider.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'cart_panel.dart';
-import 'customer_order_approval_dialog.dart';
 import 'settings_dialog.dart';
 import 'table_qr_dialog.dart';
 
 class HeaderBar extends StatefulWidget {
-  const HeaderBar({super.key});
+  final bool isScrolled;
+  const HeaderBar({super.key, this.isScrolled = false});
 
   @override
   State<HeaderBar> createState() => _HeaderBarState();
@@ -59,20 +60,26 @@ class _HeaderBarState extends State<HeaderBar> {
     final isCompact = MediaQuery.of(context).size.width < 1000;
 
     if (isMobile) {
-      // Mobile Top App Bar
-      return Container(
-        height: 60,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: CelestialTheme.bgSurface,
-          border: Border(
-            bottom: BorderSide(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 1,
-            ),
+      // Mobile Top App Bar with Liquid Glass Refraction & Scroll Animation
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: widget.isScrolled ? 22 : 16,
+            sigmaY: widget.isScrolled ? 22 : 16,
           ),
-        ),
-        child: Row(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            height: widget.isScrolled ? 54 : 60,
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: widget.isScrolled ? 6 : 8,
+            ),
+            decoration: CelestialTheme.liquidGlassHeader(
+              isMobile: true,
+              isScrolled: widget.isScrolled,
+            ),
+            child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // Brand Logo & Compact Title (Tap to open Settings & Logo)
@@ -153,7 +160,7 @@ class _HeaderBarState extends State<HeaderBar> {
                 // Pending Customer Orders Alert Pill (Mobile)
                 if (posProvider.pendingCustomerOrders.isNotEmpty)
                   InkWell(
-                    onTap: () => CustomerOrderApprovalDialog.showPendingList(context),
+                    onTap: () => posProvider.setNavIndex(1),
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       margin: const EdgeInsets.only(right: 6),
@@ -260,30 +267,30 @@ class _HeaderBarState extends State<HeaderBar> {
             ),
           ],
         ),
-      );
-    }
-
-    // Tablet & Desktop Top Header Bar
-    return Container(
-      height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: CelestialTheme.bgSurface,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      child: Row(
+    ),
+  );
+}
+
+    // Tablet & Desktop Top Header Bar with Liquid Glass Refraction & Scroll Animation
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: widget.isScrolled ? 24 : 18,
+          sigmaY: widget.isScrolled ? 24 : 18,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          height: widget.isScrolled ? 64 : 72,
+          padding: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: widget.isScrolled ? 6 : 10,
+          ),
+          decoration: CelestialTheme.liquidGlassHeader(
+            isScrolled: widget.isScrolled,
+          ),
+          child: Row(
         children: [
           // Logo & Brand Name (Tap to open Settings & Logo)
           _buildBrand(context, posProvider),
@@ -401,7 +408,9 @@ class _HeaderBarState extends State<HeaderBar> {
           ],
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   void _showQuickTextSizeModal(BuildContext context) {
@@ -682,16 +691,33 @@ class _HeaderBarState extends State<HeaderBar> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? CelestialTheme.caramelAccent.withValues(alpha: 0.16)
-              : Colors.transparent,
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [
+                    CelestialTheme.caramelAccent.withValues(alpha: 0.30),
+                    CelestialTheme.brownWarm.withValues(alpha: 0.16),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? CelestialTheme.caramelAccent
-                : Colors.transparent,
+                ? CelestialTheme.caramelAccent.withValues(alpha: 0.70)
+                : Colors.white.withValues(alpha: 0.04),
             width: 1.0,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -745,11 +771,18 @@ class _HeaderBarState extends State<HeaderBar> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: CelestialTheme.bgCard,
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Colors.white.withValues(alpha: 0.10),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

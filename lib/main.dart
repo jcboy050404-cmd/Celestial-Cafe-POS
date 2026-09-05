@@ -48,8 +48,15 @@ class CelestialCafePosApp extends StatelessWidget {
   }
 }
 
-class MainWorkstationScaffold extends StatelessWidget {
+class MainWorkstationScaffold extends StatefulWidget {
   const MainWorkstationScaffold({super.key});
+
+  @override
+  State<MainWorkstationScaffold> createState() => _MainWorkstationScaffoldState();
+}
+
+class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
+  bool _isScrolled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -68,19 +75,32 @@ class MainWorkstationScaffold extends StatelessWidget {
     return Scaffold(
       backgroundColor: CelestialTheme.bgDark,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Top Persistent Header Bar
-            const HeaderBar(),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.axis == Axis.vertical) {
+              final scrolled = notification.metrics.pixels > 10;
+              if (scrolled != _isScrolled) {
+                setState(() {
+                  _isScrolled = scrolled;
+                });
+              }
+            }
+            return false;
+          },
+          child: Column(
+            children: [
+              // Top Persistent Header Bar with Liquid Glass Scroll Animation
+              HeaderBar(isScrolled: _isScrolled),
 
-            // Screen Content
-            Expanded(
-              child: IndexedStack(
-                index: posProvider.currentNavIndex,
-                children: screens,
+              // Screen Content
+              Expanded(
+                child: IndexedStack(
+                  index: posProvider.currentNavIndex,
+                  children: screens,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       // Mobile Bottom Navigation Bar

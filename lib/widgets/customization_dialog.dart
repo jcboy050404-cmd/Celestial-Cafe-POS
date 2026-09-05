@@ -1,10 +1,9 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../theme/celestial_theme.dart';
+import 'item_thumbnail.dart';
 
 class CustomizationDialog extends StatefulWidget {
   final MenuItem item;
@@ -210,42 +209,12 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
   }
 
   Widget _buildShowcaseMedia(bool isMobile) {
-    final bool hasBase64 = widget.item.imageBase64 != null && widget.item.imageBase64!.isNotEmpty;
-    final bool hasAsset = widget.item.imagePath != null && widget.item.imagePath!.isNotEmpty && widget.item.imagePath!.startsWith('assets/');
-    final bool hasFile = widget.item.imagePath != null && widget.item.imagePath!.isNotEmpty && !hasAsset && File(widget.item.imagePath!).existsSync();
-
-    if (hasBase64) {
-      return Image.memory(
-        base64Decode(widget.item.imageBase64!),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Center(
-          child: Text(widget.item.icon, style: TextStyle(fontSize: isMobile ? 44 : 54)),
-        ),
-      );
-    } else if (hasAsset) {
-      return Image.asset(
-        widget.item.imagePath!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Center(
-          child: Text(widget.item.icon, style: TextStyle(fontSize: isMobile ? 44 : 54)),
-        ),
-      );
-    } else if (hasFile) {
-      return Image.file(
-        File(widget.item.imagePath!),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Center(
-          child: Text(widget.item.icon, style: TextStyle(fontSize: isMobile ? 44 : 54)),
-        ),
-      );
-    } else {
-      return Center(
-        child: Text(
-          widget.item.icon,
-          style: TextStyle(fontSize: isMobile ? 44 : 54),
-        ),
-      );
-    }
+    return ItemThumbnail(
+      item: widget.item,
+      width: double.infinity,
+      borderRadius: BorderRadius.zero,
+      iconSize: isMobile ? 44 : 54,
+    );
   }
 
   Widget _buildDialogHeader(bool isMobile) {

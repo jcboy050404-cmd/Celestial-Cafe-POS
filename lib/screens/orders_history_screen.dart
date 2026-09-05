@@ -8,6 +8,8 @@ import '../theme/celestial_theme.dart';
 import '../widgets/customer_order_approval_dialog.dart';
 import '../widgets/receipt_dialog.dart';
 import '../widgets/order_tracking_qr_dialog.dart';
+import '../widgets/order_details_dialog.dart';
+import '../widgets/customer_feedback_dialog.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   const OrdersHistoryScreen({super.key});
@@ -88,6 +90,21 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   ),
                 ),
               ),
+              OutlinedButton.icon(
+                onPressed: () => _showCustomerFeedbackDialog(context, provider),
+                icon: const Icon(Icons.rate_review_rounded, size: 14, color: CelestialTheme.goldLight),
+                label: Text(
+                  'Feedback (${provider.customerFeedbacks.length})',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: CelestialTheme.goldLight,
+                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () {
                   showDialog(
@@ -382,13 +399,88 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
               const SizedBox(height: 8),
 
-              // Items Summary
-              Text(
-                order.items.map((i) => '${i.quantity}x ${i.menuItem.name}').join(', '),
-                style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              // Items Summary (Tap to View Full Details Modal)
+              InkWell(
+                onTap: () => OrderDetailsDialog.show(context, order),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          order.items.map((i) => '${i.quantity}x ${i.menuItem.name}').join(', '),
+                          style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, size: 14, color: CelestialTheme.caramelAccent),
+                    ],
+                  ),
+                ),
               ),
+
+              // Customer Review snippet (if submitted)
+              if (order.customerFeedback != null) ...[
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () => OrderDetailsDialog.show(context, order),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF221710),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Row(
+                          children: List.generate(5, (idx) {
+                            return Icon(
+                              idx < order.customerFeedback!.rating
+                                  ? Icons.star_rounded
+                                  : Icons.star_outline_rounded,
+                              size: 13,
+                              color: idx < order.customerFeedback!.rating
+                                  ? const Color(0xFFFFB800)
+                                  : Colors.white24,
+                            );
+                          }),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${order.customerFeedback!.rating}.0',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.goldLight,
+                          ),
+                        ),
+                        if (order.customerFeedback!.message.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '“${order.customerFeedback!.message}”',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontStyle: FontStyle.italic,
+                                color: CelestialTheme.textLight,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right_rounded, size: 13, color: CelestialTheme.goldLight),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 8),
 
@@ -600,6 +692,25 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: () => OrderDetailsDialog.show(context, order),
+                    icon: const Icon(Icons.visibility_outlined, size: 13, color: CelestialTheme.goldLight),
+                    label: const Text(
+                      'View Details',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.goldLight,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
                   IconButton(
                     onPressed: () => OrderTrackingQrDialog.show(context, order),
                     icon: const Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 19),
@@ -669,5 +780,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ],
       ),
     );
+  }
+
+  void _showCustomerFeedbackDialog(BuildContext context, PosProvider provider) {
+    CustomerFeedbackDialog.show(context);
   }
 }

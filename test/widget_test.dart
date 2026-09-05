@@ -7,7 +7,9 @@ import 'package:celestial_pos/models/menu_item.dart';
 import 'package:celestial_pos/models/order.dart';
 import 'package:celestial_pos/providers/pos_provider.dart';
 import 'package:celestial_pos/widgets/customization_dialog.dart';
+import 'package:celestial_pos/widgets/header_bar.dart';
 import 'package:celestial_pos/theme/celestial_theme.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   setUp(() {
@@ -297,6 +299,50 @@ void main() {
     expect(addedNotes, isNull);
     expect(addedCustomizations.any((c) => c.optionName == 'Hot'), true);
     expect(addedCustomizations.any((c) => c.optionName == 'Extra Espresso Shot'), true);
+  });
+
+  testWidgets('HeaderBar renders liquid glass with smooth animated states when scrolled', (WidgetTester tester) async {
+    final pos = PosProvider();
+
+    // Unscrolled state
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PosProvider>.value(
+        value: pos,
+        child: MaterialApp(
+          theme: CelestialTheme.themeData,
+          home: const Scaffold(
+            body: HeaderBar(
+              isScrolled: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('CELESTIAL'), findsOneWidget);
+    expect(find.text('POS Station'), findsOneWidget);
+
+    // Scrolled state
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PosProvider>.value(
+        value: pos,
+        child: MaterialApp(
+          theme: CelestialTheme.themeData,
+          home: const Scaffold(
+            body: HeaderBar(
+              isScrolled: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    // Let animation run
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CELESTIAL'), findsOneWidget);
+    expect(find.text('POS Station'), findsOneWidget);
   });
 }
 

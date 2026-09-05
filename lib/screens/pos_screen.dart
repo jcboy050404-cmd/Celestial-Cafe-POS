@@ -628,7 +628,7 @@ class PosScreen extends StatelessWidget {
         if (count == 1) {
           CustomerOrderApprovalDialog.show(context, firstOrder);
         } else {
-          CustomerOrderApprovalDialog.showPendingList(context);
+          provider.setNavIndex(1);
         }
       },
       child: Container(

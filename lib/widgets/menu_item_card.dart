@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +5,7 @@ import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'customization_dialog.dart';
+import 'item_thumbnail.dart';
 
 class MenuItemCard extends StatefulWidget {
   final MenuItem item;
@@ -21,54 +20,11 @@ class _MenuItemCardState extends State<MenuItemCard> {
   bool _isHovered = false;
 
   Widget _buildItemMediaCover(MenuItem item, bool isCompact) {
-    final bool hasBase64 = item.imageBase64 != null && item.imageBase64!.isNotEmpty;
-    final bool hasAsset = item.imagePath != null && item.imagePath!.isNotEmpty && item.imagePath!.startsWith('assets/');
-    final bool hasFile = item.imagePath != null && item.imagePath!.isNotEmpty && !hasAsset && File(item.imagePath!).existsSync();
-
-    if (hasBase64 || hasAsset || hasFile) {
-      return Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Color(0xFF140E18),
-        ),
-        child: hasBase64
-            ? Image.memory(
-                base64Decode(item.imageBase64!),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 34 : 44))),
-              )
-            : hasAsset
-                ? Image.asset(
-                    item.imagePath!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 34 : 44))),
-                  )
-                : Image.file(
-                    File(item.imagePath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Center(child: Text(item.icon, style: TextStyle(fontSize: isCompact ? 34 : 44))),
-                  ),
-      );
-    }
-
-    return Container(
+    return ItemThumbnail(
+      item: item,
       width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: item.inStock
-            ? CelestialTheme.brownGradient
-            : const LinearGradient(
-                colors: [Color(0xFF2C2C2C), Color(0xFF1A1A1A)],
-              ),
-      ),
-      child: Center(
-        child: Text(
-          item.icon,
-          style: TextStyle(
-            fontSize: isCompact ? 34 : 44,
-            color: item.inStock ? null : Colors.grey,
-          ),
-        ),
-      ),
+      borderRadius: BorderRadius.zero,
+      iconSize: isCompact ? 34 : 44,
     );
   }
 

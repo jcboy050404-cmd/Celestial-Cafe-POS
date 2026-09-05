@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/customer_feedback.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../services/kds_server_service.dart';
@@ -20,6 +21,7 @@ class PosProvider extends ChangeNotifier {
   static const String _keyBaristaPin = 'celestial_barista_pin_v1';
   static const String _keyUiScale = 'celestial_ui_scale_v1';
   static const String _keyCustomCategories = 'celestial_custom_categories_v1';
+  static const String _keyCustomerFeedbacks = 'celestial_customer_feedbacks_v1';
 
   // Display & Text Size Scaling (for Cashiers/Baristas accessibility)
   double _uiScale = 1.0;
@@ -67,6 +69,7 @@ class PosProvider extends ChangeNotifier {
   // Order Sequences & Storage (Persistent across app restarts, starts on #1)
   int _orderSequence = 1;
   final List<Order> _orders = [];
+  final List<CustomerFeedback> _customerFeedbacks = [];
   bool _isLoaded = false;
 
   PosProvider() {
@@ -75,6 +78,7 @@ class PosProvider extends ChangeNotifier {
 
   bool get isLoaded => _isLoaded;
   int get currentOrderSequence => _orderSequence;
+  List<CustomerFeedback> get customerFeedbacks => List.unmodifiable(_customerFeedbacks);
 
   void resetOrderSequence({int startNumber = 1}) {
     _orderSequence = startNumber;
@@ -185,6 +189,7 @@ class PosProvider extends ChangeNotifier {
       onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
       onCustomerChangeOrder: _handleCustomerChangeOrder,
       onCustomerCancelOrder: _handleCustomerCancelOrder,
+      onCustomerFeedbackSubmitted: _handleCustomerFeedbackSubmitted,
       getOrderByIdCallback: _getOrderById,
       getItemImageCallback: getItemImageBytes,
     );
@@ -205,6 +210,7 @@ class PosProvider extends ChangeNotifier {
       onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
       onCustomerChangeOrder: _handleCustomerChangeOrder,
       onCustomerCancelOrder: _handleCustomerCancelOrder,
+      onCustomerFeedbackSubmitted: _handleCustomerFeedbackSubmitted,
       getOrderByIdCallback: _getOrderById,
       getItemImageCallback: getItemImageBytes,
     );
@@ -214,11 +220,8 @@ class PosProvider extends ChangeNotifier {
   Uint8List? getItemImageBytes(String itemId) {
     final item = _menuItems.where((m) => m.id == itemId).firstOrNull;
     if (item == null) return null;
-    if (item.imageBase64 != null && item.imageBase64!.isNotEmpty) {
-      try {
-        return base64Decode(item.imageBase64!);
-      } catch (_) {}
-    }
+    final cached = item.imageBytes;
+    if (cached != null) return cached;
     if (item.imagePath != null && item.imagePath!.isNotEmpty) {
       try {
         final file = File(item.imagePath!);
@@ -464,6 +467,77 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  void addCustomerFeedback(CustomerFeedback feedback) {
+    final cleanOrderNum = feedback.orderNumber.replaceAll('#', '').trim();
+    final cleanOrderId = feedback.orderId.trim();
+
+    final matchIndex = _orders.indexWhere((o) =>
+        (cleanOrderId.isNotEmpty && o.id == cleanOrderId) ||
+        (cleanOrderNum.isNotEmpty && o.orderNumber.replaceAll('#', '').trim() == cleanOrderNum));
+
+    if (matchIndex != -1) {
+      final matchedOrder = _orders[matchIndex];
+      String custName = feedback.customerName;
+      if (custName.isEmpty && matchedOrder.customerName.isNotEmpty) {
+        custName = matchedOrder.customerName;
+      }
+      String? tableNum = feedback.tableNumber;
+      if ((tableNum == null || tableNum.isEmpty) && matchedOrder.tableNumber != null) {
+        tableNum = matchedOrder.tableNumber;
+      }
+      feedback = feedback.copyWith(
+        customerName: custName,
+        tableNumber: tableNum,
+        orderId: feedback.orderId.isEmpty ? matchedOrder.id : feedback.orderId,
+        orderNumber: feedback.orderNumber.isEmpty ? matchedOrder.orderNumber : feedback.orderNumber,
+      );
+      _orders[matchIndex].customerFeedback = feedback;
+      _scheduleSaveOrders();
+    }
+
+    _customerFeedbacks.removeWhere((f) =>
+        (cleanOrderId.isNotEmpty && f.orderId == cleanOrderId) ||
+        (cleanOrderNum.isNotEmpty && f.orderNumber.replaceAll('#', '').trim() == cleanOrderNum));
+    _customerFeedbacks.insert(0, feedback);
+    _saveFeedbacksToStorage();
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _handleCustomerFeedbackSubmitted(Map<String, dynamic> rawFeedback) {
+    try {
+      final ratingVal = rawFeedback['rating'];
+      final rating = (ratingVal is num)
+          ? ratingVal.toInt()
+          : (int.tryParse(ratingVal?.toString() ?? '') ?? 5);
+
+      final tagsRaw = rawFeedback['tags'];
+      final List<String> tags = (tagsRaw is List)
+          ? tagsRaw.map((t) => t.toString()).toList()
+          : [];
+
+      final fb = CustomerFeedback(
+        id: rawFeedback['id']?.toString() ?? 'fb_${DateTime.now().millisecondsSinceEpoch}',
+        orderId: rawFeedback['orderId']?.toString() ?? '',
+        orderNumber: rawFeedback['orderNumber']?.toString() ?? '',
+        tableNumber: rawFeedback['tableNumber']?.toString(),
+        customerName: rawFeedback['customerName']?.toString() ?? '',
+        rating: rating.clamp(1, 5),
+        tags: tags,
+        message: rawFeedback['message']?.toString().trim() ?? '',
+        createdAt: DateTime.now(),
+      );
+
+      addCustomerFeedback(fb);
+      return {
+        'success': true,
+        'message': 'Feedback received and saved to host app',
+        'feedbackId': fb.id,
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   void _handleRemoteKdsStatusUpdate(String orderId, String newStatus) {
     if (newStatus == 'cancelled') {
       cancelOrder(orderId, restock: true);
@@ -679,6 +753,22 @@ class PosProvider extends ChangeNotifier {
       if (savedUiScale != null && savedUiScale >= 0.80 && savedUiScale <= 1.50) {
         _uiScale = savedUiScale;
       }
+
+      // 6. Load Customer Feedbacks
+      final savedFbJson = prefs.getString(_keyCustomerFeedbacks);
+      if (savedFbJson != null && savedFbJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(savedFbJson) as List<dynamic>;
+          _customerFeedbacks.clear();
+          for (var item in decoded) {
+            try {
+              _customerFeedbacks.add(CustomerFeedback.fromJson(item as Map<String, dynamic>));
+            } catch (_) {}
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error parsing stored customer feedbacks: $e');
+        }
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading from local storage: $e');
@@ -749,6 +839,16 @@ class PosProvider extends ChangeNotifier {
       await prefs.setString(_keyActiveCashier, _activeCashier);
     } catch (e) {
       if (kDebugMode) print('Error saving cashier to storage: $e');
+    }
+  }
+
+  Future<void> _saveFeedbacksToStorage() async {
+    try {
+      final prefs = await _getPrefs();
+      final jsonStr = jsonEncode(_customerFeedbacks.map((f) => f.toJson()).toList());
+      await prefs.setString(_keyCustomerFeedbacks, jsonStr);
+    } catch (e) {
+      if (kDebugMode) print('Error saving customer feedbacks to storage: $e');
     }
   }
 

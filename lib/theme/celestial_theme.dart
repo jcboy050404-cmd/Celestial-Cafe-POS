@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class CelestialTheme {
   // Brand Canvas & Dark Espresso Surfaces (Black & Brown Theme)
-  static const Color bgDark = Color(0xFF000000);         // True pitch black canvas
+  static const Color bgDark = Color(0xFF180E02);         // Rich dark espresso canvas (#180E02)
   static const Color bgSurface = Color(0xFF0C0A09);      // Deep dark mocha surface
   static const Color bgSurfaceLight = Color(0xFF16120E); // Soft elevated dark mocha
   static const Color bgCard = Color(0xFF14100D);         // Warm dark espresso card base
@@ -25,6 +25,7 @@ class CelestialTheme {
   static const Color brownWarm = Color(0xFF5A3E2D);
   static const Color brownCaramel = Color(0xFFB8783E);
   static const Color brownMocha = Color(0xFF3D2A20);
+  static const Color darkBrown = Color(0xFF1C120C);      // Rich dark espresso brown
 
   // Warm Caramel & Honey Gold Accents (Refined & Soft, Non-Neon)
   static const Color caramelAccent = Color(0xFFC48248);  // Artisan caramel
@@ -86,6 +87,60 @@ class CelestialTheme {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  // Liquid Glass Gradient for Headers & Floating Overlays
+  static const LinearGradient liquidGlassGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xF01C120C), // Luminous dark espresso refraction
+      Color(0xF5140C08), // Viscous dark mocha core
+      Color(0xFA0B0704), // Deep espresso-black base
+    ],
+    stops: [0.0, 0.50, 1.0],
+  );
+
+  // Liquid Glass Header Box Decoration (Refractive glass depth, top specular rim, warm gold bottom rim)
+  static BoxDecoration liquidGlassHeader({bool isMobile = false, bool isScrolled = false}) {
+    return BoxDecoration(
+      gradient: isScrolled
+          ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xF5140C07), // Deeper condensed dark espresso
+                Color(0xFA0E0805), // Viscous dark core
+                Color(0xFF070402), // Deep base
+              ],
+              stops: [0.0, 0.50, 1.0],
+            )
+          : liquidGlassGradient,
+      border: Border(
+        top: BorderSide(
+          color: Colors.white.withValues(alpha: isScrolled ? 0.10 : 0.08),
+          width: 1.0,
+        ),
+        bottom: BorderSide(
+          color: isScrolled
+              ? goldPrimary.withValues(alpha: 0.35)
+              : goldPrimary.withValues(alpha: 0.15),
+          width: isScrolled ? 1.2 : 1.0,
+        ),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isScrolled ? 0.80 : 0.65),
+          blurRadius: isScrolled ? 26 : 20,
+          offset: Offset(0, isScrolled ? 8 : 6),
+        ),
+        BoxShadow(
+          color: caramelAccent.withValues(alpha: isScrolled ? 0.10 : 0.04),
+          blurRadius: isScrolled ? 28 : 24,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    );
+  }
 
   // Soft UI / Card-Based Minimalism Box Decoration
   static BoxDecoration softCard({
@@ -190,6 +245,11 @@ class CelestialTheme {
         secondary: caramelAccent,
         surface: bgSurface,
         error: roseAlert,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkBrown,
+        foregroundColor: textLight,
+        elevation: 0,
       ),
       textTheme: GoogleFonts.outfitTextTheme(
         ThemeData.dark().textTheme,

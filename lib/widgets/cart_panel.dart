@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +6,7 @@ import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'checkout_modal.dart';
+import 'item_thumbnail.dart';
 import 'receipt_dialog.dart';
 
 class CartPanel extends StatelessWidget {
@@ -471,71 +470,14 @@ class CartPanel extends StatelessWidget {
   }
 
   Widget _buildItemThumbnail(MenuItem item) {
-    final bool hasBase64 = item.imageBase64 != null && item.imageBase64!.isNotEmpty;
-    final bool hasAsset = item.imagePath != null && item.imagePath!.isNotEmpty && item.imagePath!.startsWith('assets/');
-    final bool hasFile = item.imagePath != null && item.imagePath!.isNotEmpty && !hasAsset && File(item.imagePath!).existsSync();
-
-    Widget? imageWidget;
-    if (hasBase64) {
-      try {
-        imageWidget = Image.memory(
-          base64Decode(item.imageBase64!),
-          fit: BoxFit.cover,
-          width: 56,
-          height: 56,
-          errorBuilder: (_, __, ___) => _buildIconFallback(item),
-        );
-      } catch (_) {
-        imageWidget = _buildIconFallback(item);
-      }
-    } else if (hasAsset) {
-      imageWidget = Image.asset(
-        item.imagePath!,
-        fit: BoxFit.cover,
-        width: 56,
-        height: 56,
-        errorBuilder: (_, __, ___) => _buildIconFallback(item),
-      );
-    } else if (hasFile) {
-      imageWidget = Image.file(
-        File(item.imagePath!),
-        fit: BoxFit.cover,
-        width: 56,
-        height: 56,
-        errorBuilder: (_, __, ___) => _buildIconFallback(item),
-      );
-    }
-
-    return Container(
+    return ItemThumbnail(
+      item: item,
       width: 56,
       height: 56,
-      decoration: BoxDecoration(
-        color: const Color(0xFF181310),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: imageWidget ?? _buildIconFallback(item),
-    );
-  }
-
-  Widget _buildIconFallback(MenuItem item) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 0.8,
-          colors: [Color(0xFF2C1F16), Color(0xFF181310)],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          item.icon.isNotEmpty ? item.icon : '☕',
-          style: const TextStyle(fontSize: 22),
-        ),
-      ),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      backgroundColor: const Color(0xFF181310),
+      iconSize: 22,
     );
   }
 

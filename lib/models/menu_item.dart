@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 enum ItemCategory {
   all('All Items', '✨'),
   coffee('Coffee', '☕'),
@@ -203,6 +206,20 @@ class MenuItem {
     this.imageBase64,
     this.customizationGroups = const [],
   });
+
+  Uint8List? _cachedImageBytes;
+
+  /// Lazily cached decoded bytes of [imageBase64] so decoding only occurs once per item.
+  Uint8List? get imageBytes {
+    if (_cachedImageBytes != null) return _cachedImageBytes;
+    if (imageBase64 != null && imageBase64!.isNotEmpty) {
+      try {
+        _cachedImageBytes = base64Decode(imageBase64!);
+        return _cachedImageBytes;
+      } catch (_) {}
+    }
+    return null;
+  }
 
   String get categoryLabel {
     if (customCategory != null && customCategory!.trim().isNotEmpty) {

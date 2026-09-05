@@ -1,3 +1,4 @@
+import 'customer_feedback.dart';
 import 'menu_item.dart';
 
 enum OrderType {
@@ -150,6 +151,7 @@ class Order {
   final DateTime createdAt;
   final String cashierName;
   final String? orderNotes;
+  CustomerFeedback? customerFeedback;
 
   Order({
     required this.id,
@@ -171,6 +173,7 @@ class Order {
     required this.createdAt,
     required this.cashierName,
     this.orderNotes,
+    this.customerFeedback,
   });
 
   Map<String, dynamic> toJson() => {
@@ -193,6 +196,7 @@ class Order {
         'createdAt': createdAt.toIso8601String(),
         'cashierName': cashierName,
         'orderNotes': orderNotes,
+        'customerFeedback': customerFeedback?.toJson(),
       };
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -239,6 +243,9 @@ class Order {
           : DateTime.now(),
       cashierName: json['cashierName'] as String? ?? 'Main POS',
       orderNotes: json['orderNotes'] as String?,
+      customerFeedback: json['customerFeedback'] != null
+          ? CustomerFeedback.fromJson(json['customerFeedback'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -282,6 +289,7 @@ class Order {
     DateTime? createdAt,
     String? cashierName,
     String? orderNotes,
+    CustomerFeedback? customerFeedback,
   }) {
     return Order(
       id: id ?? this.id,
@@ -303,6 +311,7 @@ class Order {
       createdAt: createdAt ?? this.createdAt,
       cashierName: cashierName ?? this.cashierName,
       orderNotes: orderNotes ?? this.orderNotes,
+      customerFeedback: customerFeedback ?? this.customerFeedback,
     );
   }
 }
