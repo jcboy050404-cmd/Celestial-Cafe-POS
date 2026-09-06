@@ -7,6 +7,7 @@ import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'customization_dialog.dart';
 import 'receipt_dialog.dart';
+import 'top_notification.dart';
 
 class CustomerOrderApprovalDialog extends StatefulWidget {
   final Order order;
@@ -92,11 +93,9 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     final item = _items[index];
     final menuItem = posProvider.menuItems.where((m) => m.id == item.menuItem.id).firstOrNull;
     if (menuItem != null && menuItem.stockCount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${item.menuItem.name} is out of stock.'),
-          backgroundColor: CelestialTheme.roseAlert,
-        ),
+      TopNotification.showError(
+        context,
+        '${item.menuItem.name} is sold out.',
       );
       return;
     }
@@ -129,22 +128,9 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     final posProvider = Provider.of<PosProvider>(context, listen: false);
     posProvider.loadPendingOrderIntoPosCart(widget.order.id);
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: CelestialTheme.bgCard,
-        content: Row(
-          children: [
-            const Icon(Icons.shopping_cart_checkout_rounded, color: CelestialTheme.goldLight),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Order ${widget.order.orderNumber} loaded into POS Cart for modification.',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
-              ),
-            ),
-          ],
-        ),
-      ),
+    TopNotification.showSuccess(
+      context,
+      'Order ${widget.order.orderNumber} loaded into POS Cart for modification.',
     );
   }
 
@@ -158,6 +144,7 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
           if (menuItem.customizationGroups.isNotEmpty) {
             showDialog(
               context: context,
+              barrierColor: Colors.black.withValues(alpha: 0.85),
               builder: (ctx) => CustomizationDialog(
                 item: menuItem,
                 onAddToCart: (quantity, customizations, notes) {
@@ -199,11 +186,9 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
 
   void _handleApproveAndSettle() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot approve order with no items. Add items or decline order.'),
-          backgroundColor: CelestialTheme.roseAlert,
-        ),
+      TopNotification.showError(
+        context,
+        'Cannot approve order with no items. Add items or decline order.',
       );
       return;
     }
@@ -211,11 +196,9 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
     final total = _calculateTotal();
 
     if (_selectedPaymentMethod == PaymentMethod.cash && _amountTendered < total) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tendered amount cannot be less than total bill.'),
-          backgroundColor: CelestialTheme.roseAlert,
-        ),
+      TopNotification.showError(
+        context,
+        'Tendered amount cannot be less than total bill.',
       );
       return;
     }
@@ -255,7 +238,6 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
   void _handleDeclineOrder() {
     bool isDeclining = false;
     final posProvider = Provider.of<PosProvider>(context, listen: false);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final approvalDialogNavigator = Navigator.of(context);
 
     showDialog(
@@ -296,11 +278,9 @@ class _CustomerOrderApprovalDialogState extends State<CustomerOrderApprovalDialo
                         posProvider.rejectCustomerOrder(widget.order.id, restock: true);
                         if (ctx.mounted) Navigator.pop(ctx); // Close confirmation
                         if (mounted) approvalDialogNavigator.pop(); // Close approval dialog
-                        scaffoldMessenger.showSnackBar(
-                          SnackBar(
-                            backgroundColor: CelestialTheme.bgCard,
-                            content: Text('Order ${widget.order.orderNumber} declined and voided.'),
-                          ),
+                        TopNotification.showWarning(
+                          null,
+                          'Order ${widget.order.orderNumber} declined and voided.',
                         );
                       },
                 style: ElevatedButton.styleFrom(
@@ -1395,7 +1375,7 @@ class _AddItemModalState extends State<_AddItemModal> {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        isOut ? 'Out of Stock' : '${item.stockCount} in stock',
+                                        isOut ? 'Sold Out' : '${item.stockCount} in stock',
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: isOut ? CelestialTheme.roseAlert : CelestialTheme.emeraldReady,

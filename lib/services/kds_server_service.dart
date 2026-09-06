@@ -126,11 +126,15 @@ class KdsServerService {
     this.getOrderByIdCallback = getOrderByIdCallback;
     this.getItemImageCallback = getItemImageCallback;
     _port = port;
+    _gzippedKdsHtml = null;
+    _cachedCustomerHtml = null;
+    _cachedMenuJson = null;
 
     await _detectLocalIp();
 
     try {
-      _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: _port != 0);
+      _port = _server!.port;
       _isRunning = true;
       if (kDebugMode) {
         print('Celestial POS & KDS Server started on $serverUrl');
@@ -143,8 +147,9 @@ class KdsServerService {
       });
     } catch (e) {
       try {
-        _port = 8081;
-        _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
+        final fallbackPort = _port == 0 ? 0 : 8081;
+        _server = await HttpServer.bind(InternetAddress.anyIPv4, fallbackPort, shared: fallbackPort != 0);
+        _port = _server!.port;
         _isRunning = true;
         if (kDebugMode) {
           print('Celestial KDS Server started on fallback $serverUrl');
@@ -173,9 +178,19 @@ class KdsServerService {
         'rmnet', 'ccmni', 'pdp_ip', 'v4-rmnet', 'clat', 'wwan', 'ppp',
       ];
 
+      // Virtual / tunnel interface patterns (ZeroTier, WSL, VirtualBox, etc.)
+      const virtualPrefixes = [
+        'zerotier', 'vethernet', 'virtualbox', 'vmware', 'wsl', 'tailscale', 'wireguard', 'tap', 'tun', 'vbox',
+      ];
+
       bool isCellular(String name) {
         final lower = name.toLowerCase();
         return cellularPrefixes.any((p) => lower.startsWith(p));
+      }
+
+      bool isVirtual(String name) {
+        final lower = name.toLowerCase();
+        return virtualPrefixes.any((p) => lower.contains(p));
       }
 
       String? bestIp;    // Best LAN / Wi-Fi IP
@@ -184,16 +199,17 @@ class KdsServerService {
       for (var interface in interfaces) {
         final name = interface.name;
         final isCell = isCellular(name);
+        final isVirt = isVirtual(name);
 
         for (var addr in interface.addresses) {
           if (addr.isLoopback) continue;
           final ip = addr.address;
 
-          if (kDebugMode) print('Interface: $name  IP: $ip  cellular: $isCell');
+          if (kDebugMode) print('Interface: $name  IP: $ip  cellular: $isCell  virtual: $isVirt');
 
-          // Skip cellular interfaces for priority matching
-          if (isCell) {
-            cellularIp ??= ip;
+          // Skip cellular and virtual tunnel interfaces for priority matching
+          if (isCell || isVirt) {
+            if (isCell) cellularIp ??= ip;
             continue;
           }
 
@@ -265,6 +281,9 @@ class KdsServerService {
     await _server?.close(force: true);
     _server = null;
     _isRunning = false;
+    _gzippedKdsHtml = null;
+    _cachedCustomerHtml = null;
+    _cachedMenuJson = null;
   }
 
   Timer? _broadcastDebounceTimer;
@@ -315,13 +334,14 @@ class KdsServerService {
     }
   }
 
-  void broadcastItemPrepared(String orderId, int itemIndex, bool isPrepared) {
+  void broadcastItemPrepared(String orderId, int itemIndex, bool isPrepared, {String? orderStatus}) {
     try {
       final payload = jsonEncode({
         'type': 'ITEM_PREPARED',
         'orderId': orderId,
         'itemIndex': itemIndex,
         'isPrepared': isPrepared,
+        if (orderStatus != null) 'status': orderStatus,
       });
       _broadcastToSockets(_baristaClients, payload);
     } catch (e) {
@@ -344,6 +364,8 @@ class KdsServerService {
   }
 
   void broadcastMenu(List<Map<String, dynamic>> menuList) {
+    _cachedCustomerHtml = null;
+    _cachedMenuJson = null;
     try {
       final payload = jsonEncode({
         'type': 'SYNC_MENU',
@@ -1129,7 +1151,7 @@ class KdsServerService {
         return;
       }
 
-      final orderId = data['orderId'] as String?;
+      final orderId = (data['orderId'] ?? data['id'] ?? data['orderNumber'] ?? data['order'])?.toString();
       final status = data['status'] as String?;
 
       if (orderId != null && status != null) {
@@ -1167,7 +1189,7 @@ class KdsServerService {
         return;
       }
 
-      final orderId = data['orderId'] as String?;
+      final orderId = (data['orderId'] ?? data['id'] ?? data['orderNumber'] ?? data['order'])?.toString();
       final itemIndex = (data['itemIndex'] as num?)?.toInt();
       final isPrepared = data['isPrepared'] as bool? ?? true;
 
@@ -1194,42 +1216,139 @@ class KdsServerService {
 
   void _handleWebSocket(HttpRequest request) async {
     try {
-      final isBarista = _isBaristaAuthorized(request);
+      bool isBarista = _isBaristaAuthorized(request);
       final socket = await WebSocketTransformer.upgrade(request);
       socket.pingInterval = const Duration(seconds: 6);
       _clients.add(socket);
-      if (isBarista) {
-        _baristaClients.add(socket);
+
+      // Immediately send live menu to newly connected socket so client has fresh stock/prices
+      if (getMenuCallback != null) {
+        try {
+          socket.add(jsonEncode({
+            'type': 'SYNC_MENU',
+            'menu': getMenuCallback!(),
+          }));
+        } catch (_) {}
+      }
+
+      void promoteToBarista() {
+        if (!isBarista) {
+          isBarista = true;
+        }
+        if (!_baristaClients.contains(socket)) {
+          _baristaClients.add(socket);
+        }
+        if (getActiveOrdersJson != null) {
+          try {
+            socket.add(jsonEncode({
+              'type': 'SYNC_ORDERS',
+              'orders': getActiveOrdersJson!(),
+            }));
+          } catch (_) {}
+        }
       }
 
       // Only send full kitchen ticket backlog to authorized Barista sockets
-      if (isBarista && getActiveOrdersJson != null) {
-        socket.add(jsonEncode({
-          'type': 'SYNC_ORDERS',
-          'orders': getActiveOrdersJson!(),
-        }));
+      if (isBarista) {
+        promoteToBarista();
       }
 
       socket.listen(
         (data) {
           try {
             final msg = jsonDecode(data as String) as Map<String, dynamic>;
-            final action = msg['action'] as String?;
-            final orderId = msg['orderId'] as String?;
+            final action = msg['action'] as String? ?? msg['type'] as String?;
+            final orderId = (msg['orderId'] ?? msg['id'] ?? msg['orderNumber'] ?? msg['order'])?.toString();
             final status = msg['status'] as String?;
             final pin = msg['pin']?.toString();
 
+            final bool hasValidPin = pin != null && pin.trim() == _baristaPin;
+
+            if (action == 'get_menu' || action == 'GET_MENU' || action == 'sync_menu' || action == 'SYNC_MENU') {
+              if (getMenuCallback != null) {
+                try {
+                  socket.add(jsonEncode({
+                    'type': 'SYNC_MENU',
+                    'menu': getMenuCallback!(),
+                  }));
+                } catch (_) {}
+              }
+              return;
+            }
+
+            if (action == 'auth' || action == 'verify_pin') {
+              if (hasValidPin) {
+                promoteToBarista();
+                socket.add(jsonEncode({
+                  'type': 'AUTH_SUCCESS',
+                  'valid': true,
+                }));
+              } else {
+                socket.add(jsonEncode({
+                  'type': 'AUTH_FAILED',
+                  'valid': false,
+                  'error': 'Invalid Barista Security PIN',
+                }));
+              }
+              return;
+            }
+
+            if (hasValidPin && !isBarista) {
+              promoteToBarista();
+            }
+
+            if (action == 'sync_orders' || action == 'get_orders') {
+              if (isBarista) {
+                promoteToBarista();
+              } else {
+                socket.add(jsonEncode({
+                  'type': 'AUTH_REQUIRED',
+                  'error': 'Valid Barista PIN required to view kitchen queue',
+                }));
+              }
+              return;
+            }
+
             if (action == 'update_status' && orderId != null && status != null) {
-              if (isBarista || (pin != null && pin.trim() == _baristaPin)) {
+              if (isBarista || hasValidPin) {
+                if (!isBarista && hasValidPin) promoteToBarista();
                 onOrderStatusUpdate?.call(orderId, status);
-              } else if (kDebugMode) {
-                print('Rejected unauthorized update_status on WebSocket');
+                socket.add(jsonEncode({
+                  'type': 'ORDER_STATUS_UPDATE_ACK',
+                  'orderId': orderId,
+                  'status': status,
+                  'success': true,
+                }));
+              } else {
+                socket.add(jsonEncode({
+                  'type': 'AUTH_REQUIRED',
+                  'error': 'Unauthorized: Valid Barista PIN required',
+                }));
+                if (kDebugMode) {
+                  print('Rejected unauthorized update_status on WebSocket');
+                }
               }
             } else if (action == 'toggle_item_prep' && orderId != null && msg['itemIndex'] != null) {
               final itemIdx = (msg['itemIndex'] as num).toInt();
               final isPrepared = msg['isPrepared'] as bool? ?? true;
-              if (isBarista || (pin != null && pin.trim() == _baristaPin)) {
+              if (isBarista || hasValidPin) {
+                if (!isBarista && hasValidPin) promoteToBarista();
                 onOrderItemPrepared?.call(orderId, itemIdx, isPrepared);
+                socket.add(jsonEncode({
+                  'type': 'ITEM_PREPARED_ACK',
+                  'orderId': orderId,
+                  'itemIndex': itemIdx,
+                  'isPrepared': isPrepared,
+                  'success': true,
+                }));
+              } else {
+                socket.add(jsonEncode({
+                  'type': 'AUTH_REQUIRED',
+                  'error': 'Unauthorized: Valid Barista PIN required',
+                }));
+                if (kDebugMode) {
+                  print('Rejected unauthorized toggle_item_prep on WebSocket');
+                }
               }
             }
           } catch (e) {

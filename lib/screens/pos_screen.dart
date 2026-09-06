@@ -90,7 +90,7 @@ class PosScreen extends StatelessWidget {
     // Also open the customization dialog for it
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.75),
+      barrierColor: Colors.black.withValues(alpha: 0.85),
       builder: (ctx) => CustomizationDialog(
         item: item,
         onAddToCart: (quantity, customizations, notes) {

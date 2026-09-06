@@ -10,6 +10,7 @@ import 'screens/pending_orders_screen.dart';
 import 'screens/pos_screen.dart';
 import 'theme/celestial_theme.dart';
 import 'widgets/header_bar.dart';
+import 'widgets/top_notification.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ class CelestialCafePosApp extends StatelessWidget {
       child: Consumer<PosProvider>(
         builder: (context, posProvider, _) {
           return MaterialApp(
+            navigatorKey: TopNotification.navigatorKey,
             title: 'Celestial Cafe POS',
             debugShowCheckedModeBanner: false,
             theme: CelestialTheme.themeData,
@@ -57,11 +59,21 @@ class MainWorkstationScaffold extends StatefulWidget {
 
 class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
   bool _isScrolled = false;
+  int _lastNavIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
+
+    if (_lastNavIndex != posProvider.currentNavIndex) {
+      _lastNavIndex = posProvider.currentNavIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+        }
+      });
+    }
 
     final screens = const [
       PosScreen(),

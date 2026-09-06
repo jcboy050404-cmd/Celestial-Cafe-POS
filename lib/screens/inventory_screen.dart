@@ -234,7 +234,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                   ),
                                   child: Text(
                                     !item.inStock
-                                        ? 'OUT OF STOCK'
+                                        ? 'SOLD OUT'
                                         : isLowStock
                                             ? 'LOW (${item.stockCount})'
                                             : 'IN STOCK (${item.stockCount})',

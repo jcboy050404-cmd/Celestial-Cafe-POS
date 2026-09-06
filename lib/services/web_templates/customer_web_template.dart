@@ -1231,11 +1231,44 @@ const String customerOrderHtmlTemplate = '''
     .cust-addon-row-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       color: #FFFFFF;
       font-size: 14px;
       font-weight: 700;
       font-family: 'Outfit', sans-serif;
+      flex: 1;
+      min-width: 0;
+    }
+    .cust-addon-name,
+    .cust-addon-row-left > span:not(.cust-addon-circle):not(.cust-radio-ring) {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.35;
+      color: #FFFFFF;
+    }
+    .cust-addon-row .cust-radio-ring {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.6px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .cust-addon-row.selected .cust-radio-ring {
+      border-color: var(--caramel-accent);
+    }
+    .cust-addon-row .cust-radio-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--caramel-accent);
+      display: none;
+    }
+    .cust-addon-row.selected .cust-radio-dot {
+      display: block;
     }
     .cust-addon-circle {
       width: 22px;
@@ -1261,9 +1294,35 @@ const String customerOrderHtmlTemplate = '''
       font-size: 13.5px;
       font-weight: 700;
       font-family: 'Outfit', sans-serif;
+      margin-left: 12px;
+      flex-shrink: 0;
     }
     .cust-addon-row.selected .cust-addon-row-right {
-      color: var(--cream-light);
+      color: var(--caramel-accent);
+    }
+    .cust-addon-row.sold-out {
+      opacity: 0.45;
+      cursor: not-allowed;
+      border-color: rgba(229, 57, 53, 0.3);
+    }
+    .cust-addon-row.sold-out:hover {
+      background: #16120E;
+      border-color: rgba(229, 57, 53, 0.3);
+    }
+    .cust-addon-row.sold-out .cust-addon-name,
+    .cust-addon-row.sold-out .cust-addon-row-left > span {
+      text-decoration: line-through;
+      color: #8E7D72;
+    }
+    .cust-pill-btn.sold-out,
+    .cust-pill-btn:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      border-color: rgba(229, 57, 53, 0.3);
+    }
+    .cust-pill-btn.sold-out .cust-pill-label {
+      text-decoration: line-through;
+      color: #8E7D72;
     }
 
     /* ── Bottom Sticky Bar ── */
@@ -4037,11 +4096,54 @@ const String customerOrderHtmlTemplate = '''
     }
 
 
+    function syncMenuViaApi() {
+      fetch('/api/menu')
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.success && Array.isArray(data.menu)) {
+            applyMenuSync(data.menu);
+          }
+        })
+        .catch(() => {});
+    }
+
+    function applyMenuSync(newMenu) {
+      if (!newMenu || !Array.isArray(newMenu)) return;
+      menuData = newMenu;
+      updateCategoryBar();
+      renderMenu();
+      if (selectedItem) {
+        const updated = menuData.find(m => m.id === selectedItem.id);
+        if (updated) {
+          selectedItem = updated;
+          const isItemSoldOut = selectedItem.inStock === false || selectedItem.inStock === 'false' || selectedItem.inStock === 0 || (typeof selectedItem.stockCount === 'number' && selectedItem.stockCount <= 0);
+          if (isItemSoldOut) {
+            closeModal('customModal');
+            showToast('"' + selectedItem.name + '" is currently sold out.');
+          } else if (typeof renderCustomModalGroups === 'function') {
+            renderCustomModalGroups();
+          }
+        }
+      }
+      if (typeof validateCartItemsAgainstMenu === 'function') {
+        validateCartItemsAgainstMenu();
+        const trayModal = document.getElementById('trayModal');
+        if (trayModal && trayModal.style.display === 'flex') {
+          openTrayModal();
+        }
+      }
+    }
+
     function connectCustomerWs() {
       const loc = window.location;
       const wsUrl = (loc.protocol === 'https:' ? 'wss://' : 'ws://') + loc.host + '/ws';
       try {
         custWs = new WebSocket(wsUrl);
+        custWs.onopen = () => {
+          try {
+            custWs.send(JSON.stringify({ type: 'GET_MENU' }));
+          } catch(_) {}
+        };
         custWs.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
@@ -4098,27 +4200,40 @@ const String customerOrderHtmlTemplate = '''
               renderLiveQueue(nowPreparing, inQueue, nowReady);
             } else if (data.type === 'SYNC_MENU') {
               if (data.menu && Array.isArray(data.menu)) {
-                menuData = data.menu;
-                updateCategoryBar();
-                renderMenu();
-                if (selectedItem) {
-                  const updated = menuData.find(m => m.id === selectedItem.id);
-                  if (updated) {
-                    selectedItem = updated;
-                    if (selectedItem.inStock === false) {
-                      closeCustomModal();
-                      showToast('The item you were viewing has just sold out.');
-                    }
-                  }
-                }
+                applyMenuSync(data.menu);
               }
             }
           } catch(err) {}
         };
-        custWs.onclose = () => setTimeout(connectCustomerWs, 3000);
+        custWs.onerror = () => {
+          syncMenuViaApi();
+        };
+        custWs.onclose = () => {
+          setTimeout(connectCustomerWs, 2500);
+          syncMenuViaApi();
+        };
       } catch(err) {
-        setTimeout(connectCustomerWs, 3000);
+        setTimeout(connectCustomerWs, 2500);
+        syncMenuViaApi();
       }
+    }
+
+    function showToast(msg) {
+      let toast = document.getElementById('customerToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'customerToast';
+        toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-14px);background:#18181B;border:1.5px solid #C8B29E;color:#FFF;padding:11px 22px;border-radius:12px;font-size:13px;font-weight:600;z-index:999999;box-shadow:0 8px 30px rgba(0,0,0,0.8);transition:opacity 0.25s,transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);pointer-events:none;display:flex;align-items:center;gap:8px;opacity:0;';
+        document.body.appendChild(toast);
+      }
+      toast.innerText = msg;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(-14px)';
+      }, 2600);
     }
 
     function handleSearch(val) {
@@ -4217,7 +4332,7 @@ const String customerOrderHtmlTemplate = '''
       }
 
       grid.innerHTML = filtered.map(item => {
-        const isSoldOut = item.inStock === false;
+        const isSoldOut = item.inStock === false || item.inStock === 'false' || item.inStock === 0 || (typeof item.stockCount === 'number' && item.stockCount <= 0);
         const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich' || item.category === 'dinner') ||
           ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast', 'bbq', 'barbeque', 'combo', 'rice', 'inasal', 'sisig'].some(k => (item.name || '').toLowerCase().includes(k));
         const kitchenTag = isKitchen ? '<span style="background: rgba(255,87,34,0.2); border: 1px solid rgba(255,87,34,0.5); color: #FF7043; font-size: 8.5px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; text-transform: uppercase;">Kitchen</span>' : '';
@@ -4233,7 +4348,7 @@ const String customerOrderHtmlTemplate = '''
         ` : `
           <div class="item-img-container">
             <div class="item-img-placeholder">
-              <span style="font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:2px;color:var(--gold-light);">☕</span>
+              <span style="font-family:\'Cinzel\',serif;font-weight:800;font-size:24px;letter-spacing:2px;color:var(--gold-light);">☕</span>
             </div>
             \${isSoldOut ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.68); display:flex; align-items:center; justify-content:center; border-radius:14px;"><span style="background:#E53935; color:#fff; font-size:10px; font-weight:bold; padding:3px 8px; border-radius:6px; letter-spacing:0.8px;">SOLD OUT</span></div>' : ''}
           </div>
@@ -4243,7 +4358,7 @@ const String customerOrderHtmlTemplate = '''
         const cardStyle = isSoldOut ? 'opacity: 0.65;' : '';
         const clickAttr = isSoldOut ? "showToast('This item is currently sold out.')" : ("openCustomModal('" + item.id + "')");
         const priceDisplay = isSoldOut 
-          ? '<span style="font-size: 13.5px; color: #888;">Unavailable</span>' 
+          ? '<span style="font-size: 13px; color: #FF6B6B; font-weight: 700;">Sold Out</span>' 
           : '<span class="peso-symbol">₱</span>' + Math.round(item.price);
         const catText = (item.categoryLabel || item.category || 'COFFEE').toUpperCase();
         const descText = item.description || (item.tags && item.tags.length > 0 ? item.tags.join(', ') : '');
@@ -4262,7 +4377,7 @@ const String customerOrderHtmlTemplate = '''
             </div>
             <div class="item-card-bottom">
               <div class="item-price">\${priceDisplay}</div>
-              <button class="btn-add-circle" onclick="event.stopPropagation(); \${clickAttr}" aria-label="Add \${escapeHtml(item.name)} to tray">
+              <button class="btn-add-circle \${isSoldOut ? 'disabled' : ''}" style="\${isSoldOut ? 'opacity: 0.35; cursor: not-allowed;' : ''}" onclick="event.stopPropagation(); \${clickAttr}" aria-label="\${isSoldOut ? 'Sold out' : 'Add ' + escapeHtml(item.name) + ' to tray'}">
                 <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -4302,6 +4417,12 @@ const String customerOrderHtmlTemplate = '''
       selectedItem = menuData.find(m => m.id === itemId);
       if (!selectedItem) return;
 
+      const isItemSoldOut = selectedItem.inStock === false || selectedItem.inStock === 'false' || selectedItem.inStock === 0 || (typeof selectedItem.stockCount === 'number' && selectedItem.stockCount <= 0);
+      if (isItemSoldOut) {
+        showToast('"' + selectedItem.name + '" is currently sold out.');
+        return;
+      }
+
       modalItemQty = 1;
       document.getElementById('modalQtyDisplay').innerText = modalItemQty;
       selectedCustomizations = [];
@@ -4333,6 +4454,25 @@ const String customerOrderHtmlTemplate = '''
         }
       }
 
+      renderCustomModalGroups(true);
+      document.getElementById('customModal').style.display = 'flex';
+    }
+
+    function isOptionAvailable(opt) {
+      if (!opt) return false;
+      if (opt.isAvailable === false || opt.isAvailable === 'false' || opt.isAvailable === 0) return false;
+      return true;
+    }
+
+    function renderCustomModalGroups(isInitial = false) {
+      if (!selectedItem) return;
+      const isItemSoldOut = selectedItem.inStock === false || selectedItem.inStock === 'false' || selectedItem.inStock === 0 || (typeof selectedItem.stockCount === 'number' && selectedItem.stockCount <= 0);
+      if (isItemSoldOut) {
+        closeModal('customModal');
+        showToast('"' + selectedItem.name + '" is currently sold out.');
+        return;
+      }
+
       function getGroupIconSvg(titleLower) {
         if (titleLower.includes('temp')) {
           return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C48248" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>';
@@ -4346,9 +4486,20 @@ const String customerOrderHtmlTemplate = '''
         return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C48248" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path></svg>';
       }
 
-      // Customization Groups
       const container = document.getElementById('customGroupContainer');
+      if (!container) return;
       const groups = selectedItem.customizations || [];
+
+      // Clean up multi-select options that became sold out
+      if (!isInitial) {
+        selectedCustomizations = selectedCustomizations.filter(c => {
+          if (!c.isMulti) return true;
+          const grp = groups.find(g => g.groupTitle === c.groupTitle);
+          if (!grp) return true;
+          const opt = (grp.options || []).find(o => o.name === c.optionName);
+          return isOptionAvailable(opt);
+        });
+      }
 
       container.innerHTML = groups.map((g, gIdx) => {
         const titleLower = (g.groupTitle || '').toLowerCase();
@@ -4375,13 +4526,18 @@ const String customerOrderHtmlTemplate = '''
             return nameLower.includes('hot') || nameLower.includes('ice');
           });
 
-          // Ensure default selection
-          const defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < validTempOptions.length)
-            ? g.defaultIndex
-            : (validTempOptions.findIndex(o => o.name.toLowerCase().includes('ice')) >= 0
-                ? validTempOptions.findIndex(o => o.name.toLowerCase().includes('ice'))
-                : 0);
-          const chosenOpt = validTempOptions[defaultIdx] || validTempOptions[0];
+          const availTempOptions = validTempOptions.filter(o => isOptionAvailable(o));
+          let chosenOpt = null;
+          const existing = selectedCustomizations.find(c => c.groupTitle === g.groupTitle);
+          if (existing && availTempOptions.some(o => o.name === existing.optionName)) {
+            chosenOpt = availTempOptions.find(o => o.name === existing.optionName);
+          } else {
+            let preferredIdx = validTempOptions.findIndex(o => isOptionAvailable(o) && o.name.toLowerCase().includes('ice'));
+            if (preferredIdx < 0) preferredIdx = validTempOptions.findIndex(o => isOptionAvailable(o));
+            chosenOpt = preferredIdx >= 0 ? validTempOptions[preferredIdx] : (availTempOptions[0] || null);
+          }
+
+          selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== g.groupTitle);
           if (chosenOpt) {
             selectedCustomizations.push({
               groupTitle: g.groupTitle,
@@ -4394,9 +4550,19 @@ const String customerOrderHtmlTemplate = '''
           optionsHtml = `
             <div class="cust-pill-row cust-group-options">
               \${validTempOptions.map((opt) => {
+                const avail = isOptionAvailable(opt);
                 const isSelected = chosenOpt && chosenOpt.name === opt.name;
                 const extra = opt.priceAdjustment || 0;
                 const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
+                if (!avail) {
+                  return `
+                    <button type="button" class="cust-pill-btn sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.42; cursor:not-allowed;">
+                      <span class="cust-radio-ring" style="border-color:rgba(255,255,255,0.15);"><span class="cust-radio-dot" style="display:none;"></span></span>
+                      <span class="cust-pill-label" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                      <span style="font-size:9px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:1px 5px;border-radius:4px;text-transform:uppercase;margin-left:auto;">SOLD OUT</span>
+                    </button>
+                  `;
+                }
                 return `
                   <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
                     <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
@@ -4408,12 +4574,19 @@ const String customerOrderHtmlTemplate = '''
             </div>
           `;
         } else if (isSweet) {
-          // Sweetness Level: 2-column grid
-          let defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < g.options.length)
-            ? g.defaultIndex
-            : g.options.findIndex(o => (o.name || '').toLowerCase().includes('100') || (o.name || '').toLowerCase().includes('regular'));
-          if (defaultIdx < 0) defaultIdx = g.options.length - 1;
-          const chosenOpt = g.options[defaultIdx] || g.options[0];
+          // Sweetness Level
+          const availSweetOptions = g.options.filter(o => isOptionAvailable(o));
+          let chosenOpt = null;
+          const existing = selectedCustomizations.find(c => c.groupTitle === g.groupTitle);
+          if (existing && availSweetOptions.some(o => o.name === existing.optionName)) {
+            chosenOpt = availSweetOptions.find(o => o.name === existing.optionName);
+          } else {
+            let preferredIdx = g.options.findIndex(o => isOptionAvailable(o) && ((o.name || '').toLowerCase().includes('100') || (o.name || '').toLowerCase().includes('regular')));
+            if (preferredIdx < 0) preferredIdx = g.options.findIndex(o => isOptionAvailable(o));
+            chosenOpt = preferredIdx >= 0 ? g.options[preferredIdx] : (availSweetOptions[0] || null);
+          }
+
+          selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== g.groupTitle);
           if (chosenOpt) {
             selectedCustomizations.push({
               groupTitle: g.groupTitle,
@@ -4423,63 +4596,29 @@ const String customerOrderHtmlTemplate = '''
             });
           }
 
-          optionsHtml = `
-            <div class="cust-pill-grid cust-group-options">
-              \${g.options.map((opt) => {
-                const isSelected = chosenOpt && chosenOpt.name === opt.name;
-                const extra = opt.priceAdjustment || 0;
-                const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
-                return `
-                  <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
-                    <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
-                    <span class="cust-pill-label">\${escapeHtml(opt.name)}</span>
-                    \${extraText ? `<span class="cust-pill-extra">\${extraText}</span>` : ''}
-                  </button>
-                `;
-              }).join('')}
-            </div>
-          `;
-        } else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) {
-          // Add-ons & Extras: Full width rows with circle + and price
-          optionsHtml = `
-            <div class="cust-addon-list">
-              \${g.options.map((opt) => {
-                const extraPrice = opt.priceAdjustment || 0;
-                const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
-                return `
-                  <div class="cust-addon-row" onclick="toggleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
-                    <div class="cust-addon-row-left">
-                      <span class="cust-addon-circle">+</span>
-                      <span>\${escapeHtml(opt.name)}</span>
-                    </div>
-                    <div class="cust-addon-row-right">\${priceText}</div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          `;
-        } else {
-          // Generic single-select options (e.g. Size, Rice Choice)
-          const defaultIdx = (g.defaultIndex >= 0 && g.defaultIndex < g.options.length) ? g.defaultIndex : 0;
-          const chosenOpt = g.options[defaultIdx] || g.options[0];
-          if (chosenOpt) {
-            selectedCustomizations.push({
-              groupTitle: g.groupTitle,
-              optionName: chosenOpt.name,
-              extraPrice: chosenOpt.priceAdjustment || 0,
-              isMulti: false
-            });
-          }
+          const hasLongText = g.options.some(opt => {
+            const name = (opt.name || '').trim();
+            const extra = opt.priceAdjustment || 0;
+            return name.length > 11 || (name.length > 7 && extra > 0) || name.includes('(') || name.includes('/') || name.split(/\\s+/).length > 2;
+          });
 
-          const layoutClass = g.options.length <= 2 ? 'cust-pill-row' : (g.options.length <= 4 ? 'cust-pill-grid' : 'cust-addon-list');
-
-          if (g.options.length <= 4) {
+          if (!hasLongText && g.options.length <= 4) {
             optionsHtml = `
-              <div class="\${layoutClass} cust-group-options">
+              <div class="cust-pill-grid cust-group-options">
                 \${g.options.map((opt) => {
+                  const avail = isOptionAvailable(opt);
                   const isSelected = chosenOpt && chosenOpt.name === opt.name;
                   const extra = opt.priceAdjustment || 0;
                   const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
+                  if (!avail) {
+                    return `
+                      <button type="button" class="cust-pill-btn sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.42; cursor:not-allowed;">
+                        <span class="cust-radio-ring" style="border-color:rgba(255,255,255,0.15);"><span class="cust-radio-dot" style="display:none;"></span></span>
+                        <span class="cust-pill-label" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                        <span style="font-size:9px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:1px 5px;border-radius:4px;text-transform:uppercase;margin-left:auto;">SOLD OUT</span>
+                      </button>
+                    `;
+                  }
                   return `
                     <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
                       <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
@@ -4494,14 +4633,149 @@ const String customerOrderHtmlTemplate = '''
             optionsHtml = `
               <div class="cust-addon-list">
                 \${g.options.map((opt) => {
+                  const avail = isOptionAvailable(opt);
                   const isSelected = chosenOpt && chosenOpt.name === opt.name;
                   const extraPrice = opt.priceAdjustment || 0;
                   const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
+                  if (!avail) {
+                    return `
+                      <div class="cust-addon-row sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.45; cursor:not-allowed;">
+                        <div class="cust-addon-row-left">
+                          <span class="cust-radio-ring" style="border-color:rgba(255,255,255,0.15);"><span class="cust-radio-dot" style="display:none;"></span></span>
+                          <span class="cust-addon-name" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                        </div>
+                        <div class="cust-addon-row-right"><span style="font-size:10px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:2px 7px;border-radius:6px;text-transform:uppercase;">Sold Out</span></div>
+                      </div>
+                    `;
+                  }
                   return `
                     <div class="cust-addon-row \${isSelected ? 'selected' : ''}" onclick="selectSingleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
                       <div class="cust-addon-row-left">
-                        <span class="cust-addon-circle">\${isSelected ? '✓' : '+'}</span>
-                        <span>\${escapeHtml(opt.name)}</span>
+                        <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                        <span class="cust-addon-name">\${escapeHtml(opt.name)}</span>
+                      </div>
+                      <div class="cust-addon-row-right">\${priceText}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `;
+          }
+        } else if (isMulti || titleLower.includes('addon') || titleLower.includes('extra') || titleLower.includes('sinker')) {
+          // Add-ons & Extras: Full width rows with circle + and price
+          optionsHtml = `
+            <div class="cust-addon-list">
+              \${g.options.map((opt) => {
+                const avail = isOptionAvailable(opt);
+                const isSelected = selectedCustomizations.some(c => c.groupTitle === g.groupTitle && c.optionName === opt.name);
+                const extraPrice = opt.priceAdjustment || 0;
+                const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
+                if (!avail) {
+                  return `
+                    <div class="cust-addon-row sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.45; cursor:not-allowed;">
+                      <div class="cust-addon-row-left">
+                        <span class="cust-addon-circle" style="opacity:0.35; border-color:rgba(255,255,255,0.15);">✕</span>
+                        <span class="cust-addon-name" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                      </div>
+                      <div class="cust-addon-row-right"><span style="font-size:10px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:2px 7px;border-radius:6px;text-transform:uppercase;">Sold Out</span></div>
+                    </div>
+                  `;
+                }
+                return `
+                  <div class="cust-addon-row \${isSelected ? 'selected' : ''}" onclick="toggleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
+                    <div class="cust-addon-row-left">
+                      <span class="cust-addon-circle">\${isSelected ? '✓' : '+'}</span>
+                      <span class="cust-addon-name">\${escapeHtml(opt.name)}</span>
+                    </div>
+                    <div class="cust-addon-row-right">\${priceText}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          // Generic single-select options (e.g. Size, Rice Choice, Flavor & Spice)
+          const availOptions = g.options.filter(o => isOptionAvailable(o));
+          let chosenOpt = null;
+          const existing = selectedCustomizations.find(c => c.groupTitle === g.groupTitle);
+          if (existing && availOptions.some(o => o.name === existing.optionName)) {
+            chosenOpt = availOptions.find(o => o.name === existing.optionName);
+          } else {
+            let preferredIdx = (g.defaultIndex >= 0 && g.defaultIndex < g.options.length && isOptionAvailable(g.options[g.defaultIndex]))
+              ? g.defaultIndex
+              : g.options.findIndex(o => isOptionAvailable(o));
+            chosenOpt = preferredIdx >= 0 ? g.options[preferredIdx] : (availOptions[0] || null);
+          }
+
+          selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== g.groupTitle);
+          if (chosenOpt) {
+            selectedCustomizations.push({
+              groupTitle: g.groupTitle,
+              optionName: chosenOpt.name,
+              extraPrice: chosenOpt.priceAdjustment || 0,
+              isMulti: false
+            });
+          }
+
+          const hasLongText = g.options.some(opt => {
+            const name = (opt.name || '').trim();
+            const extra = opt.priceAdjustment || 0;
+            return name.length > 11 || (name.length > 7 && extra > 0) || name.includes('(') || name.includes('/') || name.split(/\\s+/).length > 2;
+          });
+          const useRowLayout = g.options.length > 4 || hasLongText;
+
+          if (!useRowLayout) {
+            const layoutClass = g.options.length <= 2 ? 'cust-pill-row' : 'cust-pill-grid';
+            optionsHtml = `
+              <div class="\${layoutClass} cust-group-options">
+                \${g.options.map((opt) => {
+                  const avail = isOptionAvailable(opt);
+                  const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                  const extra = opt.priceAdjustment || 0;
+                  const extraText = extra > 0 ? `+₱\${Math.round(extra)}` : '';
+                  if (!avail) {
+                    return `
+                      <button type="button" class="cust-pill-btn sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.42; cursor:not-allowed;">
+                        <span class="cust-radio-ring" style="border-color:rgba(255,255,255,0.15);"><span class="cust-radio-dot" style="display:none;"></span></span>
+                        <span class="cust-pill-label" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                        <span style="font-size:9px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:1px 5px;border-radius:4px;text-transform:uppercase;margin-left:auto;">SOLD OUT</span>
+                      </button>
+                    `;
+                  }
+                  return `
+                    <button type="button" class="cust-pill-btn \${isSelected ? 'selected' : ''}" onclick="selectPillOption(\${gIdx}, '\${escapeHtml(opt.name)}', \${extra}, this)">
+                      <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                      <span class="cust-pill-label">\${escapeHtml(opt.name)}</span>
+                      \${extraText ? `<span class="cust-pill-extra">\${extraText}</span>` : ''}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            `;
+          } else {
+            optionsHtml = `
+              <div class="cust-addon-list">
+                \${g.options.map((opt) => {
+                  const avail = isOptionAvailable(opt);
+                  const isSelected = chosenOpt && chosenOpt.name === opt.name;
+                  const extraPrice = opt.priceAdjustment || 0;
+                  const priceText = extraPrice > 0 ? `+₱\${Math.round(extraPrice)}` : '';
+                  if (!avail) {
+                    return `
+                      <div class="cust-addon-row sold-out" onclick="showToast('\${escapeHtml(opt.name)} is currently sold out.')" title="Sold Out" style="opacity:0.45; cursor:not-allowed;">
+                        <div class="cust-addon-row-left">
+                          <span class="cust-radio-ring" style="border-color:rgba(255,255,255,0.15);"><span class="cust-radio-dot" style="display:none;"></span></span>
+                          <span class="cust-addon-name" style="text-decoration:line-through;color:#8E7D72;">\${escapeHtml(opt.name)}</span>
+                        </div>
+                        <div class="cust-addon-row-right"><span style="font-size:10px;font-weight:800;color:#FF6B6B;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.4);padding:2px 7px;border-radius:6px;text-transform:uppercase;">Sold Out</span></div>
+                      </div>
+                    `;
+                  }
+                  return `
+                    <div class="cust-addon-row \${isSelected ? 'selected' : ''}" onclick="selectSingleAddonRow(\${gIdx}, '\${escapeHtml(opt.name)}', \${extraPrice}, this)">
+                      <div class="cust-addon-row-left">
+                        <span class="cust-radio-ring"><span class="cust-radio-dot" style="\${isSelected ? 'display:block;' : ''}"></span></span>
+                        <span class="cust-addon-name">\${escapeHtml(opt.name)}</span>
                       </div>
                       <div class="cust-addon-row-right">\${priceText}</div>
                     </div>
@@ -4527,10 +4801,13 @@ const String customerOrderHtmlTemplate = '''
       }).join('');
 
       updateModalAddButtonPrice();
-      document.getElementById('customModal').style.display = 'flex';
     }
 
     function selectPillOption(gIdx, optName, extraPrice, el) {
+      if (el && el.classList.contains('sold-out')) {
+        showToast(`"\${optName}" is currently sold out.`);
+        return;
+      }
       const group = selectedItem.customizations[gIdx];
       const container = el.closest('.cust-group-options');
       if (container) {
@@ -4556,6 +4833,10 @@ const String customerOrderHtmlTemplate = '''
     const selectSegmentOption = selectPillOption;
 
     function toggleAddonRow(gIdx, optName, extraPrice, el) {
+      if (el && el.classList.contains('sold-out')) {
+        showToast(`"\${optName}" is currently sold out.`);
+        return;
+      }
       const group = selectedItem.customizations[gIdx];
       el.classList.toggle('selected');
       const isSel = el.classList.contains('selected');
@@ -4576,15 +4857,26 @@ const String customerOrderHtmlTemplate = '''
     }
 
     function selectSingleAddonRow(gIdx, optName, extraPrice, el) {
+      if (el && el.classList.contains('sold-out')) {
+        showToast(`"\${optName}" is currently sold out.`);
+        return;
+      }
       const group = selectedItem.customizations[gIdx];
-      el.parentElement.querySelectorAll('.cust-addon-row').forEach(b => {
-        b.classList.remove('selected');
-        const c = b.querySelector('.cust-addon-circle');
-        if (c) c.innerText = '+';
-      });
+      const container = el.closest('.cust-addon-list') || el.parentElement;
+      if (container) {
+        container.querySelectorAll('.cust-addon-row').forEach(b => {
+          b.classList.remove('selected');
+          const c = b.querySelector('.cust-addon-circle');
+          if (c) c.innerText = '+';
+          const dot = b.querySelector('.cust-radio-dot');
+          if (dot) dot.style.display = 'none';
+        });
+      }
       el.classList.add('selected');
       const c = el.querySelector('.cust-addon-circle');
       if (c) c.innerText = '✓';
+      const dot = el.querySelector('.cust-radio-dot');
+      if (dot) dot.style.display = 'block';
 
       selectedCustomizations = selectedCustomizations.filter(c => c.groupTitle !== group.groupTitle);
       selectedCustomizations.push({
@@ -4603,16 +4895,58 @@ const String customerOrderHtmlTemplate = '''
     }
 
     function updateModalAddButtonPrice() {
+      const btn = document.getElementById('btnAddItemToCart');
+      const btnText = document.getElementById('modalAddBtnText');
+      if (!selectedItem) return;
+
+      const isSoldOut = selectedItem.inStock === false || selectedItem.inStock === 'false' || selectedItem.inStock === 0 || (typeof selectedItem.stockCount === 'number' && selectedItem.stockCount <= 0);
+      if (isSoldOut) {
+        if (btnText) btnText.innerText = 'Item Sold Out';
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+        }
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+      }
+
       const extraTotal = selectedCustomizations.reduce((sum, c) => sum + (c.extraPrice || 0), 0);
       const unitTotal = selectedItem.price + extraTotal;
       const grandTotal = unitTotal * modalItemQty;
-      const btnText = document.getElementById('modalAddBtnText');
       if (btnText) {
         btnText.innerText = `Add to Order • ₱\${Math.round(grandTotal)}`;
       }
     }
 
     function confirmAddToCart() {
+      if (!selectedItem) return;
+      const freshItem = (menuData || []).find(m => m.id === selectedItem.id) || selectedItem;
+      const isItemSoldOut = freshItem.inStock === false || freshItem.inStock === 'false' || freshItem.inStock === 0 || (typeof freshItem.stockCount === 'number' && freshItem.stockCount <= 0);
+      if (isItemSoldOut) {
+        showToast(`"\${freshItem.name}" is currently sold out.`);
+        closeModal('customModal');
+        return;
+      }
+
+      const groups = freshItem.customizations || [];
+      for (const sel of selectedCustomizations) {
+        const grp = groups.find(g => g.groupTitle === sel.groupTitle);
+        if (grp) {
+          const opt = (grp.options || []).find(o => o.name === sel.optionName);
+          if (opt && !isOptionAvailable(opt)) {
+            showToast(`Option "\${sel.optionName}" is currently sold out. Please select another.`);
+            renderCustomModalGroups();
+            return;
+          }
+        }
+      }
+
       const btn = document.getElementById('btnAddItemToCart');
       const btnText = document.getElementById('modalAddBtnText');
       if (btn) {
@@ -4662,17 +4996,74 @@ const String customerOrderHtmlTemplate = '''
       }
     }
 
+    function validateCartItemsAgainstMenu() {
+      if (!cart || cart.length === 0 || !menuData || menuData.length === 0) return false;
+      let hasSoldOut = false;
+      cart.forEach(cartItem => {
+        const menuItem = menuData.find(m => m.id === cartItem.id || (m.name && cartItem.name && m.name.toLowerCase() === cartItem.name.toLowerCase()));
+        if (!menuItem) return;
+        const itemSoldOut = menuItem.inStock === false || menuItem.inStock === 'false' || menuItem.inStock === 0 || (typeof menuItem.stockCount === 'number' && menuItem.stockCount <= 0);
+        if (itemSoldOut) {
+          cartItem._isSoldOut = true;
+          cartItem._soldOutReason = 'Item Sold Out';
+          hasSoldOut = true;
+        } else {
+          let soldOutOpt = null;
+          const groups = menuItem.customizations || [];
+          for (const sel of (cartItem.customizations || [])) {
+            const grp = groups.find(g => g.groupTitle === sel.groupTitle);
+            if (grp) {
+              const opt = (grp.options || []).find(o => o.name === sel.optionName);
+              if (opt && !isOptionAvailable(opt)) {
+                soldOutOpt = sel.optionName;
+                break;
+              }
+            }
+          }
+          if (soldOutOpt) {
+            cartItem._isSoldOut = true;
+            cartItem._soldOutReason = `"\${soldOutOpt}" Sold Out`;
+            hasSoldOut = true;
+          } else {
+            cartItem._isSoldOut = false;
+            cartItem._soldOutReason = null;
+          }
+        }
+      });
+      return hasSoldOut;
+    }
+
     function openTrayModal() {
+      const hasSoldOut = validateCartItemsAgainstMenu();
       const btn = document.getElementById('btnSendOrder');
       if (btn) {
-        btn.innerText = 'Submit Order to Cashier';
-        btn.disabled = false;
+        if (hasSoldOut) {
+          btn.innerText = 'Remove Sold Out Items to Submit';
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.style.background = '#7F1D1D';
+        } else {
+          btn.innerText = 'Submit Order to Cashier';
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+          btn.style.background = '';
+        }
       }
 
       const list = document.getElementById('trayItemsList');
       const total = cart.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
 
-      list.innerHTML = cart.map((item, idx) => {
+      const warningBannerHtml = hasSoldOut ? `
+        <div style="background: rgba(220, 38, 38, 0.15); border: 1.5px solid #EF4444; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: #FCA5A5; font-weight: 700;">
+          <span style="font-size: 16px;">⚠️</span>
+          <span>Some items in your tray are sold out. Tap ✕ to remove them before submitting.</span>
+        </div>
+      ` : '';
+
+      list.innerHTML = warningBannerHtml + cart.map((item, idx) => {
+        const isSoldOut = item._isSoldOut === true;
         const mItem = (typeof menuData !== 'undefined' && Array.isArray(menuData))
           ? menuData.find(m => m.id === item.id || (m.name && item.name && m.name.toLowerCase() === item.name.toLowerCase()))
           : null;
@@ -4684,39 +5075,48 @@ const String customerOrderHtmlTemplate = '''
 
         const customsBadges = (item.customizations || []).map(c => {
           const priceTxt = (c.extraPrice && c.extraPrice > 0) ? ` (+₱\${Math.round(c.extraPrice)})` : '';
-          return `<span style="display: inline-block; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.3); color: var(--gold-light); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-right: 4px; margin-top: 3px;">\${c.optionName}\${priceTxt}</span>`;
+          return `<span style="display: inline-block; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.3); color: var(--gold-light); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-right: 4px; margin-top: 3px;">\${escapeHtml(c.optionName)}\${priceTxt}</span>`;
         }).join('');
         const isKitchen = (item.category === 'streetBites' || item.category === 'pastaDishes' || item.category === 'sandwich' || item.category === 'dinner') ||
           ['wings', 'buffalo', 'fries', 'stick', 'lumpia', 'shanghai', 'pasta', 'carbonara', 'aglio', 'sandwich', 'toast', 'bbq', 'barbeque', 'combo', 'rice', 'inasal', 'sisig'].some(k => (item.name || '').toLowerCase().includes(k));
         const kitchenBadge = isKitchen ? '<span style="background:rgba(255,87,34,0.2);border:1px solid rgba(255,87,34,0.55);color:#FF7043;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:5px;">KITCHEN</span>' : '';
+        const soldOutItemBadge = isSoldOut ? `<span style="background:rgba(220,38,38,0.25);border:1.2px solid #EF4444;color:#FCA5A5;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;margin-left:6px;text-transform:uppercase;">\${escapeHtml(item._soldOutReason || 'SOLD OUT')}</span>` : '';
 
         const imgBoxHtml = rawImg ? `
-          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: #181310; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; position: relative;">
-            <img src="\${rawImg}" alt="\${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: #181310; border: 1px solid \${isSoldOut ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}; display: flex; align-items: center; justify-content: center; position: relative;">
+            <img src="\${rawImg}" alt="\${escapeHtml(item.name)}" style="width: 100%; height: 100%; object-fit: cover; display: block; \${isSoldOut ? 'filter: grayscale(0.7) opacity(0.6);' : ''}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
             <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%); font-size: 22px; color: var(--gold-light);">\${itemIcon}</div>
           </div>
         ` : `
-          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--gold-light);">
+          <div style="width: 58px; height: 58px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: radial-gradient(circle at center, #2C1F16 0%, #181310 100%); border: 1px solid \${isSoldOut ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--gold-light);">
             \${itemIcon}
           </div>
         `;
 
+        const rowBorder = isSoldOut ? 'border: 1.5px solid rgba(239, 68, 68, 0.6); background: rgba(220, 38, 38, 0.06);' : 'border: 1px solid var(--border-subtle); background: var(--bg-card);';
+
         return `
-          <div style="background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px;">
+          <div style="\${rowBorder} border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px;">
             \${imgBoxHtml}
             <div style="flex: 1; min-width: 0; padding-right: 2px;">
-              <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center; flex-wrap: wrap;">\${item.name}\${kitchenBadge}</div>
+              <div style="font-weight: 700; font-size: 14px; color: var(--text-light); display: flex; align-items: center; flex-wrap: wrap;">
+                <span style="\${isSoldOut ? 'text-decoration: line-through; opacity: 0.7;' : ''}">\${escapeHtml(item.name)}</span>
+                \${kitchenBadge}
+                \${soldOutItemBadge}
+              </div>
               \${customsBadges ? `<div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">\${customsBadges}</div>` : ''}
-              \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 4px;">Note: "\${item.notes}"</div>` : ''}
+              \${item.notes ? `<div style="font-size: 11px; color: var(--rose); margin-top: 4px;">Note: "\${escapeHtml(item.notes)}"</div>` : ''}
               <div style="font-weight: 800; font-size: 14.5px; color: #FFFFFF; margin-top: 5px;">₱\${Math.round(item.unitPrice * item.quantity)}</div>
             </div>
             <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-              <div style="display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                <button onclick="changeTrayItemQty(\${idx}, -1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">−</button>
-                <span style="font-size: 13px; font-weight: 800; color: var(--gold-light); min-width: 18px; text-align: center;">\${item.quantity}</span>
-                <button onclick="changeTrayItemQty(\${idx}, 1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
-              </div>
-              <button onclick="removeFromCart(\${idx})" style="background: rgba(231,29,54,0.15); border: 1px solid rgba(231,29,54,0.4); color: var(--rose); border-radius: 8px; width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+              \${!isSoldOut ? `
+                <div style="display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                  <button onclick="changeTrayItemQty(\${idx}, -1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">−</button>
+                  <span style="font-size: 13px; font-weight: 800; color: var(--gold-light); min-width: 18px; text-align: center;">\${item.quantity}</span>
+                  <button onclick="changeTrayItemQty(\${idx}, 1)" style="background: none; border: none; color: var(--text-light); width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                </div>
+              ` : ''}
+              <button onclick="removeFromCart(\${idx})" title="Remove item" style="background: rgba(231,29,54,0.15); border: 1px solid rgba(231,29,54,0.4); color: var(--rose); border-radius: 8px; width: 28px; height: 28px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
             </div>
           </div>
         `;
@@ -5060,6 +5460,16 @@ const String customerOrderHtmlTemplate = '''
         return;
       }
 
+      if (validateCartItemsAgainstMenu()) {
+        showSuccessModal({
+          title: 'Sold Out Notice',
+          message: 'Some items or options in your tray are currently sold out. Please remove them before submitting your order.',
+          buttonText: 'Review Tray'
+        });
+        openTrayModal();
+        return;
+      }
+
       // Block submission only if user is actively on tracker view
       const trackerEl = document.getElementById('trackerView');
       if (trackerEl && trackerEl.style.display === 'block' && activeTrackedOrderId && prevTrackStatus !== 'completed' && prevTrackStatus !== 'cancelled') {
@@ -5211,6 +5621,7 @@ const String customerOrderHtmlTemplate = '''
             });
             return;
           }
+          syncMenuViaApi();
           showSuccessModal({
             title: 'Order Notice',
             message: (data && data.error) ? data.error : 'Could not submit order. Please try again.',
@@ -5220,6 +5631,7 @@ const String customerOrderHtmlTemplate = '''
       } catch (err) {
         if (submitTimeout) clearTimeout(submitTimeout);
         closeModal('trayModal');
+        syncMenuViaApi();
         showSuccessModal({
           title: 'Order Notice',
           message: 'An unexpected issue occurred while preparing your order. Please try again.',
@@ -6898,18 +7310,20 @@ const String customerOrderHtmlTemplate = '''
       restoreActiveOrderIfAny();
       loadVoiceAudio();
 
+      // Periodic menu sync (every 4 seconds) so sold out items sync even when WebSocket sleeps
+      setInterval(syncMenuViaApi, 4000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          syncMenuViaApi();
+        }
+      });
+      window.addEventListener('focus', () => {
+        syncMenuViaApi();
+      });
+
       // Fallback: If inlined menu was empty or missing, fetch from /api/menu
       if (!menuData || menuData.length === 0) {
-        fetch('/api/menu')
-          .then(r => r.json())
-          .then(data => {
-            if (data && data.success && Array.isArray(data.menu) && data.menu.length > 0) {
-              menuData = data.menu;
-              updateCategoryBar();
-              renderMenu();
-            }
-          })
-          .catch(() => {});
+        syncMenuViaApi();
       }
     }
   </script>

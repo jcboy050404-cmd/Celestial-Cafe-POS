@@ -11,13 +11,13 @@ const String kdsHtmlTemplate = '''
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #180e02ff;
-      --bg-surface: #140E18;
-      --bg-card: #1A1320;
+      --bg-dark: #000000;
+      --bg-surface: #0a0a0a;
+      --bg-card: #111111;
       --gold-primary: #D4AF37;
       --gold-light: #F5D780;
-      --brown-warm: #432C1D;
-      --brown-dark: #1C120C;
+      --brown-warm: #1a1a1a;
+      --brown-dark: #000000;
       --emerald-ready: #2EC4B6;
       --amber-brewing: #FF9F1C;
       --rose-alert: #E71D36;
@@ -35,24 +35,19 @@ const String kdsHtmlTemplate = '''
       -webkit-tap-highlight-color: transparent;
     }
     body {
-      background-color: var(--bg-dark);
+      background-color: #000000 !important;
       color: var(--text-light);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
     
-    /* Top Dark Liquid Glass Header with Scroll Transitions */
+    /* Top Pure Black Header */
     header {
-      background: linear-gradient(135deg, rgba(28, 18, 13, 0.94) 0%, rgba(18, 11, 8, 0.96) 50%, rgba(10, 6, 4, 0.98) 100%);
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: #000000;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
-      border-bottom: 1px solid rgba(212, 163, 89, 0.15);
-      box-shadow: 
-        inset 0 1px 1px rgba(255, 255, 255, 0.08),
-        0 10px 32px rgba(0, 0, 0, 0.75),
-        0 2px 6px rgba(0, 0, 0, 0.4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.75);
       padding: 10px 18px;
       display: flex;
       justify-content: space-between;
@@ -62,44 +57,13 @@ const String kdsHtmlTemplate = '''
       z-index: 100;
       flex-wrap: wrap;
       gap: 8px;
-      transition: padding 0.32s cubic-bezier(0.16, 1, 0.3, 1),
-                  background 0.32s ease,
-                  box-shadow 0.32s ease,
-                  border-color 0.32s ease,
-                  backdrop-filter 0.32s ease;
-    }
-    header::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      right: 0;
-      height: 1.5px;
-      background: linear-gradient(90deg, transparent 0%, rgba(212, 163, 89, 0) 15%, rgba(212, 163, 89, 0.7) 50%, rgba(245, 215, 128, 0.9) 53%, rgba(212, 163, 89, 0.7) 56%, rgba(212, 163, 89, 0) 85%, transparent 100%);
-      background-size: 200% 100%;
-      opacity: 0;
-      transition: opacity 0.4s ease;
-      pointer-events: none;
+      transition: padding 0.25s ease, background 0.25s ease;
     }
     header.scrolled {
-      padding: 6px 18px;
-      background: linear-gradient(135deg, rgba(20, 12, 8, 0.98) 0%, rgba(12, 7, 5, 0.99) 100%);
-      backdrop-filter: blur(28px) saturate(180%);
-      -webkit-backdrop-filter: blur(28px) saturate(180%);
-      border-bottom-color: rgba(212, 163, 89, 0.35);
-      box-shadow: 
-        inset 0 1px 1px rgba(255, 255, 255, 0.12),
-        0 14px 40px rgba(0, 0, 0, 0.88),
-        0 3px 12px rgba(212, 163, 89, 0.16);
-    }
-    header.scrolled::after {
-      opacity: 1;
-      animation: liquidShimmer 4s ease-in-out infinite;
-    }
-    @keyframes liquidShimmer {
-      0% { background-position: 100% 0; }
-      50% { background-position: 0% 0; }
-      100% { background-position: 100% 0; }
+      padding: 7px 18px;
+      background: #000000;
+      border-bottom-color: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
     }
     .brand {
       display: flex;
@@ -265,36 +229,36 @@ const String kdsHtmlTemplate = '''
     }
 
     .ticket {
-      background: linear-gradient(170deg, #1C1522 0%, #120D17 100%);
-      border-radius: 20px;
+      background: #0e0e0e;
+      border-radius: 18px;
       border: 1.5px solid rgba(255, 255, 255, 0.08);
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
       transition: all 0.2s cubic-bezier(0.2, 0.8, 0.4, 1);
     }
     .ticket:hover {
-      border-color: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.18);
       transform: translateY(-2px);
-      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
     }
     .ticket.pending {
-      border-color: rgba(212, 175, 55, 0.38);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(212, 175, 55, 0.08);
+      border-color: rgba(212, 175, 55, 0.45);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
     }
     .ticket.preparing {
-      border-color: rgba(255, 159, 28, 0.65);
-      box-shadow: 0 10px 32px rgba(255, 159, 28, 0.2), 0 0 18px rgba(255, 159, 28, 0.1);
+      border-color: rgba(255, 159, 28, 0.6);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
     }
     .ticket.ready {
-      border-color: rgba(46, 196, 182, 0.65);
-      box-shadow: 0 10px 32px rgba(46, 196, 182, 0.2), 0 0 18px rgba(46, 196, 182, 0.1);
+      border-color: rgba(46, 196, 182, 0.6);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
     }
 
     .ticket-header {
-      padding: 14px 16px 11px 16px;
-      background: rgba(46, 29, 21, 0.45);
+      padding: 13px 16px 11px 16px;
+      background: #141414;
       border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       display: flex;
       justify-content: space-between;
@@ -307,7 +271,7 @@ const String kdsHtmlTemplate = '''
       font-weight: 900;
       color: var(--gold-light);
       letter-spacing: 0.8px;
-      text-shadow: 0 2px 8px rgba(212, 175, 55, 0.25);
+      text-shadow: none;
     }
     .order-type-badge {
       padding: 3px 9px;
@@ -527,16 +491,16 @@ const String kdsHtmlTemplate = '''
     /* Kitchen Cook Dish Highlighting */
     .ticket.has-kitchen {
       border-top: 3.5px solid #FF5722 !important;
-      box-shadow: 0 4px 20px rgba(255, 87, 34, 0.16) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
     }
     .kitchen-item-row {
-      background: linear-gradient(135deg, rgba(255, 87, 34, 0.16) 0%, rgba(255, 112, 67, 0.05) 100%) !important;
-      border: 1.5px solid rgba(255, 87, 34, 0.5) !important;
+      background: rgba(255, 87, 34, 0.08) !important;
+      border: 1.5px solid rgba(255, 87, 34, 0.4) !important;
       border-left: 4px solid #FF5722 !important;
       border-radius: 10px;
       padding: 9px 11px !important;
       margin-bottom: 9px !important;
-      box-shadow: 0 2px 10px rgba(255, 87, 34, 0.15);
+      box-shadow: none;
     }
     .kitchen-tag {
       display: inline-flex;
@@ -561,7 +525,7 @@ const String kdsHtmlTemplate = '''
     .kitchen-qty {
       background: #FF5722 !important;
       color: #FFFFFF !important;
-      box-shadow: 0 2px 8px rgba(255, 87, 34, 0.4);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
     }
     .custom-item {
       font-size: calc(11.5px * var(--kds-zoom, 1));
@@ -618,8 +582,8 @@ const String kdsHtmlTemplate = '''
 
     .ticket-footer {
       padding: 12px 14px;
-      background: var(--bg-surface);
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: #0a0a0a;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
       display: flex;
       gap: 8px;
     }
@@ -649,18 +613,18 @@ const String kdsHtmlTemplate = '''
     .btn-brew {
       background: linear-gradient(135deg, #FF9F1C 0%, #D87700 100%);
       color: #0B080D;
-      box-shadow: 0 4px 16px rgba(255, 159, 28, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
     .btn-ready {
       background: linear-gradient(135deg, #2EC4B6 0%, #178B81 100%);
       color: #0B080D;
-      box-shadow: 0 4px 16px rgba(46, 196, 182, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
     .btn-done {
       background: linear-gradient(135deg, #22C55E 0%, #15803D 100%);
       color: #FFFFFF;
       font-weight: 800;
-      box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
 
     .btn-spinner {
@@ -774,7 +738,7 @@ const String kdsHtmlTemplate = '''
       left: 0;
       right: 0;
       bottom: 0;
-      background: radial-gradient(circle at 50% 32%, rgba(38, 26, 48, 0.94) 0%, rgba(9, 6, 12, 0.98) 100%);
+      background: rgba(0, 0, 0, 0.94);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       z-index: 99999;
@@ -790,25 +754,16 @@ const String kdsHtmlTemplate = '''
     }
     .pin-card {
       position: relative;
-      background: linear-gradient(170deg, rgba(30, 22, 36, 0.96) 0%, rgba(14, 10, 18, 0.98) 100%);
-      border: 1.5px solid rgba(212, 175, 55, 0.45);
-      border-radius: 28px;
+      background: #0e0e0e;
+      border: 1.5px solid rgba(212, 175, 55, 0.35);
+      border-radius: 24px;
       padding: 32px 28px 26px 28px;
       max-width: 375px;
       width: 100%;
       text-align: center;
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(212, 175, 55, 0.18);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.95);
       overflow: hidden;
       animation: pinPopCard 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .pin-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 15%;
-      right: 15%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
     }
     @keyframes pinPopCard {
       0% { opacity: 0; transform: scale(0.9) translateY(16px); }
@@ -823,9 +778,9 @@ const String kdsHtmlTemplate = '''
       width: 60px;
       height: 60px;
       border-radius: 50%;
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(67, 44, 29, 0.4) 100%);
-      border: 1.5px solid rgba(212, 175, 55, 0.55);
-      box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35);
+      background: #141414;
+      border: 1.5px solid rgba(212, 175, 55, 0.4);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -837,7 +792,7 @@ const String kdsHtmlTemplate = '''
       letter-spacing: 1.8px;
       color: var(--gold-light);
       margin-bottom: 3px;
-      text-shadow: 0 2px 10px rgba(212, 175, 55, 0.3);
+      text-shadow: none;
     }
     .pin-sub {
       display: inline-flex;
@@ -921,10 +876,10 @@ const String kdsHtmlTemplate = '''
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     }
     .pin-key:hover {
-      background: linear-gradient(165deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.08) 100%);
-      border-color: rgba(212, 175, 55, 0.6);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(212, 175, 55, 0.45);
       color: var(--gold-light);
-      box-shadow: 0 6px 18px rgba(212, 175, 55, 0.25);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
       transform: translateY(-1.5px);
     }
     .pin-key:active {
@@ -958,12 +913,623 @@ const String kdsHtmlTemplate = '''
 
     .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); }
     .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* Kitchen Production & Item Summary View */
+    #kitchenSummaryContainer {
+      flex: 1;
+      padding: calc(16px * var(--kds-zoom, 1));
+      display: none;
+      flex-direction: column;
+      gap: calc(16px * var(--kds-zoom, 1));
+      max-width: 1800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .ksummary-toolbar {
+      background: #0e0e0e;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 16px;
+      padding: calc(12px * var(--kds-zoom, 1)) calc(18px * var(--kds-zoom, 1));
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    }
+    .ksummary-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .ksummary-title {
+      font-size: calc(17px * var(--kds-zoom, 1));
+      font-weight: 800;
+      color: #FFE0B2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ksummary-meta-badge {
+      background: rgba(255, 87, 34, 0.18);
+      border: 1px solid rgba(255, 87, 34, 0.5);
+      color: #FF7043;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: calc(11.5px * var(--kds-zoom, 1));
+      font-weight: 800;
+    }
+    .ksummary-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .ksummary-group {
+      display: inline-flex;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 4px;
+    }
+    .ksummary-pill {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: calc(11.5px * var(--kds-zoom, 1));
+      font-weight: 700;
+      padding: calc(5px * var(--kds-zoom, 1)) calc(11px * var(--kds-zoom, 1));
+      border-radius: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ksummary-pill:hover {
+      color: var(--text-light);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .ksummary-pill.active {
+      background: rgba(255, 87, 34, 0.25);
+      color: #FF7043;
+      border: 1px solid rgba(255, 87, 34, 0.55);
+      font-weight: 800;
+    }
+    .ksummary-pill.active-barista {
+      background: rgba(255, 159, 28, 0.22);
+      color: var(--gold-light);
+      border: 1px solid rgba(255, 159, 28, 0.5);
+    }
+    .ksummary-pill.active-neutral {
+      background: rgba(212, 175, 55, 0.22);
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.45);
+    }
+
+    .ksummary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(calc(360px * var(--kds-zoom, 1)), 1fr));
+      gap: calc(16px * var(--kds-zoom, 1));
+      align-content: start;
+    }
+
+    .ksummary-card {
+      background: #0e0e0e;
+      border-radius: 18px;
+      border: 1.5px solid rgba(255, 87, 34, 0.45);
+      border-top: 4px solid #FF5722;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.4, 1);
+    }
+    .ksummary-card:hover {
+      border-color: rgba(255, 87, 34, 0.7);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+    }
+    .ksummary-card.barista-card {
+      border-color: rgba(212, 175, 55, 0.35);
+      border-top: 4px solid var(--gold-primary);
+    }
+    .ksummary-card.barista-card:hover {
+      border-color: rgba(212, 175, 55, 0.65);
+    }
+    .ksummary-card.all-done {
+      opacity: 0.6;
+      border-color: rgba(46, 196, 182, 0.35);
+      border-top: 4px solid #2EC4B6;
+      background: #080c0b;
+    }
+
+    .ksummary-card-header {
+      padding: calc(14px * var(--kds-zoom, 1)) calc(16px * var(--kds-zoom, 1));
+      background: #141414;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .barista-card .ksummary-card-header {
+      background: #141414;
+    }
+    .ksummary-item-title {
+      font-size: calc(17.5px * var(--kds-zoom, 1));
+      font-weight: 800;
+      color: #FFE0B2;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .barista-card .ksummary-item-title {
+      color: #FFFFFF;
+    }
+    .ksummary-item-category {
+      font-size: calc(10.5px * var(--kds-zoom, 1));
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-top: 3px;
+      letter-spacing: 0.3px;
+    }
+
+    .ksummary-total-badge {
+      padding: calc(4px * var(--kds-zoom, 1)) calc(11px * var(--kds-zoom, 1));
+      border-radius: 10px;
+      font-size: calc(16px * var(--kds-zoom, 1));
+      font-weight: 900;
+      background: #FF5722;
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .barista-card .ksummary-total-badge {
+      background: var(--gold-primary);
+      color: #0B080D;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+    .all-done .ksummary-total-badge {
+      background: #2EC4B6;
+      color: #0D0B10;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .ksummary-progress-row {
+      padding: calc(7px * var(--kds-zoom, 1)) calc(16px * var(--kds-zoom, 1));
+      background: #0a0a0a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: calc(11px * var(--kds-zoom, 1));
+    }
+    .ksummary-progress-text {
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .ksummary-batch-btn {
+      background: rgba(46, 196, 182, 0.16);
+      border: 1px solid rgba(46, 196, 182, 0.45);
+      color: #2EC4B6;
+      font-size: calc(11px * var(--kds-zoom, 1));
+      font-weight: 800;
+      padding: calc(3px * var(--kds-zoom, 1)) calc(9px * var(--kds-zoom, 1));
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ksummary-batch-btn:hover {
+      background: #2EC4B6;
+      color: #0D0B10;
+    }
+    .ksummary-batch-btn-reset {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--text-muted);
+      font-size: calc(11px * var(--kds-zoom, 1));
+      font-weight: 700;
+      padding: calc(3px * var(--kds-zoom, 1)) calc(8px * var(--kds-zoom, 1));
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .ksummary-batch-btn-reset:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #FFF;
+    }
+
+    .ksummary-table-breakdown {
+      padding: calc(12px * var(--kds-zoom, 1)) calc(14px * var(--kds-zoom, 1));
+      display: flex;
+      flex-direction: column;
+      gap: calc(9px * var(--kds-zoom, 1));
+      flex: 1;
+    }
+
+    .ksummary-order-row {
+      background: #121212;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: calc(9px * var(--kds-zoom, 1)) calc(12px * var(--kds-zoom, 1));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.18s ease;
+    }
+    .ksummary-order-row:hover {
+      background: #181818;
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .ksummary-order-row.row-done {
+      background: rgba(46, 196, 182, 0.05);
+      border-color: rgba(46, 196, 182, 0.22);
+      opacity: 0.58;
+    }
+    .ksummary-order-row.row-done .ksummary-table-badge {
+      opacity: 0.65;
+    }
+    .ksummary-order-row.row-done .ksummary-order-qty {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .ksummary-order-left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
+    .ksummary-order-tags {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .ksummary-table-badge {
+      padding: calc(2px * var(--kds-zoom, 1)) calc(7px * var(--kds-zoom, 1));
+      border-radius: 6px;
+      font-size: calc(11px * var(--kds-zoom, 1));
+      font-weight: 800;
+      background: rgba(67, 44, 29, 0.55);
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      white-space: nowrap;
+    }
+    .ksummary-table-badge.takeout {
+      background: #FF9F1C;
+      color: #000000;
+      border-color: #FFA000;
+      font-weight: 900;
+    }
+    .ksummary-order-num {
+      font-size: calc(11.5px * var(--kds-zoom, 1));
+      font-weight: 800;
+      color: var(--text-light);
+    }
+    .ksummary-timer {
+      font-size: calc(10.5px * var(--kds-zoom, 1));
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 6px;
+    }
+    .ksummary-status-pill {
+      font-size: calc(10px * var(--kds-zoom, 1));
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .ksummary-status-pill.preparing {
+      background: rgba(255, 159, 28, 0.2);
+      color: var(--amber-brewing);
+      border: 1px solid rgba(255, 159, 28, 0.45);
+    }
+    .ksummary-status-pill.confirmed {
+      background: rgba(46, 196, 182, 0.16);
+      color: #2EC4B6;
+      border: 1px solid rgba(46, 196, 182, 0.4);
+    }
+
+    .ksummary-order-middle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ksummary-order-qty {
+      font-size: calc(14px * var(--kds-zoom, 1));
+      font-weight: 900;
+      padding: calc(2px * var(--kds-zoom, 1)) calc(8px * var(--kds-zoom, 1));
+      border-radius: 6px;
+      background: rgba(212, 175, 55, 0.2);
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.4);
+      min-width: calc(26px * var(--kds-zoom, 1));
+      text-align: center;
+    }
+    .ksummary-order-row.row-kitchen .ksummary-order-qty {
+      background: rgba(255, 87, 34, 0.25);
+      color: #FF7043;
+      border-color: rgba(255, 87, 34, 0.5);
+    }
+
+    .ksummary-prep-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1.2px solid rgba(255, 255, 255, 0.18);
+      color: var(--text-light);
+      font-size: calc(11px * var(--kds-zoom, 1));
+      font-weight: 800;
+      padding: calc(6px * var(--kds-zoom, 1)) calc(12px * var(--kds-zoom, 1));
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ksummary-prep-btn:hover {
+      background: rgba(46, 196, 182, 0.2);
+      border-color: #2EC4B6;
+      color: #2EC4B6;
+    }
+    .ksummary-prep-btn.is-prepared {
+      background: #2EC4B6;
+      border-color: #2EC4B6;
+      color: #0D0B10;
+      font-weight: 900;
+    }
+
+    /* ==========================================================================
+       Comprehensive Mobile & Small-Screen View Optimizations (< 680px)
+       ========================================================================== */
+    @media (max-width: 680px) {
+      header {
+        padding: 8px 10px;
+        gap: 6px;
+      }
+      .brand {
+        gap: 6px;
+      }
+      .brand img {
+        width: 28px !important;
+        height: 28px !important;
+      }
+      .brand-title {
+        font-size: 13px;
+        letter-spacing: 1px;
+      }
+      .brand-sub {
+        font-size: 8px;
+        letter-spacing: 0.5px;
+      }
+      .zoom-text-label {
+        display: none !important;
+      }
+      .kds-zoom-toolbar {
+        padding: 2px 6px;
+        gap: 3px;
+      }
+      .zoom-btn {
+        padding: 2px 5px;
+        font-size: 10px;
+      }
+      .zoom-label {
+        font-size: 10px;
+        min-width: 30px;
+      }
+      .status-badge {
+        padding: 4px 8px;
+        font-size: 10px;
+        gap: 4px;
+      }
+
+      .filter-bar {
+        padding: 8px 10px;
+        gap: 6px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .tab-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+        gap: 4px;
+      }
+      .tab-count {
+        padding: 1px 5px;
+        font-size: 9.5px;
+      }
+
+      main {
+        grid-template-columns: 1fr !important;
+        padding: 10px !important;
+        gap: 12px !important;
+      }
+      .ticket {
+        border-radius: 14px;
+      }
+      .ticket-header {
+        padding: 10px 12px;
+      }
+      .ticket-number {
+        font-size: 18px;
+      }
+      .ticket-sub {
+        padding: 6px 12px;
+      }
+      .ticket-body {
+        padding: 10px 12px;
+      }
+      .ticket-footer {
+        padding: 10px 12px;
+      }
+      .action-btn {
+        padding: 10px 8px;
+        font-size: 12px;
+        border-radius: 10px;
+      }
+
+      #kitchenSummaryContainer {
+        padding: 10px !important;
+        gap: 10px !important;
+      }
+      .ksummary-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 10px 12px;
+        gap: 8px;
+        border-radius: 12px;
+      }
+      .ksummary-title-group {
+        justify-content: space-between;
+        width: 100%;
+        gap: 6px;
+      }
+      .ksummary-title {
+        font-size: 14px;
+      }
+      .ksummary-meta-badge {
+        font-size: 10px;
+        padding: 2px 7px;
+      }
+      .ksummary-controls {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 3px;
+        flex-wrap: nowrap;
+        gap: 6px;
+      }
+      .ksummary-group {
+        flex-shrink: 0;
+      }
+      .ksummary-pill {
+        font-size: 10.5px;
+        padding: 4px 8px;
+      }
+      .ksummary-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+      }
+      .ksummary-card {
+        border-radius: 14px;
+      }
+      .ksummary-card-header {
+        padding: 10px 12px;
+      }
+      .ksummary-item-title {
+        font-size: 15px;
+      }
+      .ksummary-total-badge {
+        font-size: 14px;
+        padding: 3px 8px;
+        border-radius: 8px;
+      }
+      .ksummary-progress-row {
+        padding: 6px 12px;
+        font-size: 10px;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .ksummary-batch-btn, .ksummary-batch-btn-reset {
+        font-size: 10px;
+        padding: 3px 7px;
+      }
+      .ksummary-table-breakdown {
+        padding: 8px 10px;
+        gap: 8px;
+      }
+      .ksummary-order-row {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 10px;
+      }
+      .ksummary-order-left {
+        flex: 1 1 100%;
+      }
+      .ksummary-order-middle {
+        flex: 0 0 auto;
+      }
+      .ksummary-prep-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+
+      .pin-card {
+        padding: 24px 18px 20px 18px;
+        max-width: 320px;
+        border-radius: 20px;
+      }
+      .pin-logo-frame {
+        width: 50px;
+        height: 50px;
+      }
+      .pin-title {
+        font-size: 15px;
+        letter-spacing: 1.2px;
+      }
+      .pin-desc {
+        font-size: 11.5px;
+        margin-bottom: 12px;
+      }
+      .pin-keypad {
+        gap: 8px;
+        max-width: 260px;
+      }
+      .pin-key {
+        height: 48px;
+        font-size: 19px;
+        border-radius: 12px;
+      }
+
+      .kds-confirm-card {
+        padding: 16px 14px 14px 14px;
+        border-radius: 14px;
+        max-width: 95%;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .brand-title {
+        font-size: 11.5px;
+        letter-spacing: 0.5px;
+      }
+      .brand-sub {
+        display: none;
+      }
+      .status-badge span {
+        display: none;
+      }
+      .status-badge {
+        padding: 5px 6px;
+      }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">
-      <img src="/logo.png" style="height: 38px; width: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(212, 175, 55, 0.4); box-shadow: 0 2px 8px rgba(212,175,55,0.25);" alt="Logo" onerror="this.style.display='none'">
+      <img src="/logo.png" style="height: 38px; width: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(212, 175, 55, 0.4); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);" alt="Logo" onerror="this.style.display='none'">
       <div>
         <div class="brand-title">CELESTIAL CAFE</div>
         <div class="brand-sub">KITCHEN DISPLAY SYSTEM (KDS)</div>
@@ -972,7 +1538,7 @@ const String kdsHtmlTemplate = '''
     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
       <!-- Zoom & Text Size Toolbar for Baristas & Kitchen -->
       <div class="kds-zoom-toolbar" title="Barista Text Size / Zoom Scaling">
-        <span style="font-size: 11px; color: var(--gold-light); font-weight: 700; margin-right: 2px;">👁️ Zoom:</span>
+        <span class="zoom-text-label" style="font-size: 11px; color: var(--gold-light); font-weight: 700; margin-right: 2px;">👁️ Zoom:</span>
         <button type="button" class="zoom-btn" onclick="adjustKdsZoom(-0.15)" title="Decrease Text Size">A−</button>
         <span id="kdsZoomLabel" class="zoom-label">100%</span>
         <button type="button" class="zoom-btn" onclick="adjustKdsZoom(0.15)" title="Increase Text Size (Vision Aid)">A+</button>
@@ -1086,7 +1652,7 @@ const String kdsHtmlTemplate = '''
         <button type="button" onclick="closeKdsConfirmModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 13px; font-weight: 700; padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: color 0.15s ease;" onmouseover="this.style.color='#FFFFFF'" onmouseout="this.style.color='var(--text-muted)'">
           Cancel / Review
         </button>
-        <button type="button" id="btnKdsConfirmAction" style="background: var(--emerald-ready); border: none; color: #0D0B10; border-radius: 10px; padding: 11px 18px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(46,196,182,0.35); transition: transform 0.1s ease, filter 0.15s ease;">
+        <button type="button" id="btnKdsConfirmAction" style="background: var(--emerald-ready); border: none; color: #0D0B10; border-radius: 10px; padding: 11px 18px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transition: transform 0.1s ease, filter 0.15s ease;">
           <span id="kdsConfirmActionIcon" style="display: inline-flex; align-items: center;"></span>
           <span id="kdsConfirmActionText">Confirm Ready</span>
         </button>
@@ -1100,7 +1666,8 @@ const String kdsHtmlTemplate = '''
     <button class="tab-btn" onclick="setFilter('confirmed', this)">Confirmed <span class="tab-count" id="countQueue">0</span></button>
     <button class="tab-btn" onclick="setFilter('preparing', this)">Brewing / Prep <span class="tab-count" id="countBrewing">0</span></button>
     <button class="tab-btn" onclick="setFilter('ready', this)">Ready for Pickup <span class="tab-count" id="countReady">0</span></button>
-    <button class="tab-btn" onclick="setFilter('kitchen', this)" style="border: 1px solid rgba(255,87,34,0.5); color: #FF7043;">Kitchen Food <span class="tab-count" id="countKitchen" style="background: rgba(255,87,34,0.25); color: #FF7043;">0</span></button>
+    <button class="tab-btn" id="tabKitchenSummary" onclick="setFilter('kitchen_summary', this)" style="border: 1.5px solid rgba(255,87,34,0.7); color: #FF7043; font-weight: 800; background: rgba(255,87,34,0.12);">🍳 Kitchen View <span class="tab-count" id="countKitchenSummary" style="background: rgba(255,87,34,0.35); color: #FF7043;">0</span></button>
+    <button class="tab-btn" onclick="setFilter('kitchen', this)" style="border: 1px solid rgba(255,87,34,0.4); color: #FF8A65;">Kitchen Food <span class="tab-count" id="countKitchen" style="background: rgba(255,87,34,0.2); color: #FF8A65;">0</span></button>
     <button class="tab-btn" onclick="setFilter('barista', this)" style="border: 1px solid rgba(255,159,28,0.4); color: var(--gold-light);">Barista Drinks <span class="tab-count" id="countBarista">0</span></button>
     <button class="tab-btn" onclick="setFilter('takeout', this)" style="border: 1px solid #FF9F1C; color: #FFB74D; font-weight: 800;">🥡 Takeout <span class="tab-count" id="countTakeout" style="background: rgba(255,159,28,0.3); color: #FFB74D;">0</span></button>
   </div>
@@ -1113,8 +1680,20 @@ const String kdsHtmlTemplate = '''
     </div>
   </main>
 
+  <section id="kitchenSummaryContainer">
+    <!-- Rendered dynamically by renderKitchenSummary() -->
+  </section>
+
   <script>
-    let authPin = sessionStorage.getItem('celestial_barista_pin') || localStorage.getItem('celestial_barista_pin') || '';
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryPin = (urlParams.get('pin') || urlParams.get('p') || urlParams.get('key') || urlParams.get('code') || '').trim();
+    let authPin = queryPin || sessionStorage.getItem('celestial_barista_pin') || localStorage.getItem('celestial_barista_pin') || '';
+    if (queryPin) {
+      try {
+        sessionStorage.setItem('celestial_barista_pin', queryPin);
+        localStorage.setItem('celestial_barista_pin', queryPin);
+      } catch(e) {}
+    }
     let isAuthorized = false;
     let currentOrders = [];
     let enteredDigits = '';
@@ -1327,8 +1906,19 @@ const String kdsHtmlTemplate = '''
       }, 280);
       connectWs();
       fetch('/api/orders?pin=' + encodeURIComponent(validPin))
-        .then(res => res.json())
+        .then(res => {
+          if (res.status === 401) {
+            lockKds();
+            return null;
+          }
+          return res.json();
+        })
         .then(data => {
+          if (!data) return;
+          if (data.success === false) {
+            lockKds();
+            return;
+          }
           if (data && data.orders) {
             currentOrders = data.orders;
             renderOrders(currentOrders);
@@ -1395,8 +1985,382 @@ const String kdsHtmlTemplate = '''
     function setFilter(filter, btn) {
       activeFilter = filter;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderOrders(currentOrders);
+      if (btn) btn.classList.add('active');
+
+      const ticketsContainer = document.getElementById('ticketsContainer');
+      const summaryContainer = document.getElementById('kitchenSummaryContainer');
+
+      if (filter === 'kitchen_summary') {
+        if (ticketsContainer) ticketsContainer.style.display = 'none';
+        if (summaryContainer) summaryContainer.style.display = 'flex';
+        renderKitchenSummary(currentOrders);
+      } else {
+        if (ticketsContainer) ticketsContainer.style.display = 'grid';
+        if (summaryContainer) summaryContainer.style.display = 'none';
+        renderOrders(currentOrders);
+      }
+    }
+
+    let kitchenCategoryFilter = 'kitchen'; // 'kitchen' | 'barista' | 'all'
+    let kitchenSortFilter = 'quantity';    // 'quantity' | 'time' | 'name'
+    let kitchenShowCompleted = false;
+
+    function setKitchenCategoryFilter(cat) {
+      kitchenCategoryFilter = cat;
+      playAudioClick(600, 0.03);
+      renderKitchenSummary(currentOrders);
+    }
+
+    function setKitchenSort(sort) {
+      kitchenSortFilter = sort;
+      playAudioClick(650, 0.03);
+      renderKitchenSummary(currentOrders);
+    }
+
+    function toggleKitchenShowCompleted() {
+      kitchenShowCompleted = !kitchenShowCompleted;
+      playAudioClick(550, 0.035);
+      renderKitchenSummary(currentOrders);
+    }
+
+    function toggleItemPrepFromSummary(orderId, itemIndex, e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const order = (currentOrders || []).find(o => o.id === orderId);
+      if (!order || !order.items || !order.items[itemIndex]) return;
+
+      if (order.status === 'confirmed' || order.status === 'inqueue') {
+        updateStatus(orderId, 'preparing');
+      }
+
+      const targetItem = order.items[itemIndex];
+      const newPrepared = !(targetItem.isPrepared === true);
+      targetItem.isPrepared = newPrepared;
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate(30); } catch(_) {}
+      }
+
+      renderKitchenSummary(currentOrders);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            action: 'toggle_item_prep',
+            orderId: orderId,
+            itemIndex: itemIndex,
+            isPrepared: newPrepared,
+            pin: authPin
+          }));
+        } catch(e) {}
+      } else {
+        fetch('/api/orders/item-prep', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Barista-Pin': authPin
+          },
+          body: JSON.stringify({
+            orderId: orderId,
+            itemIndex: itemIndex,
+            isPrepared: newPrepared,
+            pin: authPin
+          })
+        }).catch(() => {});
+      }
+    }
+
+    function markAllItemPrep(dishName, setPrepared) {
+      const normTarget = dishName.toLowerCase().trim();
+      let modifiedCount = 0;
+
+      (currentOrders || []).forEach(order => {
+        if (order.status === 'ready' || order.status === 'completed' || order.status === 'cancelled') return;
+
+        let orderHadItem = false;
+        (order.items || []).forEach((item, itemIdx) => {
+          const name = (item.name || item.menuItem?.name || '').toLowerCase().trim();
+          if (name === normTarget && (item.isPrepared !== setPrepared)) {
+            item.isPrepared = setPrepared;
+            orderHadItem = true;
+            modifiedCount++;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              try {
+                ws.send(JSON.stringify({
+                  action: 'toggle_item_prep',
+                  orderId: order.id,
+                  itemIndex: itemIdx,
+                  isPrepared: setPrepared,
+                  pin: authPin
+                }));
+              } catch(e) {}
+            } else {
+              fetch('/api/orders/item-prep', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Barista-Pin': authPin
+                },
+                body: JSON.stringify({
+                  orderId: order.id,
+                  itemIndex: itemIdx,
+                  isPrepared: setPrepared,
+                  pin: authPin
+                })
+              }).catch(() => {});
+            }
+          }
+        });
+
+        if (orderHadItem && (order.status === 'confirmed' || order.status === 'inqueue') && setPrepared) {
+          updateStatus(order.id, 'preparing');
+        }
+      });
+
+      if (modifiedCount > 0) {
+        playAudioClick(800, 0.05);
+        showKdsNotification(setPrepared ? ('✓ All ' + dishName + ' marked ready!') : ('↩ ' + dishName + ' reset to prep'));
+        renderKitchenSummary(currentOrders);
+      }
+    }
+
+    function renderKitchenSummary(orders) {
+      const container = document.getElementById('kitchenSummaryContainer');
+      if (!container) return;
+
+      const active = orders.filter(o => o.status === 'confirmed' || o.status === 'inqueue' || o.status === 'preparing' || o.status === 'ready');
+
+      const itemMap = new Map();
+      let totalVisibleDishes = 0;
+      let totalVisibleItems = 0;
+
+      active.forEach(order => {
+        if (!kitchenShowCompleted && order.status === 'ready') return;
+
+        const elapsedMins = Math.max(0, Math.floor((new Date() - new Date(order.createdAt)) / 60000));
+        const isTakeout = order.orderType === 'takeaway' || order.orderType === 'takeout' || order.orderType === 'delivery' ||
+          (order.items || []).some(i => i.notes && (i.notes.toLowerCase().includes('take') || i.notes.toLowerCase().includes('to-go') || i.notes.toLowerCase().includes('togo') || i.notes.toLowerCase().includes('balot')));
+
+        let tableDisplay = 'Table 1';
+        if (order.tableNumber) {
+          const t = String(order.tableNumber).trim();
+          tableDisplay = t.toLowerCase().startsWith('table') ? t : 'Table ' + t;
+        }
+        if (isTakeout) {
+          tableDisplay = '🥡 Takeout ' + (order.orderNumber || '');
+        }
+
+        (order.items || []).forEach((item, itemIdx) => {
+          const isKitchen = isItemKitchen(item);
+          const itemName = (item.name || item.menuItem?.name || 'Item').trim();
+          const itemKey = itemName.toLowerCase();
+
+          if (kitchenCategoryFilter === 'kitchen' && !isKitchen) return;
+          if (kitchenCategoryFilter === 'barista' && isKitchen) return;
+
+          const qty = item.quantity || 1;
+          const isPrepared = item.isPrepared === true;
+
+          if (!kitchenShowCompleted && isPrepared && order.status === 'ready') return;
+
+          if (!itemMap.has(itemKey)) {
+            itemMap.set(itemKey, {
+              displayName: itemName,
+              isKitchen: isKitchen,
+              category: item.category || (isKitchen ? 'Kitchen Food' : 'Barista Drink'),
+              totalQty: 0,
+              preparedQty: 0,
+              oldestCreatedAt: new Date(order.createdAt),
+              orders: []
+            });
+          }
+
+          const entry = itemMap.get(itemKey);
+          entry.totalQty += qty;
+          if (isPrepared) entry.preparedQty += qty;
+
+          const orderDate = new Date(order.createdAt);
+          if (orderDate < entry.oldestCreatedAt) {
+            entry.oldestCreatedAt = orderDate;
+          }
+
+          const customs = [];
+          (item.customizations || []).forEach(c => {
+            const text = c.summary || c.optionName || '';
+            if (text) customs.push(text);
+          });
+
+          entry.orders.push({
+            orderId: order.id,
+            orderNumber: order.orderNumber || '#?',
+            customerName: order.customerName || 'Guest',
+            tableDisplay: tableDisplay,
+            isTakeout: isTakeout,
+            itemIndex: itemIdx,
+            quantity: qty,
+            isPrepared: isPrepared,
+            orderStatus: order.status,
+            elapsedMins: elapsedMins,
+            customs: customs,
+            notes: item.notes ? item.notes.trim() : ''
+          });
+        });
+      });
+
+      let itemsList = Array.from(itemMap.values());
+
+      if (!kitchenShowCompleted) {
+        itemsList = itemsList.filter(entry => entry.preparedQty < entry.totalQty);
+      }
+
+      if (kitchenSortFilter === 'quantity') {
+        itemsList.sort((a, b) => (b.totalQty - b.preparedQty) - (a.totalQty - a.preparedQty) || b.totalQty - a.totalQty);
+      } else if (kitchenSortFilter === 'time') {
+        itemsList.sort((a, b) => a.oldestCreatedAt - b.oldestCreatedAt);
+      } else if (kitchenSortFilter === 'name') {
+        itemsList.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      }
+
+      totalVisibleDishes = itemsList.length;
+      totalVisibleItems = itemsList.reduce((sum, item) => sum + (item.totalQty - item.preparedQty), 0);
+
+      const toolbarHtml = `
+        <div class="ksummary-toolbar">
+          <div class="ksummary-title-group">
+            <div class="ksummary-title">
+              <span>🍳 Kitchen Production & Item Summary</span>
+            </div>
+            <div class="ksummary-meta-badge" id="ksummaryMetaCount">
+              \${totalVisibleItems} items to cook • \${totalVisibleDishes} dishes
+            </div>
+          </div>
+          <div class="ksummary-controls">
+            <div class="ksummary-group">
+              <button class="ksummary-pill \${kitchenCategoryFilter === 'kitchen' ? 'active' : ''}" onclick="setKitchenCategoryFilter('kitchen')">
+                🍳 Kitchen Food
+              </button>
+              <button class="ksummary-pill \${kitchenCategoryFilter === 'barista' ? 'active active-barista' : ''}" onclick="setKitchenCategoryFilter('barista')">
+                ☕ Barista Drinks
+              </button>
+              <button class="ksummary-pill \${kitchenCategoryFilter === 'all' ? 'active active-neutral' : ''}" onclick="setKitchenCategoryFilter('all')">
+                📋 All Items
+              </button>
+            </div>
+
+            <div class="ksummary-group">
+              <button class="ksummary-pill \${kitchenSortFilter === 'quantity' ? 'active' : ''}" onclick="setKitchenSort('quantity')" title="Sort by highest total quantity">
+                🔥 Top Qty
+              </button>
+              <button class="ksummary-pill \${kitchenSortFilter === 'time' ? 'active' : ''}" onclick="setKitchenSort('time')" title="Sort by oldest waiting order">
+                ⏱ Oldest Wait
+              </button>
+              <button class="ksummary-pill \${kitchenSortFilter === 'name' ? 'active' : ''}" onclick="setKitchenSort('name')">
+                🔤 A-Z
+              </button>
+            </div>
+
+            <div class="ksummary-group">
+              <button class="ksummary-pill \${kitchenShowCompleted ? 'active active-neutral' : ''}" onclick="toggleKitchenShowCompleted()">
+                \${kitchenShowCompleted ? '✓ Showing Done' : 'Hide Done'}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (itemsList.length === 0) {
+        container.innerHTML = toolbarHtml + `
+          <div class="empty-state" style="background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.08); margin-top: 10px;">
+            <div class="empty-icon" style="font-size: 42px; opacity: 0.4;">🍳</div>
+            <h3 style="color: #FFE0B2; font-size: 18px;">All Kitchen Dishes Clear!</h3>
+            <p style="font-size: 13px; margin-top: 6px; color: var(--text-muted);">
+              No active \${kitchenCategoryFilter === 'barista' ? 'barista drinks' : (kitchenCategoryFilter === 'kitchen' ? 'kitchen food items' : 'items')} waiting to be prepared.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      const cardsHtml = itemsList.map(entry => {
+        const pendingQty = entry.totalQty - entry.preparedQty;
+        const allDone = pendingQty === 0;
+        const cardClass = `ksummary-card \${entry.isKitchen ? '' : 'barista-card'} \${allDone ? 'all-done' : ''}`;
+        
+        let batchActionBtn = '';
+        if (pendingQty > 0) {
+          batchActionBtn = `<button class="ksummary-batch-btn" onclick="markAllItemPrep('\${entry.displayName.replace(/'/g, "\\\\'")}', true)">✓ Mark All Ready (\${pendingQty})</button>`;
+        } else {
+          batchActionBtn = `<button class="ksummary-batch-btn-reset" onclick="markAllItemPrep('\${entry.displayName.replace(/'/g, "\\\\'")}', false)">↩ Reset</button>`;
+        }
+
+        const tableRowsHtml = entry.orders.map(o => {
+          let timerClass = 'timer-green';
+          if (o.elapsedMins >= 14) timerClass = 'timer-red';
+          else if (o.elapsedMins >= 6) timerClass = 'timer-amber';
+
+          const customsHtml = o.customs.length > 0
+            ? `<div style="font-size: calc(11px * var(--kds-zoom, 1)); color: var(--gold-light); margin-top: 2px;">\${o.customs.map(c => `› \${c}`).join(' ')}</div>`
+            : '';
+          const notesHtml = o.notes
+            ? `<div style="font-size: calc(11px * var(--kds-zoom, 1)); color: #FF6B6B; font-weight: 700; margin-top: 2px;">📝 \${o.notes}</div>`
+            : '';
+
+          return `
+            <div class="ksummary-order-row \${entry.isKitchen ? 'row-kitchen' : ''} \${o.isPrepared ? 'row-done' : ''}">
+              <div class="ksummary-order-left">
+                <div class="ksummary-order-tags">
+                  <span class="ksummary-table-badge \${o.isTakeout ? 'takeout' : ''}">\${o.tableDisplay}</span>
+                  <span class="ksummary-order-num">\${o.orderNumber}</span>
+                  <span class="ksummary-timer \${timerClass}">\${o.elapsedMins}m</span>
+                  <span class="ksummary-status-pill \${o.orderStatus}">\${o.orderStatus === 'preparing' ? 'Brew/Prep' : 'Confirmed'}</span>
+                </div>
+                \${customsHtml}
+                \${notesHtml}
+              </div>
+              <div class="ksummary-order-middle">
+                <span class="ksummary-order-qty">\${o.quantity}x</span>
+              </div>
+              <div>
+                <button class="ksummary-prep-btn \${o.isPrepared ? 'is-prepared' : ''}" onclick="toggleItemPrepFromSummary('\${o.orderId}', \${o.itemIndex}, event)">
+                  \${o.isPrepared ? '✓ Ready' : 'Ready'}
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="\${cardClass}">
+            <div class="ksummary-card-header">
+              <div style="flex: 1; min-width: 0;">
+                <div class="ksummary-item-title">
+                  <span>\${entry.isKitchen ? '🍳' : '☕'}</span>
+                  <span>\${entry.displayName}</span>
+                </div>
+                <div class="ksummary-item-category">\${entry.category.toUpperCase()}</div>
+              </div>
+              <div class="ksummary-total-badge">
+                <span>\${entry.totalQty}x</span>
+                <span style="font-size: calc(10.5px * var(--kds-zoom, 1)); opacity: 0.85; font-weight: 700;">TOTAL</span>
+              </div>
+            </div>
+            <div class="ksummary-progress-row">
+              <span class="ksummary-progress-text">
+                \${allDone ? '✓ All Prepared' : `\${entry.preparedQty} of \${entry.totalQty} prepared (\${pendingQty} remaining)`}
+              </span>
+              \${batchActionBtn}
+            </div>
+            <div class="ksummary-table-breakdown">
+              \${tableRowsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = toolbarHtml + `<div class="ksummary-grid">\${cardsHtml}</div>`;
     }
 
     function connectWs() {
@@ -1405,11 +2369,18 @@ const String kdsHtmlTemplate = '''
       const wsUrl = (loc.protocol === 'https:' ? 'wss://' : 'ws://') + loc.host + '/ws?pin=' + encodeURIComponent(authPin);
       
       try {
+        if (ws) {
+          try { ws.close(); } catch(e) {}
+          ws = null;
+        }
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
           document.getElementById('statusBadge').className = 'status-badge';
           document.getElementById('statusText').innerText = 'Live Sync';
+          try {
+            ws.send(JSON.stringify({ action: 'auth', pin: authPin }));
+          } catch(e) {}
         };
 
         ws.onmessage = (event) => {
@@ -1419,11 +2390,41 @@ const String kdsHtmlTemplate = '''
               currentOrders = data.orders || [];
               renderOrders(currentOrders);
             } else if (data.type === 'ITEM_PREPARED') {
-              const order = (currentOrders || []).find(o => o.id === data.orderId);
-              if (order && order.items && order.items[data.itemIndex]) {
-                order.items[data.itemIndex].isPrepared = data.isPrepared;
+              const cleanId = String(data.orderId || '').toLowerCase().trim();
+              const order = (currentOrders || []).find(o => {
+                const oId = String(o.id || '').toLowerCase().trim();
+                const oNum = String(o.orderNumber || '').toLowerCase().replace('#', '').trim();
+                return oId === cleanId || oNum === cleanId;
+              });
+              if (order) {
+                if (data.status) {
+                  order.status = data.status;
+                }
+                if (order.items && order.items[data.itemIndex]) {
+                  order.items[data.itemIndex].isPrepared = data.isPrepared;
+                }
                 renderOrders(currentOrders);
               }
+            } else if (data.type === 'ORDER_STATUS_UPDATE') {
+              const cleanId = String(data.orderId || '').toLowerCase().trim();
+              const cleanNum = String(data.orderNumber || '').toLowerCase().replace('#', '').trim();
+              const idx = (currentOrders || []).findIndex(o => {
+                const oId = String(o.id || '').toLowerCase().trim();
+                const oNum = String(o.orderNumber || '').toLowerCase().replace('#', '').trim();
+                return oId === cleanId || oId === cleanNum || oNum === cleanId || oNum === cleanNum;
+              });
+              if (idx >= 0) {
+                if (data.status === 'completed' || data.status === 'cancelled') {
+                  currentOrders.splice(idx, 1);
+                } else {
+                  currentOrders[idx].status = data.status;
+                }
+                renderOrders(currentOrders);
+              } else if (data.status !== 'completed' && data.status !== 'cancelled') {
+                fetchOrdersHttp();
+              }
+            } else if (data.type === 'AUTH_REQUIRED' || data.type === 'AUTH_FAILED') {
+              lockKds();
             }
           } catch (e) { console.error(e); }
         };
@@ -1431,20 +2432,31 @@ const String kdsHtmlTemplate = '''
         ws.onclose = () => {
           document.getElementById('statusBadge').className = 'status-badge disconnected';
           document.getElementById('statusText').innerText = 'Reconnecting...';
-          setTimeout(connectWs, 2500);
+          setTimeout(connectWs, 2000);
         };
 
         ws.onerror = () => { ws.close(); };
       } catch (e) {
-        setTimeout(connectWs, 2500);
+        setTimeout(connectWs, 2000);
       }
     }
 
     function fetchOrdersHttp() {
       if (!authPin) return;
       fetch('/api/orders?pin=' + encodeURIComponent(authPin))
-        .then(res => res.json())
+        .then(res => {
+          if (res.status === 401) {
+            lockKds();
+            return null;
+          }
+          return res.json();
+        })
         .then(data => {
+          if (!data) return;
+          if (data.success === false) {
+            lockKds();
+            return;
+          }
           if (data && data.orders) {
             currentOrders = data.orders;
             renderOrders(currentOrders);
@@ -1496,6 +2508,36 @@ const String kdsHtmlTemplate = '''
       if (countKitchenEl) countKitchenEl.innerText = kitchenOrders.length;
       const countBaristaEl = document.getElementById('countBarista');
       if (countBaristaEl) countBaristaEl.innerText = baristaOrders.length;
+
+      // Calculate total kitchen items to prepare across all active orders
+      let totalKitchenPendingItems = 0;
+      active.filter(o => o.status !== 'ready').forEach(o => {
+        (o.items || []).forEach(i => {
+          if (isItemKitchen(i) && !i.isPrepared) {
+            totalKitchenPendingItems += (i.quantity || 1);
+          }
+        });
+      });
+      if (totalKitchenPendingItems === 0) {
+        active.filter(o => o.status !== 'ready').forEach(o => {
+          (o.items || []).forEach(i => {
+            if (isItemKitchen(i)) {
+              totalKitchenPendingItems += (i.quantity || 1);
+            }
+          });
+        });
+      }
+      const countKitchenSummaryEl = document.getElementById('countKitchenSummary');
+      if (countKitchenSummaryEl) countKitchenSummaryEl.innerText = totalKitchenPendingItems;
+
+      if (activeFilter === 'kitchen_summary') {
+        const ticketsContainer = document.getElementById('ticketsContainer');
+        const summaryContainer = document.getElementById('kitchenSummaryContainer');
+        if (ticketsContainer) ticketsContainer.style.display = 'none';
+        if (summaryContainer) summaryContainer.style.display = 'flex';
+        renderKitchenSummary(orders);
+        return;
+      }
 
       const takeoutOrders = active.filter(o => o.orderType === 'takeaway' || o.orderType === 'takeout' || o.orderType === 'delivery' || (o.items || []).some(i => i.notes && (i.notes.toLowerCase().includes('take') || i.notes.toLowerCase().includes('to-go') || i.notes.toLowerCase().includes('togo') || i.notes.toLowerCase().includes('balot'))));
       const countTakeoutEl = document.getElementById('countTakeout');
@@ -1623,14 +2665,23 @@ const String kdsHtmlTemplate = '''
         let statusBadgeHtml = '';
         if (order.status === 'confirmed') {
           statusBadgeHtml = `<div style="background: rgba(46,196,182,0.14); border: 1.2px solid rgba(46,196,182,0.45); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 800; color: #2EC4B6; margin-bottom: 8px; text-align: center; letter-spacing: 0.5px;">✓ CONFIRMED BY CASHIER</div>`;
-          actionBtn = `<button class="action-btn btn-brew" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'preparing')">Start Brewing / Prep</button>`;
+          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing', this)">Start Brewing / Prep</button>`;
         } else if (order.status === 'pending') {
           statusBadgeHtml = `<div style="background: rgba(255,159,28,0.15); border: 1px solid rgba(255,159,28,0.4); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: bold; color: var(--amber-brewing); margin-bottom: 8px; text-align: center;">Awaiting Cashier Payment</div>`;
-          actionBtn = `<button class="action-btn btn-brew" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'preparing')">Start Brewing / Confirm</button>`;
+          actionBtn = `<button class="action-btn btn-brew" onclick="updateStatus('\${order.id}', 'preparing', this)">Start Brewing / Confirm</button>`;
         } else if (order.status === 'preparing') {
-          actionBtn = `<button class="action-btn btn-ready" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'ready')">Mark Ready for Pickup</button>`;
+          if (allItemsDone && (order.items || []).length > 0) {
+            actionBtn = `
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <button class="action-btn btn-ready" style="flex: 1;" onclick="updateStatus('\${order.id}', 'ready', this)">Mark Ready</button>
+                <button class="action-btn btn-done" style="flex: 1.2;" onclick="updateStatus('\${order.id}', 'completed', this)">Complete & Hand Over</button>
+              </div>
+            `;
+          } else {
+            actionBtn = `<button class="action-btn btn-ready" onclick="updateStatus('\${order.id}', 'ready', this)">Mark Ready for Pickup</button>`;
+          }
         } else if (order.status === 'ready') {
-          actionBtn = `<button class="action-btn btn-done" onclick="confirmStatusChange('\${order.id}', '\${order.orderNumber}', 'completed')">Complete & Hand Over</button>`;
+          actionBtn = `<button class="action-btn btn-done" onclick="updateStatus('\${order.id}', 'completed', this)">Complete & Hand Over</button>`;
         }
 
         const totalItems = (order.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
@@ -1679,17 +2730,17 @@ const String kdsHtmlTemplate = '''
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'kdsToast';
-        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#18131E;border:1.5px solid #FF9F1C;color:#FFF;padding:12px 22px;border-radius:12px;font-size:13px;font-weight:700;z-index:99999;box-shadow:0 8px 32px rgba(0,0,0,0.7);transition:opacity 0.25s,transform 0.25s;pointer-events:none;display:flex;align-items:center;gap:8px;';
+        toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-14px);background:#1E293B;border:1.5px solid #FF9F1C;color:#FFF;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:700;z-index:99999;box-shadow:0 8px 32px rgba(0,0,0,0.75);transition:opacity 0.25s,transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);pointer-events:none;display:flex;align-items:center;gap:8px;opacity:0;';
         document.body.appendChild(toast);
       }
       toast.innerText = msg;
-      toast.style.borderColor = isWarning ? '#FF9F1C' : '#2EC4B6';
+      toast.style.borderColor = isWarning ? '#FF9F1C' : '#22C55E';
       toast.style.opacity = '1';
       toast.style.transform = 'translateX(-50%) translateY(0)';
       clearTimeout(toast._timer);
       toast._timer = setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateX(-50%) translateY(8px)';
+        toast.style.transform = 'translateX(-50%) translateY(-14px)';
       }, 2600);
     }
 
@@ -1773,7 +2824,13 @@ const String kdsHtmlTemplate = '''
       isKdsConfirmSubmitting = false;
       pendingKdsAction = opts.onConfirm;
 
-      const order = (currentOrders || []).find(o => o.id === opts.orderId) || opts.order || {};
+      const cleanId = String(opts.orderId || '').toLowerCase().trim();
+      const cleanNum = cleanId.replace('#', '').trim();
+      const order = (currentOrders || []).find(o => {
+        const oId = String(o.id || '').toLowerCase().trim();
+        const oNum = String(o.orderNumber || '').toLowerCase().replace('#', '').trim();
+        return oId === cleanId || oId === cleanNum || oNum === cleanId || oNum === cleanNum;
+      }) || opts.order || {};
       const card = document.getElementById('kdsConfirmCard');
       if (card) {
         card.style.borderColor = opts.borderColor || 'rgba(46, 196, 182, 0.5)';
@@ -1872,7 +2929,7 @@ const String kdsHtmlTemplate = '''
         actionBtn.style.opacity = '1';
         actionBtn.style.background = opts.buttonBg || 'var(--emerald-ready)';
         actionBtn.style.color = opts.buttonColor || '#0D0B10';
-        actionBtn.style.boxShadow = opts.buttonShadow || '0 4px 14px rgba(46,196,182,0.35)';
+        actionBtn.style.boxShadow = opts.buttonShadow || '0 2px 8px rgba(0, 0, 0, 0.4)';
       }
       if (actionIcon) actionIcon.innerHTML = opts.buttonIcon || '';
       if (actionText) actionText.innerText = opts.confirmText || 'Confirm Ready';
@@ -1897,7 +2954,7 @@ const String kdsHtmlTemplate = '''
           </svg>`,
           buttonBg: 'var(--emerald-ready)',
           buttonColor: '#0D0B10',
-          buttonShadow: '0 4px 14px rgba(46, 196, 182, 0.35)',
+          buttonShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
           buttonIcon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.91V4a1 1 0 0 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/>
           </svg>`,
@@ -1922,7 +2979,7 @@ const String kdsHtmlTemplate = '''
           </svg>`,
           buttonBg: 'var(--amber-brewing)',
           buttonColor: '#0D0B10',
-          buttonShadow: '0 4px 14px rgba(255, 159, 28, 0.35)',
+          buttonShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
           buttonIcon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
             <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
@@ -1948,7 +3005,7 @@ const String kdsHtmlTemplate = '''
           </svg>`,
           buttonBg: '#22C55E',
           buttonColor: '#FFFFFF',
-          buttonShadow: '0 4px 14px rgba(34, 197, 94, 0.35)',
+          buttonShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
           buttonIcon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>`,
@@ -1974,7 +3031,7 @@ const String kdsHtmlTemplate = '''
         </svg>`,
         buttonBg: '#E71D36',
         buttonColor: '#FFFFFF',
-        buttonShadow: '0 4px 14px rgba(231, 29, 54, 0.35)',
+        buttonShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
         buttonIcon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1992,8 +3049,18 @@ const String kdsHtmlTemplate = '''
         btn.innerHTML = '<span class="btn-spinner"></span><span>' + actionLabel + '</span>';
       }
 
-      const idx = currentOrders.findIndex(o => o.id === orderId);
+      const cleanId = String(orderId || '').toLowerCase().trim();
+      const cleanNum = cleanId.replace('#', '').trim();
+      const idx = (currentOrders || []).findIndex(o => {
+        const oId = String(o.id || '').toLowerCase().trim();
+        const oNum = String(o.orderNumber || '').toLowerCase().replace('#', '').trim();
+        return oId === cleanId || oId === cleanNum || oNum === cleanId || oNum === cleanNum;
+      });
+
+      let actualOrderId = orderId;
       if (idx >= 0) {
+        const targetOrder = currentOrders[idx];
+        actualOrderId = targetOrder.id || orderId;
         if (newStatus === 'completed' || newStatus === 'cancelled') {
           currentOrders.splice(idx, 1);
         } else {
@@ -2001,7 +3068,9 @@ const String kdsHtmlTemplate = '''
         }
         if (newStatus === 'completed' || newStatus === 'cancelled' || newStatus === 'ready') {
           for (const k of Array.from(preparedItemKeys)) {
-            if (k.startsWith(orderId + '_')) preparedItemKeys.delete(k);
+            if (k.startsWith(actualOrderId + '_') || k.startsWith(cleanId + '_')) {
+              preparedItemKeys.delete(k);
+            }
           }
           try {
             sessionStorage.setItem('celestial_kds_prepared_items', JSON.stringify([...preparedItemKeys]));
@@ -2010,34 +3079,41 @@ const String kdsHtmlTemplate = '''
         renderOrders(currentOrders);
       }
 
+      playAudioClick(newStatus === 'completed' ? 880 : 720, 0.04);
+      showKdsNotification(newStatus === 'completed' ? '✓ Order Completed & Handed Over!' : (newStatus === 'ready' ? '✓ Order Marked Ready!' : '✓ Brewing Started!'));
+
+      const payload = {
+        action: 'update_status',
+        orderId: actualOrderId,
+        status: newStatus,
+        pin: authPin
+      };
+
       if (ws && ws.readyState === WebSocket.OPEN) {
         try {
-          ws.send(JSON.stringify({
-            action: 'update_status',
-            orderId: orderId,
-            status: newStatus,
-            pin: authPin
-          }));
+          ws.send(JSON.stringify(payload));
         } catch (e) {}
-      } else {
-        fetch('/api/orders/update-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Barista-Pin': authPin
-          },
-          body: JSON.stringify({ orderId: orderId, status: newStatus, pin: authPin })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.orders) {
-            renderOrders(data.orders);
-          }
-        })
-        .catch(err => {
-          console.warn('HTTP status sync fallback error:', err);
-        });
       }
+
+      // Dual sync via HTTP POST ensures the host POS processes the status update even if WS dropped
+      fetch('/api/orders/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Barista-Pin': authPin
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.orders) {
+          currentOrders = data.orders;
+          renderOrders(currentOrders);
+        }
+      })
+      .catch(err => {
+        console.warn('HTTP status sync fallback error:', err);
+      });
     }
 
     const kdsConfirmBtn = document.getElementById('btnKdsConfirmAction');
@@ -2065,10 +3141,10 @@ const String kdsHtmlTemplate = '''
           else if (currentText.includes('Void')) actionText.innerText = 'Voiding...';
         }
 
-        setTimeout(() => {
-          closeKdsConfirmModal();
-          if (typeof fn === 'function') fn();
-        }, 100);
+        closeKdsConfirmModal();
+        if (typeof fn === 'function') {
+          try { fn(); } catch(e) { console.error('Error executing KDS action:', e); }
+        }
       };
     }
 
@@ -2113,12 +3189,23 @@ const String kdsHtmlTemplate = '''
       setKdsZoom(currentKdsZoom + delta);
     }
 
-    // Live automatic sync fallback: only poll if WebSocket is not open
+    // Live automatic sync fallback: poll if WebSocket is disconnected
     setInterval(() => {
-      if (isAuthorized && authPin && (!ws || ws.readyState !== WebSocket.OPEN)) {
+      if (!isAuthorized || !authPin) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
         fetchOrdersHttp();
       }
     }, 3500);
+
+    // Periodic heartbeat sync to ensure live sync never drifts
+    setInterval(() => {
+      if (!isAuthorized || !authPin) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'sync_orders', pin: authPin }));
+        } catch(e) {}
+      }
+    }, 8000);
 
     // Initialize display zoom on load
     initKdsZoom();

@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
+import 'price_editor_dialog.dart';
+import 'top_notification.dart';
 
 class SettingsDialog extends StatefulWidget {
   final int initialTab;
@@ -154,36 +156,40 @@ class _SettingsDialogState extends State<SettingsDialog> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: 14),
               decoration: const BoxDecoration(
                 color: CelestialTheme.bgCard,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        _activeTab == 0 ? Icons.storefront_rounded : Icons.do_not_disturb_on_outlined,
-                        color: CelestialTheme.goldPrimary,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        _activeTab == 0 ? 'Store Settings & Logo' : 'Item & Modifier Availability (86 List)',
-                        style: GoogleFonts.outfit(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: CelestialTheme.textLight,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    _activeTab == 0 ? Icons.storefront_rounded : Icons.do_not_disturb_on_outlined,
+                    color: CelestialTheme.goldPrimary,
+                    size: 22,
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _activeTab == 0
+                          ? (isMobile ? 'Store Settings' : 'Store Settings & Logo')
+                          : (isMobile ? 'Item & Modifier 86 List' : 'Item & Modifier Availability (86 List)'),
+                      style: GoogleFonts.outfit(
+                        fontSize: isMobile ? 15 : 17,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.textLight,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                     splashRadius: 18,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   ),
                 ],
               ),
@@ -202,7 +208,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 children: [
                   Expanded(
                     child: _buildTabButton(
-                      title: 'Store & Branding',
+                      title: isMobile ? 'Store' : 'Store & Branding',
                       icon: Icons.storefront_rounded,
                       isSelected: _activeTab == 0,
                       onTap: () => setState(() => _activeTab = 0),
@@ -211,7 +217,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _buildTabButton(
-                      title: 'Item Availability (86)',
+                      title: isMobile ? '86 List' : 'Item Availability (86)',
                       icon: Icons.do_not_disturb_on_outlined,
                       badgeCount: provider.totalUnavailableItemsCount + provider.totalUnavailableOptionsCount,
                       isSelected: _activeTab == 1,
@@ -353,15 +359,20 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'DISPLAY & ACCESSIBILITY (TEXT SIZE)',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0,
-                            color: CelestialTheme.goldLight,
+                        Expanded(
+                          child: Text(
+                            'DISPLAY & ACCESSIBILITY (TEXT SIZE)',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                              color: CelestialTheme.goldLight,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
@@ -584,28 +595,33 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Order Number Sequence',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: CelestialTheme.textLight,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Order Number Sequence',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: CelestialTheme.textLight,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Next Order: #${provider.currentOrderSequence}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: CelestialTheme.goldLight,
-                                  fontWeight: FontWeight.bold,
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Next Order: #${provider.currentOrderSequence}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: CelestialTheme.goldLight,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 8),
                           OutlinedButton.icon(
                             onPressed: () {
                               provider.resetOrderSequence(startNumber: 1);
@@ -696,6 +712,83 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 12),
+
+                    // Data & Shift Reset Section
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.roseAlert.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.25)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Clear Data & Shift Reset',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.textLight,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Clear orders for a fresh shift or completely wipe application data',
+                                      style: TextStyle(fontSize: 10.5, color: CelestialTheme.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => _confirmClearOrders(context, provider),
+                                icon: const Icon(Icons.cleaning_services_rounded, size: 14, color: CelestialTheme.amberBrewing),
+                                label: const Text(
+                                  'Clear All Orders (Start Shift #1)',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.amberBrewing),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () => _confirmResetAllData(context, provider),
+                                icon: const Icon(Icons.delete_forever_rounded, size: 14, color: Colors.white),
+                                label: const Text(
+                                  'Factory Reset All Data',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: CelestialTheme.roseAlert,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -705,17 +798,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
           const Divider(height: 1),
 
           // Footer Actions
-          _buildFooterActions(provider),
+          _buildFooterActions(provider, isMobile),
         ],
       ),
     ),
   );
 }
 
-  Widget _buildFooterActions(PosProvider provider) {
+  Widget _buildFooterActions(PosProvider provider, bool isMobile) {
     if (_activeTab == 1) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 10),
         decoration: const BoxDecoration(
           color: CelestialTheme.bgCard,
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -726,13 +819,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Changes apply live to POS workstations & self-order web menus.',
+                isMobile ? 'Live sync with POS & KDS' : 'Changes apply live to POS workstations & self-order web menus.',
                 style: GoogleFonts.outfit(
                   fontSize: 11.5,
                   color: CelestialTheme.textMuted,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.check_rounded, size: 16),
@@ -740,8 +836,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,
                 foregroundColor: CelestialTheme.bgDark,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                visualDensity: VisualDensity.compact,
               ),
             ),
           ],
@@ -750,7 +847,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 12),
       decoration: const BoxDecoration(
         color: CelestialTheme.bgCard,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -758,28 +855,66 @@ class _SettingsDialogState extends State<SettingsDialog> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton.icon(
-            onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
-            icon: _isSavingSettings
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
-                  )
-                : const Icon(Icons.check_rounded, size: 16),
-            label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: CelestialTheme.goldPrimary,
-              foregroundColor: CelestialTheme.bgDark,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          if (isMobile) ...[
+            Expanded(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
+                icon: _isSavingSettings
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                      )
+                    : const Icon(Icons.check_rounded, size: 16),
+                label: Text(_isSavingSettings ? 'Saving...' : 'Save Settings'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CelestialTheme.goldPrimary,
+                  foregroundColor: CelestialTheme.bgDark,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ] else ...[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton.icon(
+              onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
+              icon: _isSavingSettings
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                    )
+                  : const Icon(Icons.check_rounded, size: 16),
+              label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CelestialTheme.goldPrimary,
+                foregroundColor: CelestialTheme.bgDark,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1177,25 +1312,26 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Text(
+                        item.name,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: item.inStock ? CelestialTheme.textLight : CelestialTheme.textSubtle,
+                          decoration: item.inStock ? null : TextDecoration.lineThrough,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 2,
                         children: [
-                          Flexible(
-                            child: Text(
-                              item.name,
-                              style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: item.inStock ? CelestialTheme.textLight : CelestialTheme.textSubtle,
-                                decoration: item.inStock ? null : TextDecoration.lineThrough,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           // Status Badge
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: !item.inStock
                                   ? CelestialTheme.roseAlert.withValues(alpha: 0.18)
@@ -1213,12 +1349,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             ),
                             child: Text(
                               !item.inStock
-                                  ? '86\'D / OUT OF STOCK'
+                                  ? (isMobile ? 'SOLD OUT' : '86\'D / SOLD OUT')
                                   : item.hasUnavailableOptions
-                                      ? '⚠️ $unavailCount MODIFIER 86\'D'
+                                      ? (isMobile ? '⚠️ $unavailCount 86\'D' : '⚠️ $unavailCount MODIFIER 86\'D')
                                       : 'IN STOCK',
                               style: TextStyle(
-                                fontSize: 9.5,
+                                fontSize: 9,
                                 fontWeight: FontWeight.bold,
                                 color: !item.inStock
                                     ? CelestialTheme.roseAlert
@@ -1228,22 +1364,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
                           Text(
                             '${item.category.icon} ${item.category.label} • ₱${item.price.toStringAsFixed(0)}',
                             style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                           ),
-                          if (hasGroups) ...[
-                            const SizedBox(width: 8),
+                          if (hasGroups)
                             Text(
-                              '• ${item.customizationGroups.fold(0, (s, g) => s + g.options.length)} modifiers',
-                              style: TextStyle(fontSize: 11, color: CelestialTheme.goldLight.withValues(alpha: 0.8)),
+                              '• ${item.customizationGroups.fold(0, (s, g) => s + g.options.length)} mod',
+                              style: TextStyle(fontSize: 10.5, color: CelestialTheme.goldLight.withValues(alpha: 0.8)),
                             ),
-                          ],
                         ],
                       ),
                     ],
@@ -1278,7 +1407,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
                 // Expand/Collapse Modifier Group Button
                 if (hasGroups) ...[
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   IconButton(
                     onPressed: () {
                       setState(() {
@@ -1294,6 +1423,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       color: CelestialTheme.goldLight,
                       size: 22,
                     ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     splashRadius: 18,
                     tooltip: isExpanded ? 'Hide Modifiers' : 'Manage Modifiers (86)',
                   ),
@@ -1317,21 +1448,26 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'MODIFIER AVAILABILITY FOR ${item.name.toUpperCase()}',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.8,
-                          color: CelestialTheme.goldLight,
+                      Expanded(
+                        child: Text(
+                          'MODIFIER AVAILABILITY FOR ${item.name.toUpperCase()}',
+                          style: GoogleFonts.outfit(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                            color: CelestialTheme.goldLight,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (item.hasUnavailableOptions)
+                      if (item.hasUnavailableOptions) ...[
+                        const SizedBox(width: 8),
                         InkWell(
                           onTap: () => provider.resetAllItemOptionsAvailability(item.id),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(Icons.restart_alt_rounded, size: 13, color: CelestialTheme.emeraldReady),
                                 const SizedBox(width: 4),
@@ -1343,6 +1479,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -1444,17 +1581,56 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           decoration: isAvailable ? null : TextDecoration.lineThrough,
                         ),
                       ),
-                      if (option.extraPrice > 0) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          '+₱${option.extraPrice.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isAvailable ? CelestialTheme.goldLight : CelestialTheme.roseAlert.withValues(alpha: 0.7),
-                            fontWeight: FontWeight.bold,
+                      const SizedBox(width: 5),
+                      InkWell(
+                        onTap: () {
+                          PriceEditorDialog.showOptionPriceEditor(
+                            context,
+                            provider,
+                            itemId: item.id,
+                            groupId: group.id,
+                            groupTitle: group.title,
+                            option: option,
+                            defaultApplyGlobally: true,
+                            onSaved: () => setState(() {}),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: option.extraPrice > 0
+                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.18)
+                                : const Color(0xFF281F1A),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: option.extraPrice > 0
+                                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.4)
+                                  : const Color(0xFF4A3B32),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                option.extraPrice > 0
+                                    ? '+₱${option.extraPrice.toStringAsFixed(0)}'
+                                    : '₱0',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: option.extraPrice > 0
+                                      ? CelestialTheme.goldLight
+                                      : CelestialTheme.textMuted,
+                                ),
+                              ),
+                              const SizedBox(width: 2.5),
+                              const Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1504,7 +1680,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ],
         ),
         content: const Text(
-          'This will mark all out-of-stock items and unavailable modifiers back to AVAILABLE across the entire store menu.',
+          'This will mark all sold-out items and unavailable modifiers back to AVAILABLE across the entire store menu.',
           style: TextStyle(fontSize: 12.5, color: CelestialTheme.textMuted),
         ),
         actions: [
@@ -1516,11 +1692,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
             onPressed: () {
               provider.resetAllAvailability();
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: CelestialTheme.bgCard,
-                  content: Text('✨ All items and modifiers have been reset to Available!'),
-                ),
+              TopNotification.showSuccess(
+                context,
+                '✨ All items and modifiers have been reset to Available!',
               );
             },
             style: ElevatedButton.styleFrom(
@@ -1782,6 +1956,134 @@ class _SettingsDialogState extends State<SettingsDialog> {
             color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmClearOrders(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: CelestialTheme.amberBrewing),
+            const SizedBox(width: 8),
+            Text(
+              'Clear All Orders?',
+              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'This will clear all active and historical orders, restock sold items, and reset the order counter to #1 for a fresh shift.\n\nMenu items, prices, and custom photos will be kept.',
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await provider.clearAllOrdersAndResetCounter(startNumber: 1);
+              if (context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
+                messenger.clearSnackBars();
+                messenger.showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF1E293B),
+                    behavior: SnackBarBehavior.floating,
+                    width: 380,
+                    showCloseIcon: true,
+                    closeIconColor: Colors.white70,
+                    duration: const Duration(milliseconds: 2000),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0xFF334155), width: 1),
+                    ),
+                    content: const Text('All orders cleared! Next order is #1.'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.cleaning_services_rounded, size: 16),
+            label: const Text('Clear Orders'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.amberBrewing,
+              foregroundColor: CelestialTheme.bgDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmResetAllData(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever_rounded, color: CelestialTheme.roseAlert),
+            const SizedBox(width: 8),
+            Text(
+              'Factory Reset All Data?',
+              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'WARNING: This will completely wipe all orders, reset custom menu item prices and stock, delete uploaded photos, and restore the cafe catalog to default.\n\nThis action cannot be undone!',
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await provider.resetAllData();
+              if (context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
+                messenger.clearSnackBars();
+                messenger.showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF1E293B),
+                    behavior: SnackBarBehavior.floating,
+                    width: 380,
+                    showCloseIcon: true,
+                    closeIconColor: Colors.white70,
+                    duration: const Duration(milliseconds: 2000),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0xFF334155), width: 1),
+                    ),
+                    content: const Text('All application data has been reset to defaults!'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Wipe & Reset Everything'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.roseAlert,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

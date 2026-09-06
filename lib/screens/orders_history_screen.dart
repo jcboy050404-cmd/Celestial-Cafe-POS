@@ -10,6 +10,7 @@ import '../widgets/receipt_dialog.dart';
 import '../widgets/order_tracking_qr_dialog.dart';
 import '../widgets/order_details_dialog.dart';
 import '../widgets/customer_feedback_dialog.dart';
+import '../widgets/top_notification.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   const OrdersHistoryScreen({super.key});
@@ -71,95 +72,145 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   Widget _buildHeader(PosProvider provider, bool isMobile) {
+    final actionButtons = [
+      OutlinedButton.icon(
+        onPressed: () => _showCustomerFeedbackDialog(context, provider),
+        icon: const Icon(Icons.rate_review_rounded, size: 14, color: CelestialTheme.goldLight),
+        label: Text(
+          'Feedback (${provider.customerFeedbacks.length})',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: CelestialTheme.goldLight,
+          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: CelestialTheme.bgSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+              ),
+              title: Text(
+                'Reset Order Counter',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+              ),
+              content: const Text(
+                'This will reset the order numbering so your next order starts at #1.',
+                style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    provider.resetOrderSequence(startNumber: 1);
+                    Navigator.pop(ctx);
+                    TopNotification.showSuccess(
+                      context,
+                      'Order counter reset: Next order will be #1',
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: CelestialTheme.goldPrimary,
+                    foregroundColor: CelestialTheme.bgDark,
+                  ),
+                  child: const Text('Reset to #1'),
+                ),
+              ],
+            ),
+          );
+        },
+        icon: const Icon(Icons.restart_alt_rounded, size: 14),
+        label: const Text('Start at #1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: CelestialTheme.goldLight,
+          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _confirmDeleteAllHistory(context, provider),
+        icon: const Icon(Icons.delete_sweep_rounded, size: 14, color: CelestialTheme.roseAlert),
+        label: const Text('Clear History', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    ];
+
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
       color: CelestialTheme.bgSurface,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Order History',
-                  style: GoogleFonts.outfit(
-                    fontSize: isMobile ? 16 : 18,
-                    fontWeight: FontWeight.bold,
-                    color: CelestialTheme.textLight,
+          if (isMobile) ...[
+            Row(
+              children: [
+                const Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Order History',
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: CelestialTheme.textLight,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (int i = 0; i < actionButtons.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    actionButtons[i],
+                  ],
+                ],
               ),
-              OutlinedButton.icon(
-                onPressed: () => _showCustomerFeedbackDialog(context, provider),
-                icon: const Icon(Icons.rate_review_rounded, size: 14, color: CelestialTheme.goldLight),
-                label: Text(
-                  'Feedback (${provider.customerFeedbacks.length})',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: CelestialTheme.goldLight,
-                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: CelestialTheme.bgSurface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-                      ),
-                      title: Text(
-                        'Reset Order Counter',
-                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                      ),
-                      content: const Text(
-                        'This will reset the order numbering so your next order starts at #1.',
-                        style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            provider.resetOrderSequence(startNumber: 1);
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: CelestialTheme.bgCard,
-                                content: Text('Order counter reset: Next order will be #1'),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: CelestialTheme.goldPrimary,
-                            foregroundColor: CelestialTheme.bgDark,
-                          ),
-                          child: const Text('Reset to #1'),
-                        ),
-                      ],
+            ),
+          ] else ...[
+            Row(
+              children: [
+                const Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Order History',
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: CelestialTheme.textLight,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.restart_alt_rounded, size: 14),
-                label: const Text('Start at #1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: CelestialTheme.goldLight,
-                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
-          ),
+                for (int i = 0; i < actionButtons.length; i++) ...[
+                  const SizedBox(width: 8),
+                  actionButtons[i],
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           // Search Input
           Container(
@@ -332,12 +383,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     tooltip: 'Change Order Status',
                     onSelected: (newStatus) {
                       provider.updateOrderStatus(order.id, newStatus);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: CelestialTheme.bgCard,
-                          duration: const Duration(seconds: 1),
-                          content: Text('Order ${order.orderNumber} status updated to: ${newStatus.label}'),
-                        ),
+                      TopNotification.showSuccess(
+                        context,
+                        'Order ${order.orderNumber} status updated to: ${newStatus.label}',
                       );
                     },
                     color: CelestialTheme.bgCard,
@@ -544,6 +592,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       children: [
                         Expanded(
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(4),
@@ -553,35 +602,42 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                 ),
                                 child: const Icon(Icons.payments_rounded, size: 12, color: CelestialTheme.blueInfo),
                               ),
-                              const SizedBox(width: 6),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'RECEIVED',
-                                    style: TextStyle(fontSize: 9, letterSpacing: 0.8, color: CelestialTheme.textSubtle),
-                                  ),
-                                  Text(
-                                    '₱${order.amountTendered.toStringAsFixed(0)}',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: CelestialTheme.blueInfo,
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'RECEIVED',
+                                      style: TextStyle(fontSize: 8.5, letterSpacing: 0.5, color: CelestialTheme.textSubtle),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                    Text(
+                                      '₱${order.amountTendered.toStringAsFixed(0)}',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.blueInfo,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
                         Container(
                           width: 1,
-                          height: 30,
+                          height: 26,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
                           color: Colors.white.withValues(alpha: 0.08),
                         ),
-                        const SizedBox(width: 12),
                         Expanded(
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(4),
@@ -599,29 +655,36 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                       : CelestialTheme.textMuted,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'CHANGE DUE',
-                                    style: TextStyle(fontSize: 9, letterSpacing: 0.8, color: CelestialTheme.textSubtle),
-                                  ),
-                                  Text(
-                                    '₱${order.changeDue.toStringAsFixed(0)}',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: order.changeDue > 0
-                                          ? CelestialTheme.emeraldReady
-                                          : CelestialTheme.textMuted,
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'CHANGE DUE',
+                                      style: TextStyle(fontSize: 8.5, letterSpacing: 0.5, color: CelestialTheme.textSubtle),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                    Text(
+                                      '₱${order.changeDue.toStringAsFixed(0)}',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: order.changeDue > 0
+                                            ? CelestialTheme.emeraldReady
+                                            : CelestialTheme.textMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(width: 6),
                         // Payment Method Badge
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -634,7 +697,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(order.paymentMethod.icon, style: const TextStyle(fontSize: 11)),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 3),
                               Text(
                                 order.paymentMethod.label.split(' / ').first,
                                 style: const TextStyle(
@@ -683,7 +746,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
               // Bottom Row: Meta (Time + Cashier) & Print CTA
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
@@ -692,22 +754,24 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 6),
                   OutlinedButton.icon(
                     onPressed: () => OrderDetailsDialog.show(context, order),
                     icon: const Icon(Icons.visibility_outlined, size: 13, color: CelestialTheme.goldLight),
-                    label: const Text(
-                      'View Details',
-                      style: TextStyle(
-                        fontSize: 10.5,
+                    label: Text(
+                      isMobile ? 'Details' : 'View Details',
+                      style: const TextStyle(
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                         color: CelestialTheme.goldLight,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -715,10 +779,11 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     onPressed: () => OrderTrackingQrDialog.show(context, order),
                     icon: const Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 19),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    visualDensity: VisualDensity.compact,
                     tooltip: 'Customer Tracking QR',
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   IconButton(
                     onPressed: () {
                       showDialog(
@@ -728,8 +793,18 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     },
                     icon: const Icon(Icons.receipt_rounded, color: CelestialTheme.goldPrimary, size: 18),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    visualDensity: VisualDensity.compact,
                     tooltip: 'Reprint Receipt',
+                  ),
+                  const SizedBox(width: 2),
+                  IconButton(
+                    onPressed: () => _confirmDeleteSingleOrder(context, provider, order),
+                    icon: const Icon(Icons.delete_outline_rounded, color: CelestialTheme.roseAlert, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Delete Order Record',
                   ),
                 ],
               ),
@@ -784,5 +859,127 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
   void _showCustomerFeedbackDialog(BuildContext context, PosProvider provider) {
     CustomerFeedbackDialog.show(context);
+  }
+
+  void _confirmDeleteSingleOrder(BuildContext context, PosProvider provider, Order order) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: CelestialTheme.roseAlert),
+            const SizedBox(width: 8),
+            Text(
+              'Delete Order ${order.orderNumber}?',
+              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete Order ${order.orderNumber} (${order.customerName}, ₱${order.totalAmount.toStringAsFixed(0)})?\n\nThis record will be permanently removed from sales history.',
+          style: const TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              provider.deleteOrderCompletely(order.id, restock: false);
+              ScaffoldMessenger.of(context).clearSnackBars();
+              TopNotification.showError(
+                context,
+                'Order ${order.orderNumber} permanently deleted from history.',
+              );
+            },
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Delete Permanently'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.roseAlert,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAllHistory(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert),
+            const SizedBox(width: 8),
+            Text(
+              'Clear Order History?',
+              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Choose what you would like to delete:\n\n'
+          '• Completed & Cancelled Only (${provider.orders.where((o) => o.status == OrderStatus.completed || o.status == OrderStatus.cancelled).length} orders):\n  Clears old history while preserving active kitchen tickets.\n\n'
+          '• Wipe All Orders (${provider.orders.length} orders):\n  Clears every order and resets the order counter back to #1.',
+          style: const TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          OutlinedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await provider.clearOrderHistoryOnly();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                TopNotification.showSuccess(
+                  context,
+                  'Completed & cancelled history orders cleared!',
+                );
+              }
+            },
+            icon: const Icon(Icons.history_rounded, size: 15, color: CelestialTheme.amberBrewing),
+            label: const Text('Clear Completed Only', style: TextStyle(color: CelestialTheme.amberBrewing, fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await provider.clearAllOrdersAndResetCounter(startNumber: 1);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                TopNotification.showSuccess(
+                  context,
+                  'All orders cleared! Next order is #1.',
+                );
+              }
+            },
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Wipe All Orders & Reset'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.roseAlert,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

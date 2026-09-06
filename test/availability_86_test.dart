@@ -166,8 +166,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // "86'd" badge must be rendered for the Hot option
-      expect(find.text("86'd"), findsWidgets);
+      // "Not Available" badge must be rendered for the Hot option
+      expect(find.text("Not Available"), findsWidgets);
 
       // "Hot" and "Iced" should be rendered
       expect(find.text('Hot'), findsOneWidget);
@@ -302,6 +302,94 @@ void main() {
       expect(urlTable1, contains('table=T1-$token1'));
       expect(urlTable2, contains('table=T2-$token2'));
       expect(urlTable1, isNot(equals(urlTable2)));
+    });
+  });
+
+  group('Customer Web Menu Sync & Sold Out Rejection', () {
+    test('getMenuJsonForCustomer exports accurate inStock and option isAvailable status', () {
+      final provider = PosProvider();
+      final item = provider.menuItems.firstWhere((m) => m.customizationGroups.isNotEmpty);
+
+      // Ensure inStock = true initially
+      provider.setItemAvailability(item.id, true);
+      final initialMenuJson = provider.getMenuJsonForCustomer();
+      final exportedItem = initialMenuJson.firstWhere((m) => m['id'] == item.id);
+      expect(exportedItem['inStock'], isTrue);
+
+      // Now set item to sold out
+      provider.setItemAvailability(item.id, false);
+      final soldOutMenuJson = provider.getMenuJsonForCustomer();
+      final exportedSoldOut = soldOutMenuJson.firstWhere((m) => m['id'] == item.id);
+      expect(exportedSoldOut['inStock'], isFalse);
+
+      // Test modifier option availability export
+      final grp = item.customizationGroups.first;
+      final opt = grp.options.first;
+      provider.toggleOptionAvailability(item.id, grp.id, opt.name, false);
+      final optMenuJson = provider.getMenuJsonForCustomer();
+      final exportedOptItem = optMenuJson.firstWhere((m) => m['id'] == item.id);
+      final exportedGroups = exportedOptItem['customizations'] as List;
+      final exportedGroup = exportedGroups.firstWhere((g) => g['id'] == grp.id);
+      final exportedOptions = exportedGroup['options'] as List;
+      final exportedOpt = exportedOptions.firstWhere((o) => o['name'] == opt.name);
+      expect(exportedOpt['isAvailable'], isFalse);
+
+      // Reset
+      provider.resetAllAvailability();
+    });
+
+    test('Customer order submission rejects sold-out item and sold-out modifier', () {
+      final provider = PosProvider();
+      final item = provider.menuItems.firstWhere((m) => m.customizationGroups.isNotEmpty);
+
+      // 1. Mark item as sold out
+      provider.setItemAvailability(item.id, false);
+      final failedItemOrder = provider.handleCustomerOrderSubmittedForTesting({
+        'tableNumber': 'Takeout',
+        'customerName': 'Test Guest',
+        'orderType': 'takeaway',
+        'items': [
+          {
+            'id': item.id,
+            'quantity': 1,
+            'customizations': [],
+          }
+        ]
+      });
+      expect(failedItemOrder['success'], isFalse);
+      expect(failedItemOrder['error'], contains('sold out'));
+
+      // Restore item availability
+      provider.setItemAvailability(item.id, true);
+
+      // 2. Mark an option as sold out
+      final grp = item.customizationGroups.first;
+      final opt = grp.options.first;
+      provider.toggleOptionAvailability(item.id, grp.id, opt.name, false);
+
+      final failedOptOrder = provider.handleCustomerOrderSubmittedForTesting({
+        'tableNumber': 'Takeout',
+        'customerName': 'Test Guest',
+        'orderType': 'takeaway',
+        'items': [
+          {
+            'id': item.id,
+            'quantity': 1,
+            'customizations': [
+              {
+                'groupTitle': grp.title,
+                'optionName': opt.name,
+                'extraPrice': opt.extraPrice,
+              }
+            ],
+          }
+        ]
+      });
+      expect(failedOptOrder['success'], isFalse);
+      expect(failedOptOrder['error'], contains('sold out'));
+
+      // Clean up
+      provider.resetAllAvailability();
     });
   });
 }

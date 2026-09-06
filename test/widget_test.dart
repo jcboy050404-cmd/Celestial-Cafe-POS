@@ -260,10 +260,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify Title, Price Badge and Required Badges
+    // Verify Title and Price Badge (clean headers without REQUIRED badge)
     expect(find.text('Americano'), findsOneWidget);
     expect(find.text('₱90'), findsWidgets);
-    expect(find.text('REQUIRED'), findsNWidgets(2)); // Temperature & Sweetness
+    expect(find.text('REQUIRED'), findsNothing);
 
     // Verify Temperature Section has Hot and Iced
     expect(find.text('Hot'), findsOneWidget);

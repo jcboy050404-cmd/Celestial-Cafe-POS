@@ -6,6 +6,7 @@ import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'customization_dialog.dart';
 import 'item_thumbnail.dart';
+import 'top_notification.dart';
 
 class MenuItemCard extends StatefulWidget {
   final MenuItem item;
@@ -126,7 +127,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                   style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
                                 ),
                                 Text(
-                                  currentItem.inStock ? 'Available on POS & Menu' : '86\'d / Out of Stock',
+                                  currentItem.inStock ? 'Available on POS & Menu' : '86\'d / Sold Out',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     color: currentItem.inStock ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
@@ -263,7 +264,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.75),
+      barrierColor: Colors.black.withValues(alpha: 0.85),
       builder: (ctx) => CustomizationDialog(
         item: widget.item,
         onAddToCart: (quantity, customizations, notes) {
@@ -275,31 +276,10 @@ class _MenuItemCardState extends State<MenuItemCard> {
             notes: notes,
           );
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: CelestialTheme.bgSurfaceLight,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(
-                  color: CelestialTheme.borderSubtle,
-                ),
-              ),
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: CelestialTheme.caramelAccent, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Added ${widget.item.name} to order',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              duration: const Duration(seconds: 2),
-            ),
+          ScaffoldMessenger.of(context).clearSnackBars();
+          TopNotification.showSuccess(
+            context,
+            'Added ${widget.item.name} to order',
           );
         },
       ),
@@ -491,7 +471,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                     ],
                   ),
 
-                  // Out of Stock Overlay
+                  // Sold Out Overlay
                   if (!item.inStock)
                     Positioned.fill(
                       child: Container(
@@ -511,7 +491,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text(
-                                  'OUT OF STOCK',
+                                  'SOLD OUT',
                                   style: TextStyle(
                                     color: CelestialTheme.roseAlert,
                                     fontWeight: FontWeight.bold,

@@ -7,6 +7,7 @@ import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import 'customer_order_approval_dialog.dart';
+import 'top_notification.dart';
 
 class OrderCardKds extends StatefulWidget {
   final Order order;
@@ -130,9 +131,9 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                             boxShadow: (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFFFF9F1C).withValues(alpha: 0.45),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
+                                      color: Colors.black.withValues(alpha: 0.35),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 1),
                                     ),
                                   ]
                                 : null,
@@ -471,9 +472,9 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                 boxShadow: isKitchen && !isPrepared
                     ? [
                         BoxShadow(
-                          color: const Color(0xFFFF5722).withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
                         ),
                       ]
                     : null,
@@ -643,31 +644,11 @@ class _OrderCardKdsState extends State<OrderCardKds> {
       onTap: () {
         if (!isPreparing) {
           HapticFeedback.lightImpact();
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: CelestialTheme.bgCard,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
-              ),
-              duration: const Duration(seconds: 2),
-              content: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: CelestialTheme.amberBrewing, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      order.status == OrderStatus.confirmed || order.status == OrderStatus.pending
-                          ? 'Please tap "Start Brewing / Prep" first before marking items as prepared.'
-                          : 'Order #${order.orderNumber} is already ${order.status.label.toLowerCase()}.',
-                      style: const TextStyle(fontSize: 12.5, color: CelestialTheme.textLight, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          TopNotification.showWarning(
+            context,
+            order.status == OrderStatus.confirmed || order.status == OrderStatus.pending
+                ? 'Tap "Start Brewing / Prep" first.'
+                : 'Order #${order.orderNumber} is already ${order.status.label.toLowerCase()}.',
           );
           return;
         }
@@ -704,16 +685,10 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         child: ElevatedButton.icon(
           onPressed: _isActionLoading
               ? null
-              : () => _confirmStatusTransition(
-                  context,
-                  provider,
-                  order,
-                  OrderStatus.preparing,
-                  title: 'Start Brewing / Prep',
-                  actionLabel: 'Start Brewing',
-                  color: CelestialTheme.amberBrewing,
-                  icon: Icons.coffee_maker_rounded,
-                ),
+              : () {
+                  HapticFeedback.mediumImpact();
+                  provider.updateOrderStatus(order.id, OrderStatus.preparing);
+                },
           icon: _isActionLoading
               ? const SizedBox(
                   width: 16,
@@ -779,16 +754,10 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                     ElevatedButton.icon(
                       onPressed: _isActionLoading
                           ? null
-                          : () => _confirmStatusTransition(
-                              context,
-                              provider,
-                              order,
-                              OrderStatus.preparing,
-                              title: 'Start Brewing',
-                              actionLabel: 'Brew Now',
-                              color: CelestialTheme.amberBrewing,
-                              icon: Icons.coffee_maker_rounded,
-                            ),
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              provider.updateOrderStatus(order.id, OrderStatus.preparing);
+                            },
                       icon: _isActionLoading
                           ? const SizedBox(
                               width: 14,
@@ -826,16 +795,10 @@ class _OrderCardKdsState extends State<OrderCardKds> {
                       child: ElevatedButton.icon(
                         onPressed: _isActionLoading
                             ? null
-                            : () => _confirmStatusTransition(
-                                context,
-                                provider,
-                                order,
-                                OrderStatus.preparing,
-                                title: 'Start Brewing',
-                                actionLabel: 'Brew Now',
-                                color: CelestialTheme.amberBrewing,
-                                icon: Icons.coffee_maker_rounded,
-                              ),
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                provider.updateOrderStatus(order.id, OrderStatus.preparing);
+                              },
                         icon: _isActionLoading
                             ? const SizedBox(
                                 width: 14,
@@ -857,21 +820,65 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         ],
       );
     } else if (order.status == OrderStatus.preparing) {
+      final allItemsPrepared = order.items.isNotEmpty && order.items.every((i) => i.isPrepared);
+      if (allItemsPrepared) {
+        return Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isActionLoading
+                    ? null
+                    : () {
+                        HapticFeedback.mediumImpact();
+                        provider.updateOrderStatus(order.id, OrderStatus.ready);
+                      },
+                icon: const Icon(Icons.notifications_active_rounded, size: 15, color: CelestialTheme.bgDark),
+                label: const Text('Ready', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: CelestialTheme.bgDark)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CelestialTheme.emeraldReady,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isActionLoading
+                    ? null
+                    : () {
+                        HapticFeedback.heavyImpact();
+                        provider.updateOrderStatus(order.id, OrderStatus.completed);
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        TopNotification.showOrderHandedOver(
+                          context,
+                          orderNumber: order.orderNumber,
+                          onUndo: () {
+                            provider.updateOrderStatus(order.id, OrderStatus.preparing);
+                          },
+                        );
+                      },
+                icon: const Icon(Icons.check_circle_rounded, size: 15, color: Colors.white),
+                label: const Text('Complete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF22C55E),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
           onPressed: _isActionLoading
               ? null
-              : () => _confirmStatusTransition(
-                  context,
-                  provider,
-                  order,
-                  OrderStatus.ready,
-                  title: 'Mark Ready for Pickup',
-                  actionLabel: 'Confirm Ready',
-                  color: CelestialTheme.emeraldReady,
-                  icon: Icons.notifications_active_rounded,
-                ),
+              : () {
+                  HapticFeedback.heavyImpact();
+                  provider.updateOrderStatus(order.id, OrderStatus.ready);
+                },
           icon: _isActionLoading
               ? const SizedBox(
                   width: 16,
@@ -894,26 +901,22 @@ class _OrderCardKdsState extends State<OrderCardKds> {
         child: ElevatedButton.icon(
           onPressed: _isActionLoading
               ? null
-              : () => _confirmStatusTransition(
-                  context,
-                  provider,
-                  order,
-                  OrderStatus.completed,
-                  title: 'Complete & Hand Over',
-                  actionLabel: 'Complete Order',
-                  color: const Color(0xFF22C55E),
-                  icon: Icons.check_circle_rounded,
-                ),
-          icon: _isActionLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
-          label: Text(
-            _isActionLoading ? 'Completing...' : 'Complete & Hand Over',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+              : () {
+                  HapticFeedback.heavyImpact();
+                  provider.updateOrderStatus(order.id, OrderStatus.completed);
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  TopNotification.showOrderHandedOver(
+                    context,
+                    orderNumber: order.orderNumber,
+                    onUndo: () {
+                      provider.updateOrderStatus(order.id, OrderStatus.ready);
+                    },
+                  );
+                },
+          icon: const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
+          label: const Text(
+            'Complete & Hand Over',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF22C55E),
@@ -1139,56 +1142,26 @@ class _OrderCardKdsState extends State<OrderCardKds> {
             ),
             child: const Text('Cancel / Review', style: TextStyle(color: CelestialTheme.textMuted, fontWeight: FontWeight.bold)),
           ),
-          Builder(
-            builder: (ctx) {
-              bool isSubmitting = false;
-              return StatefulBuilder(
-                builder: (ctx, setDialogState) {
-                  return ElevatedButton.icon(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            setDialogState(() => isSubmitting = true);
-                            if (mounted) setState(() => _isActionLoading = true);
-                            HapticFeedback.heavyImpact();
-                            await Future.delayed(const Duration(milliseconds: 280));
-                            provider.updateOrderStatus(order.id, nextStatus);
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            if (mounted) setState(() => _isActionLoading = false);
-                          },
-                    icon: isSubmitting
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
-                            ),
-                          )
-                        : Icon(icon, size: 16, color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark),
-                    label: Text(
-                      isSubmitting
-                          ? (nextStatus == OrderStatus.preparing
-                              ? 'Starting Brew...'
-                              : nextStatus == OrderStatus.ready
-                                  ? 'Marking Ready...'
-                                  : 'Completing...')
-                          : actionLabel,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  );
-                },
-              );
+          ElevatedButton.icon(
+            onPressed: () {
+              HapticFeedback.heavyImpact();
+              Navigator.of(ctx).pop();
+              provider.updateOrderStatus(order.id, nextStatus);
             },
+            icon: Icon(icon, size: 16, color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark),
+            label: Text(
+              actionLabel,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: color == const Color(0xFF22C55E) ? Colors.white : CelestialTheme.bgDark,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           ),
         ],
       ),
@@ -1209,33 +1182,48 @@ class _OrderCardKdsState extends State<OrderCardKds> {
             const Icon(Icons.warning_amber_rounded, color: CelestialTheme.roseAlert),
             const SizedBox(width: 8),
             Text(
-              'Void Order ${order.orderNumber}?',
+              'Remove Ticket ${order.orderNumber}?',
               style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         content: Text(
-          'Are you sure you want to cancel and remove this ticket from the kitchen queue?\n\nAll items (${order.totalItemCount} pcs) will be automatically returned to stock.',
+          'Choose how you would like to remove this ticket (${order.totalItemCount} items):\n\n• Void & Restock: Cancels the order and returns ingredients to stock.\n• Delete Permanently: Completely removes the order from cafe records.',
           style: const TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Keep Order', style: TextStyle(color: CelestialTheme.textMuted)),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Keep Ticket', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              provider.cancelOrder(order.id, restock: true);
+              ScaffoldMessenger.of(context).clearSnackBars();
+              TopNotification.showWarning(
+                context,
+                'Order ${order.orderNumber} voided & ingredients restocked.',
+              );
+            },
+            icon: const Icon(Icons.cancel_outlined, size: 15, color: CelestialTheme.amberBrewing),
+            label: const Text('Void & Restock', style: TextStyle(color: CelestialTheme.amberBrewing, fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
+            ),
           ),
           ElevatedButton.icon(
             onPressed: () {
-              provider.cancelOrder(order.id, restock: true);
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: CelestialTheme.bgCard,
-                  content: Text('Order ${order.orderNumber} voided and restocked successfully.'),
-                ),
+              Navigator.of(ctx).pop();
+              provider.deleteOrderCompletely(order.id, restock: true);
+              ScaffoldMessenger.of(context).clearSnackBars();
+              TopNotification.showError(
+                context,
+                'Order ${order.orderNumber} permanently deleted.',
               );
             },
             icon: const Icon(Icons.delete_forever_rounded, size: 16),
-            label: const Text('Void Ticket'),
+            label: const Text('Delete Permanently'),
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.roseAlert,
               foregroundColor: Colors.white,

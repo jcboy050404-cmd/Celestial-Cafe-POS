@@ -233,13 +233,29 @@ class PosProvider extends ChangeNotifier {
     return null;
   }
 
-  Order? _getOrderById(String orderId) {
+  int _findOrderIndex(String orderId) {
     final clean = orderId.trim().toLowerCase();
-    return _orders.where((o) =>
-        o.id.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase().replaceAll('#', '').trim() == clean).firstOrNull;
+    final cleanNum = clean.replaceAll('#', '').trim();
+    return _orders.indexWhere((o) {
+      final oId = o.id.trim().toLowerCase();
+      final oNum = o.orderNumber.trim().toLowerCase();
+      final oNumClean = oNum.replaceAll('#', '').trim();
+      return oId == clean ||
+          oId == cleanNum ||
+          oNum == clean ||
+          oNumClean == clean ||
+          oNumClean == cleanNum;
+    });
   }
+
+  Order? _getOrderById(String orderId) {
+    final idx = _findOrderIndex(orderId);
+    return idx >= 0 ? _orders[idx] : null;
+  }
+
+  @visibleForTesting
+  Map<String, dynamic> handleCustomerOrderSubmittedForTesting(Map<String, dynamic> rawOrder) =>
+      _handleCustomerOrderSubmitted(rawOrder);
 
   Map<String, dynamic> _handleCustomerOrderSubmitted(Map<String, dynamic> rawOrder) {
     try {
@@ -313,12 +329,37 @@ class PosProvider extends ChangeNotifier {
         }
 
         if (menuItem != null) {
+          if (!menuItem.inStock) {
+            return {
+              'success': false,
+              'error': '"${menuItem.name}" is currently sold out. Please choose another item.',
+            };
+          }
+
           final List<SelectedCustomization> selectedCustoms = [];
           for (var rc in rawCustoms) {
             final rcMap = rc as Map<String, dynamic>;
+            final optName = (rcMap['optionName'] as String? ?? '').trim();
+            final grpTitle = (rcMap['groupTitle'] as String? ?? '').trim();
+
+            if (optName.isNotEmpty) {
+              for (final grp in menuItem.customizationGroups) {
+                for (final opt in grp.options) {
+                  if (opt.name.trim().toLowerCase() == optName.toLowerCase()) {
+                    if (!opt.isAvailable) {
+                      return {
+                        'success': false,
+                        'error': '"${opt.name}" is currently sold out. Please choose another option.',
+                      };
+                    }
+                  }
+                }
+              }
+            }
+
             selectedCustoms.add(SelectedCustomization(
-              groupTitle: rcMap['groupTitle'] as String? ?? '',
-              optionName: rcMap['optionName'] as String? ?? '',
+              groupTitle: grpTitle,
+              optionName: optName,
               extraPrice: (rcMap['extraPrice'] as num?)?.toDouble() ?? 0.0,
             ));
           }
@@ -539,14 +580,26 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _handleRemoteKdsStatusUpdate(String orderId, String newStatus) {
-    if (newStatus == 'cancelled') {
+    final s = newStatus.trim().toLowerCase();
+    if (s == 'cancelled' || s == 'void' || s == 'voided') {
       cancelOrder(orderId, restock: true);
       return;
     }
-    final status = OrderStatus.values.firstWhere(
-      (s) => s.name.toLowerCase() == newStatus.toLowerCase(),
-      orElse: () => OrderStatus.pending,
-    );
+    OrderStatus status;
+    if (s == 'preparing' || s == 'brewing' || s == 'kitchen' || s == 'prep' || s == 'inprep') {
+      status = OrderStatus.preparing;
+    } else if (s == 'confirmed' || s == 'inqueue' || s == 'queue') {
+      status = OrderStatus.confirmed;
+    } else if (s == 'ready' || s == 'pickup') {
+      status = OrderStatus.ready;
+    } else if (s == 'completed' || s == 'done' || s == 'served') {
+      status = OrderStatus.completed;
+    } else {
+      status = OrderStatus.values.firstWhere(
+        (val) => val.name.toLowerCase() == s,
+        orElse: () => OrderStatus.pending,
+      );
+    }
     updateOrderStatus(orderId, status);
   }
 
@@ -970,7 +1023,11 @@ class PosProvider extends ChangeNotifier {
           o.status == OrderStatus.preparing ||
           o.status == OrderStatus.ready)
       .toList()
-    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    ..sort((a, b) {
+      final comp = a.createdAt.compareTo(b.createdAt);
+      if (comp != 0) return comp;
+      return a.orderNumber.compareTo(b.orderNumber);
+    });
 
   // Navigation Setters
   void setNavIndex(int index) {
@@ -1478,10 +1535,14 @@ class PosProvider extends ChangeNotifier {
 
   // KDS & Order Status Updates
   void toggleOrderItemPrepared(String orderId, int itemIndex) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
+    final index = _findOrderIndex(orderId);
     if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
-      // Must be actively in preparing status to mark items prepared
-      if (_orders[index].status != OrderStatus.preparing) return;
+      // Must be actively in preparing status (or confirmed auto-advances to preparing)
+      if (_orders[index].status == OrderStatus.confirmed) {
+        _orders[index].status = OrderStatus.preparing;
+      } else if (_orders[index].status != OrderStatus.preparing && _orders[index].status != OrderStatus.ready) {
+        return;
+      }
 
       final newPrepared = !_orders[index].items[itemIndex].isPrepared;
       _orders[index].items[itemIndex].isPrepared = newPrepared;
@@ -1493,16 +1554,20 @@ class PosProvider extends ChangeNotifier {
       _scheduleSaveOrders();
 
       // 3. Fast targeted websocket broadcast + debounced full sync
-      _kdsServer.broadcastItemPrepared(orderId, itemIndex, newPrepared);
+      _kdsServer.broadcastItemPrepared(_orders[index].id, itemIndex, newPrepared, orderStatus: _orders[index].status.name);
       _kdsServer.broadcastOrders();
     }
   }
 
   void setOrderItemPrepared(String orderId, int itemIndex, bool isPrepared) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
+    final index = _findOrderIndex(orderId);
     if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
-      // Must be actively in preparing status to mark items prepared
-      if (_orders[index].status != OrderStatus.preparing) return;
+      // If confirmed, auto-advance to preparing when items begin preparation
+      if (_orders[index].status == OrderStatus.confirmed) {
+        _orders[index].status = OrderStatus.preparing;
+      } else if (_orders[index].status != OrderStatus.preparing && _orders[index].status != OrderStatus.ready) {
+        return;
+      }
       if (_orders[index].items[itemIndex].isPrepared == isPrepared) return;
 
       _orders[index].items[itemIndex].isPrepared = isPrepared;
@@ -1514,13 +1579,13 @@ class PosProvider extends ChangeNotifier {
       _scheduleSaveOrders();
 
       // 3. Fast targeted websocket broadcast + debounced full sync
-      _kdsServer.broadcastItemPrepared(orderId, itemIndex, isPrepared);
+      _kdsServer.broadcastItemPrepared(_orders[index].id, itemIndex, isPrepared, orderStatus: _orders[index].status.name);
       _kdsServer.broadcastOrders();
     }
   }
 
   void updateOrderStatus(String orderId, OrderStatus newStatus) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
+    final index = _findOrderIndex(orderId);
     if (index >= 0) {
       if (_orders[index].status == newStatus) return;
       _orders[index].status = newStatus;
@@ -1551,11 +1616,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void cancelOrder(String orderId, {bool restock = true}) {
-    final clean = orderId.trim().toLowerCase();
-    final index = _orders.indexWhere((o) =>
-        o.id.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase().replaceAll('#', '').trim() == clean);
+    final index = _findOrderIndex(orderId);
     if (index >= 0) {
       final order = _orders[index];
       order.status = OrderStatus.cancelled;
@@ -1572,18 +1633,14 @@ class PosProvider extends ChangeNotifier {
       }
 
       _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrders(immediate: true);
       _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
   }
 
   void deleteOrderCompletely(String orderId, {bool restock = true}) {
-    final clean = orderId.trim().toLowerCase();
-    final index = _orders.indexWhere((o) =>
-        o.id.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase() == clean ||
-        o.orderNumber.toLowerCase().replaceAll('#', '').trim() == clean);
+    final index = _findOrderIndex(orderId);
     if (index >= 0) {
       final order = _orders[index];
       if (restock && order.status != OrderStatus.cancelled) {
@@ -1599,7 +1656,7 @@ class PosProvider extends ChangeNotifier {
 
       _orders.removeAt(index);
       _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
+      _kdsServer.broadcastOrders(immediate: true);
       _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
@@ -1695,6 +1752,79 @@ class PosProvider extends ChangeNotifier {
       _broadcastMenuUpdate();
       notifyListeners();
     }
+  }
+
+  void updateCustomizationOptionPrice({
+    required String itemId,
+    required String groupId,
+    required String optionName,
+    required double newExtraPrice,
+    bool applyGlobally = false,
+  }) {
+    final cleanPrice = double.parse(newExtraPrice.clamp(0.0, 99999.0).toStringAsFixed(2));
+    final cleanTarget = optionName.toLowerCase().trim();
+
+    if (applyGlobally) {
+      bool anyModified = false;
+      for (int i = 0; i < _menuItems.length; i++) {
+        final item = _menuItems[i];
+        bool itemModified = false;
+        final updatedGroups = item.customizationGroups.map((group) {
+          final updatedOptions = group.options.map((opt) {
+            if (opt.name.toLowerCase().trim() == cleanTarget) {
+              if (opt.extraPrice != cleanPrice) {
+                itemModified = true;
+                return opt.copyWith(extraPrice: cleanPrice);
+              }
+            }
+            return opt;
+          }).toList();
+          return group.copyWith(options: updatedOptions);
+        }).toList();
+
+        if (itemModified) {
+          _menuItems[i] = item.copyWith(customizationGroups: updatedGroups);
+          anyModified = true;
+        }
+      }
+
+      if (anyModified) {
+        _saveMenuToStorage();
+        _broadcastMenuUpdate();
+        notifyListeners();
+      }
+    } else {
+      final itemIdx = _menuItems.indexWhere((m) => m.id == itemId);
+      if (itemIdx < 0) return;
+      final item = _menuItems[itemIdx];
+
+      final updatedGroups = item.customizationGroups.map((group) {
+        if (group.id != groupId) return group;
+        final updatedOptions = group.options.map((opt) {
+          if (opt.name.toLowerCase().trim() != cleanTarget) return opt;
+          return opt.copyWith(extraPrice: cleanPrice);
+        }).toList();
+        return group.copyWith(options: updatedOptions);
+      }).toList();
+
+      _menuItems[itemIdx] = item.copyWith(customizationGroups: updatedGroups);
+      _saveMenuToStorage();
+      _broadcastMenuUpdate();
+      notifyListeners();
+    }
+  }
+
+  void updateGroupOptionPriceGlobally({
+    required String optionName,
+    required double newExtraPrice,
+  }) {
+    updateCustomizationOptionPrice(
+      itemId: '',
+      groupId: '',
+      optionName: optionName,
+      newExtraPrice: newExtraPrice,
+      applyGlobally: true,
+    );
   }
 
   void resetAllItemOptionsAvailability(String itemId) {
@@ -1848,6 +1978,7 @@ class PosProvider extends ChangeNotifier {
     _orders.clear();
     _orderSequence = 1;
     clearCart();
+    _kdsServer.broadcastOrders(immediate: true);
     notifyListeners();
   }
 
@@ -1871,6 +2002,15 @@ class PosProvider extends ChangeNotifier {
     await prefs.setInt(_keyOrderSeq, startNumber);
     _saveMenuToStorage();
     clearCart();
+    _kdsServer.broadcastOrders(immediate: true);
+    notifyListeners();
+  }
+
+  Future<void> clearOrderHistoryOnly() async {
+    // Retain active queue orders (confirmed, preparing, ready), remove only historical (completed & cancelled)
+    _orders.removeWhere((o) => o.status == OrderStatus.completed || o.status == OrderStatus.cancelled);
+    _saveOrdersToStorage();
+    _kdsServer.broadcastOrders(immediate: true);
     notifyListeners();
   }
 

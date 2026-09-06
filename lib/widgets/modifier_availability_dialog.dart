@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
+import 'price_editor_dialog.dart';
 
 class ModifierAvailabilityDialog {
   static void show(
@@ -135,6 +136,54 @@ class ModifierAvailabilityDialog {
                                                   color: isAvail ? CelestialTheme.textLight : CelestialTheme.roseAlert,
                                                   fontWeight: isAvail ? FontWeight.w500 : FontWeight.bold,
                                                   decoration: isAvail ? null : TextDecoration.lineThrough,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              InkWell(
+                                                onTap: () {
+                                                  PriceEditorDialog.showOptionPriceEditor(
+                                                    context,
+                                                    posProvider,
+                                                    itemId: currentItem.id,
+                                                    groupId: group.id,
+                                                    groupTitle: group.title,
+                                                    option: opt,
+                                                    onSaved: () {
+                                                      setDlgState(() {});
+                                                      onUpdated?.call();
+                                                    },
+                                                  );
+                                                },
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                  decoration: BoxDecoration(
+                                                    color: opt.extraPrice > 0
+                                                        ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                                        : const Color(0xFF281F1A),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(
+                                                      color: opt.extraPrice > 0
+                                                          ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                                                          : const Color(0xFF4A3B32),
+                                                      width: 0.8,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        opt.extraPrice > 0 ? '+₱${opt.extraPrice.toStringAsFixed(0)}' : '₱0',
+                                                        style: TextStyle(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: opt.extraPrice > 0 ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 2.5),
+                                                      const Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ],
