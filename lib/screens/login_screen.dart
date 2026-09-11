@@ -1058,23 +1058,23 @@ class _LoginScreenState extends State<LoginScreen>
           _pinFocusNode.requestFocus();
           _showFeedback('Please enter your 4-digit PIN below to continue.');
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: CelestialTheme.bgSurface,
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF181512).withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isRegistered
-                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.45)
                   : CelestialTheme.borderWarm,
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 14,
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -1082,23 +1082,24 @@ class _LoginScreenState extends State<LoginScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Row: Recent Login pill + Station Gmail Account + Remove / Switch
+              // Clean Header: Recent Login pill on the left, Switch • Remove on the right
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
                         width: 0.8,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.history_rounded, size: 12, color: CelestialTheme.goldLight),
+                        const Icon(Icons.history_rounded, size: 11.5, color: CelestialTheme.goldLight),
                         const SizedBox(width: 4),
                         Text(
                           'Recent Login',
@@ -1112,190 +1113,197 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'Station Gmail Account',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: CelestialTheme.textMuted,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _userManuallyClearedEmail = true;
+                            _preferInputField = true;
+                            _emailController.clear();
+                            _pinController.clear();
+                          });
+                          auth.clearRememberedStationEmail();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          child: Text(
+                            'Switch',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: CelestialTheme.amberBrewing,
+                            ),
+                          ),
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _userManuallyClearedEmail = true;
-                        _preferInputField = true;
-                        _emailController.clear();
-                        _pinController.clear();
-                      });
-                      auth.clearRememberedStationEmail();
-                    },
-                    icon: const Icon(Icons.close_rounded, size: 12, color: CelestialTheme.roseAlert),
-                    label: Text(
-                      'Remove',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: CelestialTheme.roseAlert,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Text(
+                          '•',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 10),
+                        ),
                       ),
-                    ),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _userManuallyClearedEmail = true;
-                        _preferInputField = true;
-                        _emailController.clear();
-                        _pinController.clear();
-                      });
-                      auth.clearRememberedStationEmail();
-                    },
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Switch',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: CelestialTheme.amberBrewing,
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _userManuallyClearedEmail = true;
+                            _preferInputField = true;
+                            _emailController.clear();
+                            _pinController.clear();
+                          });
+                          auth.clearRememberedStationEmail();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          child: Text(
+                            'Remove',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: CelestialTheme.roseAlert.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-          const SizedBox(height: 10),
-          // User Identity Row: Avatar / Photo + Name + Email + Status
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                  border: Border.all(
-                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-                child: ClipOval(
-                  child: (photoUrl != null && photoUrl.isNotEmpty)
-                      ? Image.network(
-                          photoUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: Image.asset(
-                                'assets/images/google_logo.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) => const Icon(
-                                  Icons.account_circle_rounded,
-                                  color: CelestialTheme.goldLight,
-                                  size: 20,
+              const SizedBox(height: 12),
+              // User Identity Row: Avatar / Photo + Name + Email + Subtitle + Status
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: (photoUrl != null && photoUrl.isNotEmpty)
+                          ? Image.network(
+                              photoUrl,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: Image.asset(
+                                    'assets/images/google_logo.png',
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) => const Icon(
+                                      Icons.account_circle_rounded,
+                                      color: CelestialTheme.goldLight,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Image.asset(
+                                  'assets/images/google_logo.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(
+                                    Icons.account_circle_rounded,
+                                    color: CelestialTheme.goldLight,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
                             ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (displayName != null && displayName.isNotEmpty)
+                              ? displayName
+                              : 'Station Gmail Account',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                            letterSpacing: 0.2,
                           ),
-                        )
-                      : Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: Image.asset(
-                              'assets/images/google_logo.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.account_circle_rounded,
-                                color: CelestialTheme.goldLight,
-                                size: 20,
-                              ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          email,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: CelestialTheme.goldLight.withValues(alpha: 0.9),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (displayName != null && displayName.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Station Gmail Account',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: CelestialTheme.textMuted,
                             ),
                           ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (isRegistered) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.emeraldReady.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: CelestialTheme.emeraldReady.withValues(alpha: 0.35),
+                          width: 0.8,
                         ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (displayName != null && displayName.isNotEmpty) ...[
-                      Text(
-                        displayName,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.bold,
-                          color: CelestialTheme.textLight,
-                        ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 1),
-                    ],
-                    Text(
-                      email,
-                      style: GoogleFonts.outfit(
-                        fontSize: displayName != null ? 12 : 13.5,
-                        fontWeight: displayName != null ? FontWeight.w500 : FontWeight.bold,
-                        color: CelestialTheme.goldLight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 10.5, color: CelestialTheme.emeraldReady),
+                          const SizedBox(width: 3.5),
+                          Text(
+                            'Ready',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.emeraldReady,
+                            ),
+                          ),
+                        ],
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
+                ],
               ),
-              if (isRegistered) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: CelestialTheme.emeraldReady.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: CelestialTheme.emeraldReady.withValues(alpha: 0.3),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle_rounded, size: 10, color: CelestialTheme.emeraldReady),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Ready',
-                        style: GoogleFonts.outfit(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
-                          color: CelestialTheme.emeraldReady,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget _buildPinDots(String pin) {
