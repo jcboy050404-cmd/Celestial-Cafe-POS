@@ -21,14 +21,14 @@ void main() async {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
   PosProvider.repairCorruptedStorage();
-  runApp(const CelestialCafePosApp());
+  runApp(const JcPosApp());
 }
 
-class CelestialCafePosApp extends StatelessWidget {
+class JcPosApp extends StatelessWidget {
   final AuthService? authService;
   final PosProvider? posProvider;
 
-  const CelestialCafePosApp({
+  const JcPosApp({
     super.key,
     this.authService,
     this.posProvider,
@@ -71,6 +71,8 @@ class CelestialCafePosApp extends StatelessWidget {
     );
   }
 }
+
+typedef CelestialCafePosApp = JcPosApp;
 
 class MainWorkstationScaffold extends StatefulWidget {
   const MainWorkstationScaffold({super.key});
