@@ -203,7 +203,7 @@ class CelestialTheme {
     );
   }
 
-  // Glass/Soft Card for backwards compatibility (cleansed of harsh glow halos)
+  // Glass/Soft Card (clean non-neon dark espresso styling)
   static BoxDecoration glassCard({
     Color? color,
     BorderRadius? borderRadius,
@@ -215,7 +215,7 @@ class CelestialTheme {
       borderRadius: borderRadius ?? BorderRadius.circular(20),
       border: border ??
           Border.all(
-            color: glow ? caramelAccent.withValues(alpha: 0.4) : borderSubtle,
+            color: glow ? borderWarm : borderSubtle,
             width: 1.0,
           ),
       boxShadow: [
@@ -224,12 +224,6 @@ class CelestialTheme {
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),
-        if (glow)
-          BoxShadow(
-            color: caramelAccent.withValues(alpha: 0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 2),
-          ),
       ],
     );
   }

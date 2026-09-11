@@ -4,10 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/customer_feedback.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
-import '../services/kds_server_service.dart';
 
 class PosProvider extends ChangeNotifier {
   static const String _keyMenuItems = 'celestial_menu_items_v1';
@@ -18,12 +16,17 @@ class PosProvider extends ChangeNotifier {
   static const String _keyStoreName = 'celestial_store_name_v1';
   static const String _keyStoreTagline = 'celestial_store_tagline_v1';
   static const String _keyStoreAddress = 'celestial_store_address_v1';
-  static const String _keyBaristaPin = 'celestial_barista_pin_v1';
   static const String _keyUiScale = 'celestial_ui_scale_v1';
   static const String _keyCustomCategories = 'celestial_custom_categories_v1';
-  static const String _keyCustomerFeedbacks = 'celestial_customer_feedbacks_v1';
+  static const String _keySigBannerEnabled = 'celestial_sig_banner_enabled_v1';
+  static const String _keySigBannerBadge = 'celestial_sig_banner_badge_v1';
+  static const String _keySigBannerTitle = 'celestial_sig_banner_title_v1';
+  static const String _keySigBannerSubtitle = 'celestial_sig_banner_subtitle_v1';
+  static const String _keySigBannerButtonText = 'celestial_sig_banner_btn_text_v1';
+  static const String _keySigBannerItemId = 'celestial_sig_banner_item_id_v1';
+  static const String _keySigBannerImage = 'celestial_sig_banner_image_v1';
 
-  // Display & Text Size Scaling (for Cashiers/Baristas accessibility)
+  // Display & Text Size Scaling (for Cashiers accessibility)
   double _uiScale = 1.0;
   double get uiScale => _uiScale;
 
@@ -33,22 +36,26 @@ class PosProvider extends ChangeNotifier {
   String _storeName = 'CELESTIAL CAFE';
   String _storeTagline = 'COFFEE • MILKTEA • CHEESECAKE • BITES';
   String _storeAddress = 'Celestial Cafe Main Branch\nTel: (02) 8721-4900 • TIN #482-901-382-000';
-  String _baristaPin = '1234';
-  String get baristaPin => _baristaPin;
 
-  // Hotspot / Local Network KDS Server
-  final KdsServerService _kdsServer = KdsServerService();
-  KdsServerService get kdsServer => _kdsServer;
+  // Signature Craft Hero Banner Customization
+  bool _signatureBannerEnabled = true;
+  String _signatureBannerBadge = 'CELESTIAL SIGNATURE CRAFT';
+  String _signatureBannerTitle = 'Celestial Signature Latte';
+  String _signatureBannerSubtitle = 'House specialty handcrafted celestial latte blend with silky sweet foam';
+  String _signatureBannerButtonText = 'Order';
+  String _signatureBannerItemId = 'nesp_1';
+  String? _signatureBannerImageBase64;
+  Uint8List? _signatureBannerImageBytes;
 
   // Menu Catalog & Filtering
-  List<MenuItem> _menuItems = [];
+  List<MenuItem> _menuItems = List.from(initialCelestialMenu);
   ItemCategory _selectedCategory = ItemCategory.all;
   String _selectedCategoryId = 'all';
   List<CustomCategory> _customCategories = [];
   String _searchQuery = '';
   String _selectedTag = 'All';
 
-  // Navigation
+  // Navigation (0: POS, 1: History, 2: Stock, 3: Analytics)
   int _currentNavIndex = 0;
 
   // Active Cart State
@@ -69,7 +76,6 @@ class PosProvider extends ChangeNotifier {
   // Order Sequences & Storage (Persistent across app restarts, starts on #1)
   int _orderSequence = 1;
   final List<Order> _orders = [];
-  final List<CustomerFeedback> _customerFeedbacks = [];
   bool _isLoaded = false;
 
   PosProvider() {
@@ -78,7 +84,6 @@ class PosProvider extends ChangeNotifier {
 
   bool get isLoaded => _isLoaded;
   int get currentOrderSequence => _orderSequence;
-  List<CustomerFeedback> get customerFeedbacks => List.unmodifiable(_customerFeedbacks);
 
   void resetOrderSequence({int startNumber = 1}) {
     _orderSequence = startNumber;
@@ -92,55 +97,27 @@ class PosProvider extends ChangeNotifier {
         final appData = Platform.environment['APPDATA'];
         if (appData == null || appData.isEmpty) return;
 
-        final targetFile = File('$appData/com.celestialcafe/Celestial Cafe POS/shared_preferences.json');
-        final backupFile = File('$appData/com.celestialcafe/celestial_pos/shared_preferences.json');
-
-        final filesToCheck = [
-          targetFile,
-          backupFile,
-          File('$appData/Celestial Cafe POS/shared_preferences.json'),
-          File('$appData/celestial_pos/shared_preferences.json'),
-        ];
-
-        for (final file in filesToCheck) {
-          if (!file.existsSync()) continue;
-          bool isCorrupt = false;
-          try {
-            final bytes = file.readAsBytesSync();
-            if (bytes.isEmpty || bytes[0] == 0) {
-              isCorrupt = true;
-            } else {
-              jsonDecode(utf8.decode(bytes));
-            }
-          } catch (_) {
-            isCorrupt = true;
-          }
-
-          if (isCorrupt) {
-            try {
-              file.copySync('${file.path}.corrupted_bak');
-            } catch (_) {}
-
-            bool restored = false;
-            if (file.path != backupFile.path && backupFile.existsSync()) {
+        final sharedPrefsDir = Directory('$appData\\celestial_pos\\shared_preferences');
+        if (sharedPrefsDir.existsSync()) {
+          final files = sharedPrefsDir.listSync();
+          for (var file in files) {
+            if (file is File && file.path.endsWith('.json')) {
               try {
-                final backupBytes = backupFile.readAsBytesSync();
-                if (backupBytes.isNotEmpty && backupBytes[0] != 0) {
-                  jsonDecode(utf8.decode(backupBytes));
-                  backupFile.copySync(file.path);
-                  restored = true;
+                final content = file.readAsStringSync();
+                if (content.trim().isEmpty || !content.trim().startsWith('{')) {
+                  file.writeAsStringSync('{}');
                 }
-              } catch (_) {}
-            }
-
-            if (!restored) {
-              try {
-                file.writeAsStringSync('{}');
-              } catch (_) {}
+              } catch (_) {
+                try {
+                  file.writeAsStringSync('{}');
+                } catch (_) {}
+              }
             }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (kDebugMode) print('Error checking Windows shared_preferences files: $e');
+      }
     }
   }
 
@@ -148,606 +125,75 @@ class PosProvider extends ChangeNotifier {
     try {
       return await SharedPreferences.getInstance();
     } catch (e) {
-      if (e is FormatException) {
+      if (kDebugMode) print('Warning: SharedPreferences threw error: $e');
+      try {
         repairCorruptedStorage();
         return await SharedPreferences.getInstance();
+      } catch (_) {
+        // ignore: invalid_use_of_visible_for_testing_member
+        SharedPreferences.setMockInitialValues({});
+        return await SharedPreferences.getInstance();
       }
-      rethrow;
     }
   }
 
   Future<void> _initData() async {
-    // repairCorruptedStorage() is already called from main.dart before runApp()
-    // Do NOT call it again here — double filesystem scan on startup
-    _menuItems = List.from(initialCelestialMenu);
-    await _loadFromLocalStorage();
-    _pruneOldOrders(); // H1: remove stale completed/cancelled orders to prevent storage bloat
-    _isLoaded = true;
-    _startKdsServer();
-    notifyListeners();
-  }
-
-  /// Auto-prune completed/cancelled orders older than 24 hours to prevent storage bloat.
-  void _pruneOldOrders() {
-    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
-    final before = _orders.length;
-    _orders.removeWhere((o) =>
-        (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) &&
-        o.createdAt.isBefore(cutoff));
-    if (_orders.length != before) {
-      _saveOrdersToStorage();
-    }
-  }
-
-  void _startKdsServer() async {
-    _kdsServer.setBaristaPin(_baristaPin);
-    await _kdsServer.start(
-      getOrdersCallback: _getActiveOrdersJson,
-      onStatusUpdate: _handleRemoteKdsStatusUpdate,
-      onOrderItemPrepared: setOrderItemPrepared,
-      getMenuCallback: getMenuJsonForCustomer,
-      onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
-      onCustomerChangeOrder: _handleCustomerChangeOrder,
-      onCustomerCancelOrder: _handleCustomerCancelOrder,
-      onCustomerFeedbackSubmitted: _handleCustomerFeedbackSubmitted,
-      getOrderByIdCallback: _getOrderById,
-      getItemImageCallback: getItemImageBytes,
-    );
-    notifyListeners();
-  }
-
-  Future<void> restartKdsServer({String? manualIp}) async {
-    if (manualIp != null && manualIp.trim().isNotEmpty) {
-      _kdsServer.setManualIp(manualIp);
-    }
-    _kdsServer.setBaristaPin(_baristaPin);
-    await _kdsServer.stop();
-    await _kdsServer.start(
-      getOrdersCallback: _getActiveOrdersJson,
-      onStatusUpdate: _handleRemoteKdsStatusUpdate,
-      onOrderItemPrepared: setOrderItemPrepared,
-      getMenuCallback: getMenuJsonForCustomer,
-      onCustomerOrderSubmitted: _handleCustomerOrderSubmitted,
-      onCustomerChangeOrder: _handleCustomerChangeOrder,
-      onCustomerCancelOrder: _handleCustomerCancelOrder,
-      onCustomerFeedbackSubmitted: _handleCustomerFeedbackSubmitted,
-      getOrderByIdCallback: _getOrderById,
-      getItemImageCallback: getItemImageBytes,
-    );
-    notifyListeners();
-  }
-
-  Uint8List? getItemImageBytes(String itemId) {
-    final item = _menuItems.where((m) => m.id == itemId).firstOrNull;
-    if (item == null) return null;
-    final cached = item.imageBytes;
-    if (cached != null) return cached;
-    if (item.imagePath != null && item.imagePath!.isNotEmpty) {
-      try {
-        final file = File(item.imagePath!);
-        if (file.existsSync()) {
-          return file.readAsBytesSync();
-        }
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  int _findOrderIndex(String orderId) {
-    final clean = orderId.trim().toLowerCase();
-    final cleanNum = clean.replaceAll('#', '').trim();
-    return _orders.indexWhere((o) {
-      final oId = o.id.trim().toLowerCase();
-      final oNum = o.orderNumber.trim().toLowerCase();
-      final oNumClean = oNum.replaceAll('#', '').trim();
-      return oId == clean ||
-          oId == cleanNum ||
-          oNum == clean ||
-          oNumClean == clean ||
-          oNumClean == cleanNum;
-    });
-  }
-
-  Order? _getOrderById(String orderId) {
-    final idx = _findOrderIndex(orderId);
-    return idx >= 0 ? _orders[idx] : null;
-  }
-
-  @visibleForTesting
-  Map<String, dynamic> handleCustomerOrderSubmittedForTesting(Map<String, dynamic> rawOrder) =>
-      _handleCustomerOrderSubmitted(rawOrder);
-
-  Map<String, dynamic> _handleCustomerOrderSubmitted(Map<String, dynamic> rawOrder) {
-    try {
-      final tableNum = rawOrder['tableNumber'] as String? ?? 'Table 1';
-      final custName = rawOrder['customerName'] as String? ?? 'Guest';
-      final notes = rawOrder['notes'] as String?;
-      final paymentMethodStr = rawOrder['paymentMethod'] as String? ?? 'cash';
-      final rawItems = rawOrder['items'] as List<dynamic>? ?? [];
-
-      final orderTypeStr = rawOrder['orderType'] as String? ?? 'dineIn';
-      final isTakeout = orderTypeStr.toLowerCase().contains('take') ||
-          orderTypeStr.toLowerCase().contains('delivery') ||
-          orderTypeStr.toLowerCase() == 'takeaway';
-      final orderType = isTakeout ? OrderType.takeaway : OrderType.dineIn;
-
-      final rawT = tableNum.trim();
-      final cleanTable = rawT.toLowerCase().startsWith('ttable')
-          ? 'Table ${rawT.substring(6).trim()}'
-          : (rawT.toLowerCase().startsWith('table')
-              ? rawT
-              : (rawT.toLowerCase().startsWith('t') && rawT.length > 1 && int.tryParse(rawT.substring(1)) != null
-                  ? 'Table ${rawT.substring(1).trim()}'
-                  : 'Table $rawT'));
-
-      // Disallow multiple orders on the same table while an order is being prepared (Dine-In only)
-      if (!isTakeout) {
-        final tableToken = rawOrder['tableToken'] as String? ?? rawOrder['token'] as String?;
-        if (!KdsServerService.isValidTableToken(cleanTable, tableToken)) {
-          return {
-            'success': false,
-            'error': 'Table QR verification required. Please scan the physical QR code on $cleanTable to place a Dine-In order.',
-            'requiresQrScan': true,
-          };
-        }
-
-        final existingActive = _orders.where((o) =>
-            o.orderType == OrderType.dineIn &&
-            o.tableNumber?.toLowerCase() == cleanTable.toLowerCase() &&
-            (o.status == OrderStatus.pending ||
-                o.status == OrderStatus.confirmed ||
-                o.status == OrderStatus.preparing)).firstOrNull;
-
-        if (existingActive != null) {
-          return {
-            'success': false,
-            'error': 'This table already has an order in preparation (${existingActive.orderNumber}). You can order again once it is ready or completed.',
-            'existingOrderId': existingActive.id,
-            'existingOrderNumber': existingActive.orderNumber,
-            'status': existingActive.status.name,
-          };
-        }
-      }
-
-      final paymentMethod = paymentMethodStr.toLowerCase().contains('gcash') ||
-              paymentMethodStr.toLowerCase().contains('mobile')
-          ? PaymentMethod.mobilePay
-          : PaymentMethod.cash;
-
-      final List<OrderItem> orderItems = [];
-
-      for (var rawItem in rawItems) {
-        final itemMap = rawItem as Map<String, dynamic>;
-        final itemId = itemMap['id'] as String?;
-        final qty = (itemMap['quantity'] as num?)?.toInt() ?? 1;
-        final itemNotes = itemMap['notes'] as String?;
-        final rawCustoms = itemMap['customizations'] as List<dynamic>? ?? [];
-
-        MenuItem? menuItem;
-        if (itemId != null) {
-          menuItem = _menuItems.where((m) => m.id == itemId).firstOrNull;
-        }
-
-        if (menuItem != null) {
-          if (!menuItem.inStock) {
-            return {
-              'success': false,
-              'error': '"${menuItem.name}" is currently sold out. Please choose another item.',
-            };
-          }
-
-          final List<SelectedCustomization> selectedCustoms = [];
-          for (var rc in rawCustoms) {
-            final rcMap = rc as Map<String, dynamic>;
-            final optName = (rcMap['optionName'] as String? ?? '').trim();
-            final grpTitle = (rcMap['groupTitle'] as String? ?? '').trim();
-
-            if (optName.isNotEmpty) {
-              for (final grp in menuItem.customizationGroups) {
-                for (final opt in grp.options) {
-                  if (opt.name.trim().toLowerCase() == optName.toLowerCase()) {
-                    if (!opt.isAvailable) {
-                      return {
-                        'success': false,
-                        'error': '"${opt.name}" is currently sold out. Please choose another option.',
-                      };
-                    }
-                  }
-                }
-              }
-            }
-
-            selectedCustoms.add(SelectedCustomization(
-              groupTitle: grpTitle,
-              optionName: optName,
-              extraPrice: (rcMap['extraPrice'] as num?)?.toDouble() ?? 0.0,
-            ));
-          }
-
-          orderItems.add(OrderItem(
-            id: 'cust_${itemId}_${orderItems.length + 1}',
-            menuItem: menuItem,
-            quantity: qty,
-            customizations: selectedCustoms,
-            notes: itemNotes,
-          ));
-        }
-      }
-
-      if (orderItems.isEmpty) {
-        return {'success': false, 'error': 'No valid items in order'};
-      }
-
-      final createdOrder = submitCustomerSelfOrder(
-        orderType: orderType,
-        tableNumber: isTakeout ? 'Takeout' : tableNum,
-        customerName: custName,
-        items: orderItems,
-        paymentMethod: paymentMethod,
-        orderNotes: notes,
-      );
-
-      return {
-        'success': true,
-        'orderId': createdOrder.id,
-        'orderNumber': createdOrder.orderNumber,
-        'tableNumber': createdOrder.tableNumber,
-        'status': createdOrder.status.name,
-        'totalAmount': createdOrder.totalAmount,
-      };
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  Map<String, dynamic> _handleCustomerChangeOrder(String orderId) {
-    try {
-      final clean = orderId.trim().toLowerCase();
-      final order = _orders.where((o) =>
-          o.id.toLowerCase() == clean ||
-          o.orderNumber.toLowerCase() == clean ||
-          o.orderNumber.toLowerCase().replaceAll('#', '').trim() == clean).firstOrNull;
-
-      if (order == null) {
-        return {'success': false, 'error': 'Order not found in cafe records'};
-      }
-
-      if (order.status != OrderStatus.pending) {
-        return {
-          'success': false,
-          'error': 'This order has already been confirmed and is being prepared in the kitchen. Please speak with the cashier directly.'
-        };
-      }
-
-      // Restock items for the customer to modify
-      for (var cartItem in order.items) {
-        final menuIdx = _menuItems.indexWhere((m) => m.id == cartItem.menuItem.id);
-        if (menuIdx >= 0) {
-          _menuItems[menuIdx].stockCount += cartItem.quantity;
-          _menuItems[menuIdx].inStock = true;
-        }
-      }
-
-      final itemsPayload = order.items.map((i) => {
-        'id': i.menuItem.id,
-        'name': i.menuItem.name,
-        'price': i.menuItem.price,
-        'unitPrice': i.unitPrice,
-        'extraPrice': i.unitPrice - i.menuItem.price,
-        'quantity': i.quantity,
-        'notes': i.notes ?? '',
-        'customizations': i.customizations.map((c) => {
-          'groupTitle': c.groupTitle,
-          'optionName': c.optionName,
-          'extraPrice': c.extraPrice,
-        }).toList(),
-      }).toList();
-
-      _orders.removeWhere((o) => o.id == order.id);
-      _saveOrdersToStorage();
-      _saveMenuToStorage();
-      _kdsServer.broadcastOrders();
-      notifyListeners();
-
-      return {
-        'success': true,
-        'message': 'Order unlocked for modification',
-        'orderNumber': order.orderNumber,
-        'items': itemsPayload,
-      };
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  Map<String, dynamic> _handleCustomerCancelOrder(String orderId) {
-    try {
-      final clean = orderId.trim().toLowerCase();
-      final index = _orders.indexWhere((o) =>
-          o.id.toLowerCase() == clean ||
-          o.orderNumber.toLowerCase() == clean ||
-          o.orderNumber.toLowerCase().replaceAll('#', '').trim() == clean);
-
-      if (index < 0) {
-        return {'success': false, 'error': 'Order not found in cafe records'};
-      }
-
-      final order = _orders[index];
-
-      if (order.status != OrderStatus.pending) {
-        return {
-          'success': false,
-          'error': 'This order has already been confirmed and is being prepared in the kitchen. Please speak with the cashier directly.'
-        };
-      }
-
-      // Restock items into inventory
-      for (var cartItem in order.items) {
-        final menuIdx = _menuItems.indexWhere((m) => m.id == cartItem.menuItem.id);
-        if (menuIdx >= 0) {
-          _menuItems[menuIdx].stockCount += cartItem.quantity;
-          _menuItems[menuIdx].inStock = true;
-        }
-      }
-
-      order.status = OrderStatus.cancelled;
-      _orders.removeAt(index);
-      _saveOrdersToStorage();
-      _saveMenuToStorage();
-      _kdsServer.broadcastOrders();
-      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
-      notifyListeners();
-
-      return {
-        'success': true,
-        'message': 'Order cancelled successfully',
-        'orderNumber': order.orderNumber,
-      };
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  void addCustomerFeedback(CustomerFeedback feedback) {
-    final cleanOrderNum = feedback.orderNumber.replaceAll('#', '').trim();
-    final cleanOrderId = feedback.orderId.trim();
-
-    final matchIndex = _orders.indexWhere((o) =>
-        (cleanOrderId.isNotEmpty && o.id == cleanOrderId) ||
-        (cleanOrderNum.isNotEmpty && o.orderNumber.replaceAll('#', '').trim() == cleanOrderNum));
-
-    if (matchIndex != -1) {
-      final matchedOrder = _orders[matchIndex];
-      String custName = feedback.customerName;
-      if (custName.isEmpty && matchedOrder.customerName.isNotEmpty) {
-        custName = matchedOrder.customerName;
-      }
-      String? tableNum = feedback.tableNumber;
-      if ((tableNum == null || tableNum.isEmpty) && matchedOrder.tableNumber != null) {
-        tableNum = matchedOrder.tableNumber;
-      }
-      feedback = feedback.copyWith(
-        customerName: custName,
-        tableNumber: tableNum,
-        orderId: feedback.orderId.isEmpty ? matchedOrder.id : feedback.orderId,
-        orderNumber: feedback.orderNumber.isEmpty ? matchedOrder.orderNumber : feedback.orderNumber,
-      );
-      _orders[matchIndex].customerFeedback = feedback;
-      _scheduleSaveOrders();
-    }
-
-    _customerFeedbacks.removeWhere((f) =>
-        (cleanOrderId.isNotEmpty && f.orderId == cleanOrderId) ||
-        (cleanOrderNum.isNotEmpty && f.orderNumber.replaceAll('#', '').trim() == cleanOrderNum));
-    _customerFeedbacks.insert(0, feedback);
-    _saveFeedbacksToStorage();
-    notifyListeners();
-  }
-
-  Map<String, dynamic> _handleCustomerFeedbackSubmitted(Map<String, dynamic> rawFeedback) {
-    try {
-      final ratingVal = rawFeedback['rating'];
-      final rating = (ratingVal is num)
-          ? ratingVal.toInt()
-          : (int.tryParse(ratingVal?.toString() ?? '') ?? 5);
-
-      final tagsRaw = rawFeedback['tags'];
-      final List<String> tags = (tagsRaw is List)
-          ? tagsRaw.map((t) => t.toString()).toList()
-          : [];
-
-      final fb = CustomerFeedback(
-        id: rawFeedback['id']?.toString() ?? 'fb_${DateTime.now().millisecondsSinceEpoch}',
-        orderId: rawFeedback['orderId']?.toString() ?? '',
-        orderNumber: rawFeedback['orderNumber']?.toString() ?? '',
-        tableNumber: rawFeedback['tableNumber']?.toString(),
-        customerName: rawFeedback['customerName']?.toString() ?? '',
-        rating: rating.clamp(1, 5),
-        tags: tags,
-        message: rawFeedback['message']?.toString().trim() ?? '',
-        createdAt: DateTime.now(),
-      );
-
-      addCustomerFeedback(fb);
-      return {
-        'success': true,
-        'message': 'Feedback received and saved to host app',
-        'feedbackId': fb.id,
-      };
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  void _handleRemoteKdsStatusUpdate(String orderId, String newStatus) {
-    final s = newStatus.trim().toLowerCase();
-    if (s == 'cancelled' || s == 'void' || s == 'voided') {
-      cancelOrder(orderId, restock: true);
-      return;
-    }
-    OrderStatus status;
-    if (s == 'preparing' || s == 'brewing' || s == 'kitchen' || s == 'prep' || s == 'inprep') {
-      status = OrderStatus.preparing;
-    } else if (s == 'confirmed' || s == 'inqueue' || s == 'queue') {
-      status = OrderStatus.confirmed;
-    } else if (s == 'ready' || s == 'pickup') {
-      status = OrderStatus.ready;
-    } else if (s == 'completed' || s == 'done' || s == 'served') {
-      status = OrderStatus.completed;
-    } else {
-      status = OrderStatus.values.firstWhere(
-        (val) => val.name.toLowerCase() == s,
-        orElse: () => OrderStatus.pending,
-      );
-    }
-    updateOrderStatus(orderId, status);
-  }
-
-  List<Map<String, dynamic>> _getActiveOrdersJson() {
-    return activeKdsOrders.map((o) {
-      return {
-        'id': o.id,
-        'orderNumber': o.orderNumber,
-        'orderType': o.orderType.name,
-        'tableNumber': o.tableNumber,
-        'customerName': o.customerName,
-        'subtotal': o.subtotal,
-        'taxAmount': o.taxAmount,
-        'taxRate': o.taxRate,
-        'discountAmount': o.discountAmount,
-        'totalAmount': o.totalAmount,
-        'status': o.status.name,
-        'createdAt': o.createdAt.toIso8601String(),
-        'paymentMethod': o.paymentMethod.name,
-        'orderNotes': o.orderNotes,
-        'hasKitchenDishes': o.hasKitchenDishes,
-        'kitchenDishCount': o.kitchenDishCount,
-        'hasBaristaDrinks': o.hasBaristaDrinks,
-        'baristaDrinkCount': o.baristaDrinkCount,
-        'items': o.items.map((i) => {
-          'name': i.menuItem.name,
-          'quantity': i.quantity,
-          'category': i.menuItem.category.name,
-          'isKitchen': i.isKitchenDish,
-          'notes': i.notes,
-          'isPrepared': i.isPrepared,
-          'customizations': i.customizations.map((c) => {
-            'optionName': c.optionName,
-            'summary': c.summary,
-          }).toList(),
-        }).toList(),
-      };
-    }).toList();
-  }
-
-  // Local Storage Persistence
-  Future<void> _loadFromLocalStorage() async {
     try {
       final prefs = await _getPrefs();
 
-      // 1. Load active cashier
-      final savedCashier = prefs.getString(_keyActiveCashier);
-      if (savedCashier != null && savedCashier.isNotEmpty) {
-        _activeCashier = savedCashier;
-      }
-
-      // 2. Load order sequence (Starts from 1, resets on new day)
+      // 1. Order Sequence
+      final lastSavedDate = prefs.getString('celestial_last_order_date');
+      final todayDate = DateTime.now().toIso8601String().substring(0, 10);
       final savedSeq = prefs.getInt(_keyOrderSeq);
-      final lastDate = prefs.getString('celestial_last_order_date');
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      if (lastDate != null && lastDate != today) {
+
+      if (lastSavedDate != null && lastSavedDate != todayDate) {
         _orderSequence = 1;
         await prefs.setInt(_keyOrderSeq, 1);
-        await prefs.setString('celestial_last_order_date', today);
-      } else if (savedSeq != null && savedSeq >= 1) {
-        _orderSequence = savedSeq;
+        await prefs.setString('celestial_last_order_date', todayDate);
       } else {
-        _orderSequence = 1;
+        _orderSequence = savedSeq ?? 1;
+        if (savedSeq == null) {
+          await prefs.setInt(_keyOrderSeq, 1);
+          await prefs.setString('celestial_last_order_date', todayDate);
+        }
       }
 
-      // 3. Load Menu items & stock
+      // 2. Load menu items
       final savedMenuJson = prefs.getString(_keyMenuItems);
       if (savedMenuJson != null && savedMenuJson.isNotEmpty) {
         try {
           final decoded = jsonDecode(savedMenuJson) as List<dynamic>;
-          final loadedMenu = decoded
-              .map((m) {
-                try {
-                  return MenuItem.fromJson(m as Map<String, dynamic>);
-                } catch (e) {
-                  return null;
-                }
-              })
-              .whereType<MenuItem>()
+          _menuItems = decoded
+              .map((item) => MenuItem.fromJson(item as Map<String, dynamic>))
               .toList();
-          if (loadedMenu.isNotEmpty) {
-            // Normalize sweetness options (migrate 125% to 75% if found in cached storage)
-            for (var idx = 0; idx < loadedMenu.length; idx++) {
-              final item = loadedMenu[idx];
-              if (item.category == ItemCategory.coffee) {
-                final newGroups = <CustomizationGroup>[];
-                bool modified = false;
-                for (var group in item.customizationGroups) {
-                  if (group.id == 'sweetness' && group.options.any((o) => o.name.contains('125%'))) {
-                    modified = true;
-                    final newOptions = group.options.where((o) => !o.name.contains('125%')).toList();
-                    if (!newOptions.any((o) => o.name.contains('75%'))) {
-                      final regIdx = newOptions.indexWhere((o) => o.name.contains('100%'));
-                      const opt75 = CustomizationOption(name: 'Less Sweet (75%)', extraPrice: 0.00);
-                      if (regIdx >= 0) {
-                        newOptions.insert(regIdx, opt75);
-                      } else {
-                        newOptions.add(opt75);
-                      }
-                    }
-                    final newDefIdx = newOptions.indexWhere((o) => o.name.contains('100%'));
-                    newGroups.add(CustomizationGroup(
-                      id: group.id,
-                      title: group.title,
-                      isRequired: group.isRequired,
-                      isMultiSelect: group.isMultiSelect,
-                      defaultIndex: newDefIdx >= 0 ? newDefIdx : group.defaultIndex,
-                      options: newOptions,
-                    ));
-                  } else if (group.id == 'coffee_addons' && group.options.any((o) => o.name.toLowerCase().contains('oat milk'))) {
-                    modified = true;
-                    final newOptions = group.options.where((o) => !o.name.toLowerCase().contains('oat milk')).toList();
-                    newGroups.add(CustomizationGroup(
-                      id: group.id,
-                      title: group.title,
-                      isRequired: group.isRequired,
-                      isMultiSelect: group.isMultiSelect,
-                      defaultIndex: group.defaultIndex,
-                      options: newOptions,
-                    ));
-                  } else {
-                    newGroups.add(group);
-                  }
-                }
-                if (modified) {
-                  loadedMenu[idx] = item.copyWith(customizationGroups: newGroups);
-                }
-              }
+
+          final existingIds = _menuItems.map((m) => m.id).toSet();
+          bool menuUpdated = false;
+          for (var initialItem in initialCelestialMenu) {
+            if (!existingIds.contains(initialItem.id)) {
+              _menuItems.add(initialItem);
+              menuUpdated = true;
             }
-            // Ensure all official catalog items from initialCelestialMenu are present
-            for (final defaultItem in initialCelestialMenu) {
-              if (!loadedMenu.any((m) => m.id == defaultItem.id)) {
-                loadedMenu.add(defaultItem);
-              }
-            }
-            _menuItems = loadedMenu;
+          }
+          if (menuUpdated) {
+            _saveMenuToStorage();
           }
         } catch (e) {
           if (kDebugMode) print('Error parsing stored menu JSON: $e');
+          _menuItems = List.from(initialCelestialMenu);
+          _saveMenuToStorage();
         }
+      } else {
+        _menuItems = List.from(initialCelestialMenu);
+        _saveMenuToStorage();
       }
 
-      // 3.5. Load Custom Categories
+      // 3. Load custom categories
       final savedCategoriesJson = prefs.getString(_keyCustomCategories);
       if (savedCategoriesJson != null && savedCategoriesJson.isNotEmpty) {
         try {
-          final decoded = jsonDecode(savedCategoriesJson) as List<dynamic>;
-          _customCategories = decoded
+          final decodedCats = jsonDecode(savedCategoriesJson) as List<dynamic>;
+          _customCategories = decodedCats
               .map((c) => CustomCategory.fromJson(c as Map<String, dynamic>))
               .toList();
         } catch (e) {
@@ -797,35 +243,71 @@ class PosProvider extends ChangeNotifier {
       if (savedAddress != null && savedAddress.isNotEmpty) {
         _storeAddress = savedAddress;
       }
-      final savedPin = prefs.getString(_keyBaristaPin);
-      if (savedPin != null && savedPin.trim().isNotEmpty) {
-        _baristaPin = savedPin.trim();
-        _kdsServer.setBaristaPin(_baristaPin);
-      }
       final savedUiScale = prefs.getDouble(_keyUiScale);
       if (savedUiScale != null && savedUiScale >= 0.80 && savedUiScale <= 1.50) {
         _uiScale = savedUiScale;
       }
 
-      // 6. Load Customer Feedbacks
-      final savedFbJson = prefs.getString(_keyCustomerFeedbacks);
-      if (savedFbJson != null && savedFbJson.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(savedFbJson) as List<dynamic>;
-          _customerFeedbacks.clear();
-          for (var item in decoded) {
-            try {
-              _customerFeedbacks.add(CustomerFeedback.fromJson(item as Map<String, dynamic>));
-            } catch (_) {}
-          }
-        } catch (e) {
-          if (kDebugMode) print('Error parsing stored customer feedbacks: $e');
+      // 6. Cashier
+      final savedCashier = prefs.getString(_keyActiveCashier);
+      if (savedCashier != null && savedCashier.isNotEmpty) {
+        _activeCashier = savedCashier;
+        if (!_cashiers.contains(_activeCashier)) {
+          _cashiers.add(_activeCashier);
         }
+      }
+
+      // 7. Signature Craft Banner Customization
+      final savedSigBannerEnabled = prefs.getBool(_keySigBannerEnabled);
+      if (savedSigBannerEnabled != null) {
+        _signatureBannerEnabled = savedSigBannerEnabled;
+      }
+      final savedSigBannerBadge = prefs.getString(_keySigBannerBadge);
+      if (savedSigBannerBadge != null && savedSigBannerBadge.isNotEmpty) {
+        _signatureBannerBadge = savedSigBannerBadge;
+      }
+      final savedSigBannerTitle = prefs.getString(_keySigBannerTitle);
+      if (savedSigBannerTitle != null && savedSigBannerTitle.isNotEmpty) {
+        _signatureBannerTitle = savedSigBannerTitle;
+      }
+      final savedSigBannerSubtitle = prefs.getString(_keySigBannerSubtitle);
+      if (savedSigBannerSubtitle != null && savedSigBannerSubtitle.isNotEmpty) {
+        _signatureBannerSubtitle = savedSigBannerSubtitle;
+      }
+      final savedSigBannerBtnText = prefs.getString(_keySigBannerButtonText);
+      if (savedSigBannerBtnText != null && savedSigBannerBtnText.isNotEmpty) {
+        _signatureBannerButtonText = savedSigBannerBtnText;
+      }
+      final savedSigBannerItemId = prefs.getString(_keySigBannerItemId);
+      if (savedSigBannerItemId != null && savedSigBannerItemId.isNotEmpty) {
+        _signatureBannerItemId = savedSigBannerItemId;
+      }
+      final savedSigBannerImage = prefs.getString(_keySigBannerImage);
+      if (savedSigBannerImage != null && savedSigBannerImage.isNotEmpty) {
+        _signatureBannerImageBase64 = savedSigBannerImage;
+        try {
+          _signatureBannerImageBytes = base64Decode(savedSigBannerImage);
+        } catch (_) {}
       }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading from local storage: $e');
       }
+    }
+
+    _pruneOldOrders();
+    _isLoaded = true;
+    notifyListeners();
+  }
+
+  void _pruneOldOrders() {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
+    final before = _orders.length;
+    _orders.removeWhere((o) =>
+        (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) &&
+        o.createdAt.isBefore(cutoff));
+    if (_orders.length != before) {
+      _saveOrdersToStorage();
     }
   }
 
@@ -895,16 +377,6 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveFeedbacksToStorage() async {
-    try {
-      final prefs = await _getPrefs();
-      final jsonStr = jsonEncode(_customerFeedbacks.map((f) => f.toJson()).toList());
-      await prefs.setString(_keyCustomerFeedbacks, jsonStr);
-    } catch (e) {
-      if (kDebugMode) print('Error saving customer feedbacks to storage: $e');
-    }
-  }
-
   // Getters - Store & Branding
   Uint8List? get customLogoBytes => _customLogoBytes;
   bool get hasCustomLogo => _customLogoBytes != null;
@@ -912,75 +384,104 @@ class PosProvider extends ChangeNotifier {
   String get storeTagline => _storeTagline;
   String get storeAddress => _storeAddress;
 
+  // Getters - Signature Craft Hero Banner
+  bool get signatureBannerEnabled => _signatureBannerEnabled;
+  String get signatureBannerBadge => _signatureBannerBadge;
+  String get signatureBannerTitle => _signatureBannerTitle;
+  String get signatureBannerSubtitle => _signatureBannerSubtitle;
+  String get signatureBannerButtonText => _signatureBannerButtonText;
+  String get signatureBannerItemId => _signatureBannerItemId;
+  Uint8List? get signatureBannerImageBytes => _signatureBannerImageBytes;
+  bool get hasCustomSignatureBannerImage => _signatureBannerImageBytes != null;
+
   // Getters - Menu & Navigation
   List<MenuItem> get menuItems => _menuItems;
   ItemCategory get selectedCategory => _selectedCategory;
   String get selectedCategoryId => _selectedCategoryId;
   List<CustomCategory> get customCategories => List.unmodifiable(_customCategories);
-  String get searchQuery => _searchQuery;
-  String get selectedTag => _selectedTag;
-  int get currentNavIndex => _currentNavIndex;
-  String get activeCashier => _activeCashier;
-  List<String> get cashiers => _cashiers;
 
   List<CategoryTabItem> get allCategoryTabs {
     final list = <CategoryTabItem>[
       const CategoryTabItem(id: 'all', label: 'All Items', icon: '✨'),
+      const CategoryTabItem(id: 'coffee', label: 'Coffee', icon: '☕'),
+      const CategoryTabItem(id: 'nonEspresso', label: 'Non Espresso', icon: '🍵'),
+      const CategoryTabItem(id: 'milktea', label: 'Milktea', icon: '🧋'),
+      const CategoryTabItem(id: 'frappe', label: 'Frappe', icon: '🥤'),
+      const CategoryTabItem(id: 'cheesecakeSeries', label: 'Cheesecake Series', icon: '🍰'),
+      const CategoryTabItem(id: 'streetBites', label: 'Street Bites', icon: '🍟'),
+      const CategoryTabItem(id: 'pastaDishes', label: 'Pasta Dishes', icon: '🍝', isKitchenDish: true),
+      const CategoryTabItem(id: 'sandwich', label: 'Sandwich', icon: '🥪', isKitchenDish: true),
+      const CategoryTabItem(id: 'dinner', label: 'Dinner & Rice Meals', icon: '🍛', isKitchenDish: true),
     ];
-    for (final cat in ItemCategory.values) {
-      if (cat == ItemCategory.all || cat == ItemCategory.custom) continue;
+    for (final custom in _customCategories) {
       list.add(CategoryTabItem(
-        id: cat.name,
-        label: cat.label,
-        icon: cat.icon,
-        isCustom: false,
-        isKitchenDish: cat == ItemCategory.streetBites ||
-            cat == ItemCategory.pastaDishes ||
-            cat == ItemCategory.sandwich ||
-            cat == ItemCategory.dinner,
-      ));
-    }
-    for (final cc in _customCategories) {
-      list.add(CategoryTabItem(
-        id: cc.name,
-        label: cc.name,
-        icon: cc.icon,
+        id: custom.name,
+        label: custom.name,
+        icon: custom.icon,
         isCustom: true,
-        isKitchenDish: cc.isKitchenDish,
+        isKitchenDish: custom.isKitchenDish,
       ));
     }
     return list;
   }
 
-  List<MenuItem> get filteredMenuItems {
-    return _menuItems.where((item) {
-      final matchesCategory = _selectedCategoryId == 'all' ||
-          _selectedCategory == ItemCategory.all ||
-          (item.customCategory != null && item.customCategory!.isNotEmpty
-              ? item.customCategory == _selectedCategoryId || item.category.name == _selectedCategoryId
-              : item.category.name == _selectedCategoryId || item.category == _selectedCategory);
-      final matchesSearch = _searchQuery.isEmpty ||
-          item.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          item.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          item.tags.any((t) => t.toLowerCase().contains(_searchQuery.toLowerCase()));
-      final matchesTag = _selectedTag == 'All' || item.tags.contains(_selectedTag);
-
-      return matchesCategory && matchesSearch && matchesTag;
+  List<Map<String, dynamic>> getCategoryTabsJsonForCustomer() {
+    return allCategoryTabs.map((t) => {
+      'id': t.id,
+      'label': t.label,
+      'icon': t.icon,
+      'isCustom': t.isCustom,
+      'isKitchenDish': t.isKitchenDish,
     }).toList();
   }
 
-  // Getters - Cart
-  List<OrderItem> get cart => _cart;
+  String get searchQuery => _searchQuery;
+  String get selectedTag => _selectedTag;
+  int get currentNavIndex => _currentNavIndex;
+
+  // Filtered Menu Items
+  List<MenuItem> get filteredMenuItems {
+    return _menuItems.where((item) {
+      if (_selectedCategoryId == 'all') {
+        // Show all
+      } else if (_selectedCategory != ItemCategory.custom && _selectedCategory != ItemCategory.all) {
+        if (item.category != _selectedCategory) return false;
+      } else {
+        if (item.customCategory != _selectedCategoryId) return false;
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final matchName = item.name.toLowerCase().contains(query);
+        final matchDesc = item.description.toLowerCase().contains(query);
+        final matchTag = item.tags.any((tag) => tag.toLowerCase().contains(query));
+        if (!matchName && !matchDesc && !matchTag) return false;
+      }
+
+      if (_selectedTag != 'All') {
+        if (!item.tags.contains(_selectedTag)) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  // Getters - Cart State
+  List<OrderItem> get cart => List.unmodifiable(_cart);
   OrderType get orderType => _orderType;
   String get tableNumber => _tableNumber;
   String get customerName => _customerName;
   double get discountPercentage => _discountPercentage;
   double get customDiscountAmount => _customDiscountAmount;
   double get taxRate => _taxRate;
+  String get activeCashier => _activeCashier;
+  List<String> get cashiers => List.unmodifiable(_cashiers);
 
-  int get cartItemCount => _cart.fold(0, (sum, i) => sum + i.quantity);
+  int get cartItemCount =>
+      _cart.fold(0, (sum, item) => sum + item.quantity);
 
-  double get cartSubtotal => _cart.fold(0.0, (sum, i) => sum + i.totalPrice);
+  double get cartSubtotal =>
+      _cart.fold(0.0, (sum, item) => sum + item.totalPrice);
 
   double get cartDiscountAmount {
     if (_customDiscountAmount > 0) return _customDiscountAmount;
@@ -993,31 +494,13 @@ class PosProvider extends ChangeNotifier {
     return (cartSubtotal - cartDiscountAmount).clamp(0.0, double.infinity);
   }
 
-  // Getters - Orders & KDS
+  // Getters - Orders
   List<Order> get orders => List.unmodifiable(_orders);
 
   List<Order> get pendingOrders =>
       _orders.where((o) => o.status == OrderStatus.pending).toList();
 
-  List<Order> get pendingCustomerOrders =>
-      _orders.where((o) => o.status == OrderStatus.pending).toList();
-
-  List<Order> get preparingOrders => _orders
-      .where((o) =>
-          o.status == OrderStatus.confirmed ||
-          o.status == OrderStatus.preparing)
-      .toList();
-
-  List<Order> get confirmedOrders =>
-      _orders.where((o) => o.status == OrderStatus.confirmed).toList();
-
-  List<Order> get readyOrders =>
-      _orders.where((o) => o.status == OrderStatus.ready).toList();
-
-  List<Order> get completedOrders =>
-      _orders.where((o) => o.status == OrderStatus.completed).toList();
-
-  List<Order> get activeKdsOrders => _orders
+  List<Order> get activeOrders => _orders
       .where((o) =>
           o.status == OrderStatus.confirmed ||
           o.status == OrderStatus.preparing ||
@@ -1028,6 +511,18 @@ class PosProvider extends ChangeNotifier {
       if (comp != 0) return comp;
       return a.orderNumber.compareTo(b.orderNumber);
     });
+
+  List<Order> get preparingOrders =>
+      _orders.where((o) => o.status == OrderStatus.preparing).toList();
+
+  List<Order> get readyOrders =>
+      _orders.where((o) => o.status == OrderStatus.ready).toList();
+
+  List<Order> get completedOrders =>
+      _orders.where((o) => o.status == OrderStatus.completed).toList();
+
+  List<Order> get cancelledOrders =>
+      _orders.where((o) => o.status == OrderStatus.cancelled).toList();
 
   // Navigation Setters
   void setNavIndex(int index) {
@@ -1065,7 +560,6 @@ class PosProvider extends ChangeNotifier {
     );
     _customCategories.add(newCat);
     _saveCustomCategoriesToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1094,7 +588,6 @@ class PosProvider extends ChangeNotifier {
     }
 
     _saveCustomCategoriesToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1117,14 +610,11 @@ class PosProvider extends ChangeNotifier {
     if (menuModified) {
       _saveMenuToStorage();
     }
-
     if (_selectedCategoryId == deletedName) {
       _selectedCategoryId = 'all';
       _selectedCategory = ItemCategory.all;
     }
-
     _saveCustomCategoriesToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1138,32 +628,27 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setCashier(String cashier) {
-    _activeCashier = cashier;
-    _saveCashierToStorage();
-    notifyListeners();
-  }
-
-  // Cart Operations
+  // Cart Management
   void addToCart(
     MenuItem item, {
     int quantity = 1,
     List<SelectedCustomization> customizations = const [],
     String? notes,
   }) {
+    // Generate unique composite key based on customizations and notes
     final customHash = customizations.map((c) => '${c.groupTitle}:${c.optionName}').join('|');
-    final uniqueId = '${item.id}_${customHash}_${notes ?? ""}';
+    final cartItemId = '${item.id}_${customHash}_${notes ?? ''}';
 
-    final existingIndex = _cart.indexWhere((ci) => ci.id == uniqueId);
+    final existingIndex = _cart.indexWhere((i) => i.id == cartItemId);
     if (existingIndex >= 0) {
       _cart[existingIndex].quantity += quantity;
     } else {
       _cart.add(
         OrderItem(
-          id: uniqueId,
+          id: cartItemId,
           menuItem: item,
           quantity: quantity,
-          customizations: customizations,
+          customizations: List.from(customizations),
           notes: notes,
         ),
       );
@@ -1171,8 +656,20 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeFromCart(dynamic identifier) {
+    if (identifier is int) {
+      if (identifier >= 0 && identifier < _cart.length) {
+        _cart.removeAt(identifier);
+        notifyListeners();
+      }
+    } else if (identifier is String) {
+      _cart.removeWhere((item) => item.id == identifier);
+      notifyListeners();
+    }
+  }
+
   void updateCartQuantity(String itemId, int delta) {
-    final index = _cart.indexWhere((item) => item.id == itemId);
+    final index = _cart.indexWhere((i) => i.id == itemId);
     if (index >= 0) {
       final newQty = _cart[index].quantity + delta;
       if (newQty <= 0) {
@@ -1184,9 +681,15 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  void removeFromCart(String itemId) {
-    _cart.removeWhere((item) => item.id == itemId);
-    notifyListeners();
+  void updateCartItemQuantity(int index, int newQuantity) {
+    if (index >= 0 && index < _cart.length) {
+      if (newQuantity <= 0) {
+        _cart.removeAt(index);
+      } else {
+        _cart[index].quantity = newQuantity;
+      }
+      notifyListeners();
+    }
   }
 
   void clearCart() {
@@ -1194,7 +697,6 @@ class PosProvider extends ChangeNotifier {
     _discountPercentage = 0.0;
     _customDiscountAmount = 0.0;
     _customerName = '';
-    _tableNumber = 'Table 01';
     notifyListeners();
   }
 
@@ -1209,14 +711,41 @@ class PosProvider extends ChangeNotifier {
   }
 
   void setCustomerName(String name) {
-    _customerName = name.trim();
+    _customerName = name;
+    notifyListeners();
+  }
+
+  void setDiscountPercentage(double percentage) {
+    _discountPercentage = percentage;
+    _customDiscountAmount = 0.0;
+    notifyListeners();
+  }
+
+  void setCustomDiscountAmount(double amount) {
+    _customDiscountAmount = amount;
+    _discountPercentage = 0.0;
     notifyListeners();
   }
 
   void applyDiscount({double percentage = 0.0, double customAmount = 0.0}) {
-    _discountPercentage = percentage;
-    _customDiscountAmount = customAmount;
+    if (customAmount > 0) {
+      setCustomDiscountAmount(customAmount);
+    } else {
+      setDiscountPercentage(percentage);
+    }
+  }
+
+  void setActiveCashier(String cashier) {
+    _activeCashier = cashier;
+    _saveCashierToStorage();
     notifyListeners();
+  }
+
+  void addCashier(String name) {
+    if (!_cashiers.contains(name) && name.trim().isNotEmpty) {
+      _cashiers.add(name.trim());
+      notifyListeners();
+    }
   }
 
   // Checkout & Order Creation
@@ -1245,7 +774,7 @@ class PosProvider extends ChangeNotifier {
       paymentMethod: paymentMethod,
       amountTendered: amountTendered,
       changeDue: change,
-      status: OrderStatus.confirmed,
+      status: OrderStatus.completed,
       createdAt: DateTime.now(),
       cashierName: _activeCashier.split(' [').first,
       orderNotes: specialOrderNotes,
@@ -1266,322 +795,27 @@ class PosProvider extends ChangeNotifier {
     _orders.insert(0, newOrder);
     clearCart();
 
-    // Persist changes to local storage
     _saveOrdersToStorage();
     _saveMenuToStorage();
 
-    // Broadcast to connected Barista phones
-    _kdsServer.broadcastOrders();
-
-    // Haptic feedback — order placed
     HapticFeedback.heavyImpact();
-
     notifyListeners();
     return newOrder;
   }
 
-  // Customer Self-Ordering via Table QR Code or Takeout
-  Order submitCustomerSelfOrder({
-    OrderType orderType = OrderType.dineIn,
-    required String tableNumber,
-    required String customerName,
-    required List<OrderItem> items,
-    required PaymentMethod paymentMethod,
-    String? orderNotes,
-  }) {
-    final seqNum = _orderSequence++;
-    final orderNum = '#$seqNum';
-    final subtotal = items.fold(0.0, (sum, i) => sum + i.totalPrice);
-    final rawTbl = tableNumber.trim();
-    final formattedTable = orderType == OrderType.takeaway
-        ? 'Takeout'
-        : (rawTbl.toLowerCase().startsWith('ttable')
-            ? 'Table ${rawTbl.substring(6).trim()}'
-            : (rawTbl.toLowerCase().startsWith('table')
-                ? rawTbl
-                : (rawTbl.toLowerCase().startsWith('t') && rawTbl.length > 1 && int.tryParse(rawTbl.substring(1)) != null
-                    ? 'Table ${rawTbl.substring(1).trim()}'
-                    : 'Table $rawTbl')));
-
-    final newOrder = Order(
-      id: 'ord_$seqNum',
-      orderNumber: orderNum,
-      orderType: orderType,
-      tableNumber: formattedTable,
-      customerName: customerName.trim().isEmpty
-          ? (orderType == OrderType.takeaway ? 'Guest (Takeout)' : 'Guest ($formattedTable)')
-          : customerName.trim(),
-      items: List.from(items),
-      subtotal: subtotal,
-      taxAmount: 0.0,
-      taxRate: 0.0,
-      discountAmount: 0.0,
-      discountPercentage: 0.0,
-      totalAmount: subtotal,
-      paymentMethod: paymentMethod,
-      amountTendered: 0.0,
-      changeDue: 0.0,
-      status: OrderStatus.pending,
-      createdAt: DateTime.now(),
-      cashierName: 'Awaiting Cashier',
-      orderNotes: orderNotes,
-    );
-
-    // Deduct stock
-    for (var cartItem in items) {
-      final menuIdx = _menuItems.indexWhere((m) => m.id == cartItem.menuItem.id);
-      if (menuIdx >= 0) {
-        _menuItems[menuIdx].stockCount =
-            (_menuItems[menuIdx].stockCount - cartItem.quantity).clamp(0, 9999);
-        if (_menuItems[menuIdx].stockCount == 0) {
-          _menuItems[menuIdx].inStock = false;
-        }
-      }
-    }
-
-    _orders.insert(0, newOrder);
-    _saveOrdersToStorage();
-    _saveMenuToStorage();
-    Future.microtask(() {
-      _kdsServer.broadcastOrders();
-      notifyListeners();
+  int _findOrderIndex(String orderId) {
+    final clean = orderId.trim().toLowerCase();
+    final cleanNum = clean.replaceAll('#', '').trim();
+    return _orders.indexWhere((o) {
+      final oId = o.id.trim().toLowerCase();
+      final oNum = o.orderNumber.trim().toLowerCase();
+      final oNumClean = oNum.replaceAll('#', '').trim();
+      return oId == clean ||
+          oId == cleanNum ||
+          oNum == clean ||
+          oNumClean == clean ||
+          oNumClean == cleanNum;
     });
-    return newOrder;
-  }
-
-  // Cashier Confirms & Approves Customer Pending Order (Settles Payment & Moves to Preparing)
-  Order? approveAndSettleCustomerOrder({
-    required String orderId,
-    required PaymentMethod paymentMethod,
-    required double amountTendered,
-    double discountPercentage = 0.0,
-    double discountAmount = 0.0,
-    String? orderNotes,
-  }) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index >= 0) {
-      final existing = _orders[index];
-      double effectiveDiscount = discountAmount > 0
-          ? discountAmount
-          : existing.subtotal * (discountPercentage / 100);
-      effectiveDiscount = double.parse(effectiveDiscount.clamp(0.0, existing.subtotal).toStringAsFixed(2));
-      final finalTotal = double.parse(((existing.subtotal - effectiveDiscount).clamp(0.0, double.infinity)).toStringAsFixed(2));
-      final change = double.parse(((amountTendered - finalTotal).clamp(0.0, double.infinity)).toStringAsFixed(2));
-
-      final updatedOrder = existing.copyWith(
-        discountAmount: effectiveDiscount,
-        discountPercentage: discountPercentage,
-        totalAmount: finalTotal,
-        paymentMethod: paymentMethod,
-        amountTendered: amountTendered,
-        changeDue: change,
-        status: OrderStatus.confirmed,
-        cashierName: _activeCashier.split(' [').first,
-        orderNotes: orderNotes ?? existing.orderNotes,
-      );
-
-      _orders[index] = updatedOrder;
-      _saveOrdersToStorage();
-      _kdsServer.broadcastOrders();
-      _kdsServer.broadcastOrderStatus(updatedOrder.id, updatedOrder.orderNumber, 'confirmed');
-
-      HapticFeedback.heavyImpact();
-      notifyListeners();
-      return updatedOrder;
-    }
-    return null;
-  }
-
-  void rejectCustomerOrder(String orderId, {bool restock = true}) {
-    cancelOrder(orderId, restock: restock);
-  }
-
-  // Edit / Modify Items in a Pending Customer Order (used by Cashier dialog)
-  Order? updatePendingOrderItems({
-    required String orderId,
-    required List<OrderItem> newItems,
-    String? orderNotes,
-  }) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index >= 0) {
-      final existing = _orders[index];
-      if (existing.status != OrderStatus.pending) return null;
-
-      // 1. Restock previous items
-      for (var oldItem in existing.items) {
-        final menuIdx = _menuItems.indexWhere((m) => m.id == oldItem.menuItem.id);
-        if (menuIdx >= 0) {
-          _menuItems[menuIdx].stockCount += oldItem.quantity;
-          _menuItems[menuIdx].inStock = true;
-        }
-      }
-
-      // 2. Deduct stock for new items
-      for (var newItem in newItems) {
-        final menuIdx = _menuItems.indexWhere((m) => m.id == newItem.menuItem.id);
-        if (menuIdx >= 0) {
-          _menuItems[menuIdx].stockCount = (_menuItems[menuIdx].stockCount - newItem.quantity).clamp(0, 9999);
-          if (_menuItems[menuIdx].stockCount == 0) {
-            _menuItems[menuIdx].inStock = false;
-          }
-        }
-      }
-
-      final newSubtotal = newItems.fold(0.0, (sum, i) => sum + i.totalPrice);
-      final discountAmt = existing.discountAmount > 0
-          ? existing.discountAmount
-          : newSubtotal * (existing.discountPercentage / 100);
-      final newTotal = (newSubtotal - discountAmt).clamp(0.0, double.infinity);
-
-      final updatedOrder = existing.copyWith(
-        items: List.from(newItems),
-        subtotal: newSubtotal,
-        discountAmount: discountAmt,
-        totalAmount: newTotal,
-        orderNotes: orderNotes ?? existing.orderNotes,
-      );
-
-      _orders[index] = updatedOrder;
-      _saveOrdersToStorage();
-      _saveMenuToStorage();
-      _kdsServer.broadcastOrders();
-      notifyListeners();
-      return updatedOrder;
-    }
-    return null;
-  }
-
-  // Load a Pending Customer Order directly into the main POS Cart for full modification
-  void loadPendingOrderIntoPosCart(String orderId) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index >= 0) {
-      final order = _orders[index];
-      // Restock items since cart items are checked out later
-      for (var item in order.items) {
-        final menuIdx = _menuItems.indexWhere((m) => m.id == item.menuItem.id);
-        if (menuIdx >= 0) {
-          _menuItems[menuIdx].stockCount += item.quantity;
-          _menuItems[menuIdx].inStock = true;
-        }
-      }
-
-      clearCart();
-      for (var item in order.items) {
-        _cart.add(item);
-      }
-      _orderType = order.orderType;
-      if (order.tableNumber != null) {
-        _tableNumber = order.tableNumber!;
-      }
-      _customerName = order.customerName;
-      _discountPercentage = order.discountPercentage;
-      _customDiscountAmount = order.discountAmount;
-
-      _orders.removeAt(index);
-      _currentNavIndex = 0; // Switch to POS station
-
-      _saveOrdersToStorage();
-      _saveMenuToStorage();
-      _kdsServer.broadcastOrders();
-      notifyListeners();
-    }
-  }
-
-  List<Map<String, dynamic>> getMenuJsonForCustomer() {
-    return _menuItems.map((item) => {
-      'id': item.id,
-      'name': item.name,
-      'description': item.description,
-      'price': item.price,
-      'icon': item.icon,
-      'imagePath': item.imagePath,
-      'imageBase64': item.imageBase64,
-      'imageUrl': (item.imagePath != null && item.imagePath!.isNotEmpty) || (item.imageBase64 != null && item.imageBase64!.isNotEmpty)
-          ? '/api/item-image?id=${item.id}'
-          : null,
-      'category': (item.customCategory != null && item.customCategory!.isNotEmpty)
-          ? item.customCategory!
-          : item.category.name,
-      'categoryLabel': item.categoryLabel,
-      'customCategory': item.customCategory,
-      'inStock': item.inStock,
-      'stockCount': item.stockCount,
-      'tags': item.tags,
-      'customizations': item.customizationGroups.map((cg) => {
-        'id': cg.id,
-        'groupTitle': cg.title,
-        'isRequired': cg.isRequired,
-        'isMultiSelect': cg.isMultiSelect,
-        'defaultIndex': cg.defaultIndex,
-        'options': cg.options.map((opt) => {
-          'name': opt.name,
-          'priceAdjustment': opt.extraPrice,
-          'isAvailable': opt.isAvailable,
-          'isDefault': false,
-        }).toList(),
-      }).toList(),
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> getCategoryTabsJsonForCustomer() {
-    return allCategoryTabs.map((t) => {
-      'id': t.id,
-      'label': t.label,
-      'icon': t.icon,
-      'isCustom': t.isCustom,
-      'isKitchenDish': t.isKitchenDish,
-    }).toList();
-  }
-
-  // KDS & Order Status Updates
-  void toggleOrderItemPrepared(String orderId, int itemIndex) {
-    final index = _findOrderIndex(orderId);
-    if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
-      // Must be actively in preparing status (or confirmed auto-advances to preparing)
-      if (_orders[index].status == OrderStatus.confirmed) {
-        _orders[index].status = OrderStatus.preparing;
-      } else if (_orders[index].status != OrderStatus.preparing && _orders[index].status != OrderStatus.ready) {
-        return;
-      }
-
-      final newPrepared = !_orders[index].items[itemIndex].isPrepared;
-      _orders[index].items[itemIndex].isPrepared = newPrepared;
-
-      // 1. Notify immediately for 60 FPS responsive UI
-      notifyListeners();
-
-      // 2. Debounced background storage write (no UI lag or stutter)
-      _scheduleSaveOrders();
-
-      // 3. Fast targeted websocket broadcast + debounced full sync
-      _kdsServer.broadcastItemPrepared(_orders[index].id, itemIndex, newPrepared, orderStatus: _orders[index].status.name);
-      _kdsServer.broadcastOrders();
-    }
-  }
-
-  void setOrderItemPrepared(String orderId, int itemIndex, bool isPrepared) {
-    final index = _findOrderIndex(orderId);
-    if (index >= 0 && itemIndex >= 0 && itemIndex < _orders[index].items.length) {
-      // If confirmed, auto-advance to preparing when items begin preparation
-      if (_orders[index].status == OrderStatus.confirmed) {
-        _orders[index].status = OrderStatus.preparing;
-      } else if (_orders[index].status != OrderStatus.preparing && _orders[index].status != OrderStatus.ready) {
-        return;
-      }
-      if (_orders[index].items[itemIndex].isPrepared == isPrepared) return;
-
-      _orders[index].items[itemIndex].isPrepared = isPrepared;
-
-      // 1. Notify immediately for 60 FPS responsive UI
-      notifyListeners();
-
-      // 2. Debounced background storage write (no UI lag or stutter)
-      _scheduleSaveOrders();
-
-      // 3. Fast targeted websocket broadcast + debounced full sync
-      _kdsServer.broadcastItemPrepared(_orders[index].id, itemIndex, isPrepared, orderStatus: _orders[index].status.name);
-      _kdsServer.broadcastOrders();
-    }
   }
 
   void updateOrderStatus(String orderId, OrderStatus newStatus) {
@@ -1589,29 +823,9 @@ class PosProvider extends ChangeNotifier {
     if (index >= 0) {
       if (_orders[index].status == newStatus) return;
       _orders[index].status = newStatus;
-      final targetOrder = _orders[index];
-
       notifyListeners();
       _scheduleSaveOrders();
-      _kdsServer.broadcastOrders(immediate: true);
-      _kdsServer.broadcastOrderStatus(targetOrder.id, targetOrder.orderNumber, newStatus.name);
-
-      // Haptic pulse on every status change
-      switch (newStatus) {
-        case OrderStatus.preparing:
-          HapticFeedback.mediumImpact();
-          break;
-        case OrderStatus.ready:
-          HapticFeedback.heavyImpact();
-          Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
-          Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
-          break;
-        case OrderStatus.completed:
-          HapticFeedback.lightImpact();
-          break;
-        default:
-          break;
-      }
+      HapticFeedback.lightImpact();
     }
   }
 
@@ -1633,8 +847,6 @@ class PosProvider extends ChangeNotifier {
       }
 
       _saveOrdersToStorage();
-      _kdsServer.broadcastOrders(immediate: true);
-      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
   }
@@ -1656,8 +868,6 @@ class PosProvider extends ChangeNotifier {
 
       _orders.removeAt(index);
       _saveOrdersToStorage();
-      _kdsServer.broadcastOrders(immediate: true);
-      _kdsServer.broadcastOrderStatus(order.id, order.orderNumber, 'cancelled');
       notifyListeners();
     }
   }
@@ -1666,9 +876,33 @@ class PosProvider extends ChangeNotifier {
   int get totalUnavailableItemsCount => _menuItems.where((item) => !item.inStock).length;
   int get totalUnavailableOptionsCount => _menuItems.fold(0, (sum, item) => sum + item.unavailableOptionsCount);
 
-  void _broadcastMenuUpdate() {
-    _kdsServer.broadcastMenu(getMenuJsonForCustomer());
+  // ── Food Costing Getters ─────────────────────────────────────────────────
+  List<MenuItem> get itemsWithIngredients =>
+      _menuItems.where((m) => m.ingredients.isNotEmpty).toList();
+
+  double get averageProfitMarginPercent {
+    final items = itemsWithIngredients;
+    if (items.isEmpty) return 0.0;
+    final margins = items.map((m) => m.profitMarginPercent ?? 0.0);
+    return margins.fold(0.0, (a, b) => a + b) / items.length;
   }
+
+  MenuItem? get highestCostItem {
+    if (itemsWithIngredients.isEmpty) return null;
+    return itemsWithIngredients.reduce(
+        (a, b) => a.totalBatchCost >= b.totalBatchCost ? a : b);
+  }
+
+  MenuItem? get mostProfitableItem {
+    if (itemsWithIngredients.isEmpty) return null;
+    return itemsWithIngredients.reduce((a, b) =>
+        (a.profitMarginPercent ?? 0) >= (b.profitMarginPercent ?? 0) ? a : b);
+  }
+
+  int get thinMarginItemsCount =>
+      itemsWithIngredients.where((m) => (m.profitMarginPercent ?? 100) < 35).length;
+
+
 
   // Inventory Management
   void updateStockCount(String itemId, int newCount) {
@@ -1677,7 +911,6 @@ class PosProvider extends ChangeNotifier {
       _menuItems[index].stockCount = newCount.clamp(0, 9999);
       _menuItems[index].inStock = newCount > 0;
       _saveMenuToStorage();
-      _broadcastMenuUpdate();
       notifyListeners();
     }
   }
@@ -1687,7 +920,6 @@ class PosProvider extends ChangeNotifier {
     if (index >= 0) {
       _menuItems[index].inStock = !_menuItems[index].inStock;
       _saveMenuToStorage();
-      _broadcastMenuUpdate();
       notifyListeners();
     }
   }
@@ -1697,7 +929,6 @@ class PosProvider extends ChangeNotifier {
     if (index >= 0) {
       _menuItems[index].inStock = inStock;
       _saveMenuToStorage();
-      _broadcastMenuUpdate();
       notifyListeners();
     }
   }
@@ -1718,7 +949,6 @@ class PosProvider extends ChangeNotifier {
 
     _menuItems[itemIdx] = item.copyWith(customizationGroups: updatedGroups);
     _saveMenuToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1749,7 +979,6 @@ class PosProvider extends ChangeNotifier {
 
     if (anyModified) {
       _saveMenuToStorage();
-      _broadcastMenuUpdate();
       notifyListeners();
     }
   }
@@ -1790,7 +1019,6 @@ class PosProvider extends ChangeNotifier {
 
       if (anyModified) {
         _saveMenuToStorage();
-        _broadcastMenuUpdate();
         notifyListeners();
       }
     } else {
@@ -1809,7 +1037,6 @@ class PosProvider extends ChangeNotifier {
 
       _menuItems[itemIdx] = item.copyWith(customizationGroups: updatedGroups);
       _saveMenuToStorage();
-      _broadcastMenuUpdate();
       notifyListeners();
     }
   }
@@ -1840,7 +1067,6 @@ class PosProvider extends ChangeNotifier {
 
     _menuItems[itemIdx] = item.copyWith(customizationGroups: updatedGroups);
     _saveMenuToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1860,7 +1086,6 @@ class PosProvider extends ChangeNotifier {
       );
     }
     _saveMenuToStorage();
-    _broadcastMenuUpdate();
     notifyListeners();
   }
 
@@ -1953,37 +1178,104 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateBaristaPin(String newPin) async {
-    final clean = newPin.trim();
-    if (clean.length >= 4) {
-      _baristaPin = clean;
-      _kdsServer.setBaristaPin(clean);
-      try {
-        final prefs = await _getPrefs();
-        await prefs.setString(_keyBaristaPin, clean);
-      } catch (e) {
-        if (kDebugMode) print('Error saving barista pin: $e');
-      }
-      notifyListeners();
+  Future<void> updateSignatureBanner({
+    bool? enabled,
+    String? badge,
+    String? title,
+    String? subtitle,
+    String? buttonText,
+    String? itemId,
+    Uint8List? imageBytes,
+    bool removeCustomImage = false,
+  }) async {
+    if (enabled != null) _signatureBannerEnabled = enabled;
+    if (badge != null) _signatureBannerBadge = badge.trim().isEmpty ? 'CELESTIAL SIGNATURE CRAFT' : badge.trim();
+    if (title != null) _signatureBannerTitle = title.trim().isEmpty ? 'Celestial Signature Latte' : title.trim();
+    if (subtitle != null) _signatureBannerSubtitle = subtitle.trim();
+    if (buttonText != null) _signatureBannerButtonText = buttonText.trim().isEmpty ? 'Order' : buttonText.trim();
+    if (itemId != null) _signatureBannerItemId = itemId.trim().isEmpty ? 'nesp_1' : itemId.trim();
+
+    if (removeCustomImage) {
+      _signatureBannerImageBytes = null;
+      _signatureBannerImageBase64 = null;
+    } else if (imageBytes != null) {
+      _signatureBannerImageBytes = imageBytes;
+      _signatureBannerImageBase64 = base64Encode(imageBytes);
     }
+
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setBool(_keySigBannerEnabled, _signatureBannerEnabled);
+      await prefs.setString(_keySigBannerBadge, _signatureBannerBadge);
+      await prefs.setString(_keySigBannerTitle, _signatureBannerTitle);
+      await prefs.setString(_keySigBannerSubtitle, _signatureBannerSubtitle);
+      await prefs.setString(_keySigBannerButtonText, _signatureBannerButtonText);
+      await prefs.setString(_keySigBannerItemId, _signatureBannerItemId);
+      if (removeCustomImage) {
+        await prefs.remove(_keySigBannerImage);
+      } else if (_signatureBannerImageBase64 != null) {
+        await prefs.setString(_keySigBannerImage, _signatureBannerImageBase64!);
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error saving signature banner customization: $e');
+    }
+    notifyListeners();
   }
 
-  // Reset All Local Data (e.g. for brand new day/shift or clean reset starting on #1)
+  Future<void> resetSignatureBanner() async {
+    _signatureBannerEnabled = true;
+    _signatureBannerBadge = 'CELESTIAL SIGNATURE CRAFT';
+    _signatureBannerTitle = 'Celestial Signature Latte';
+    _signatureBannerSubtitle = 'House specialty handcrafted celestial latte blend with silky sweet foam';
+    _signatureBannerButtonText = 'Order';
+    _signatureBannerItemId = 'nesp_1';
+    _signatureBannerImageBytes = null;
+    _signatureBannerImageBase64 = null;
+
+    try {
+      final prefs = await _getPrefs();
+      await prefs.remove(_keySigBannerEnabled);
+      await prefs.remove(_keySigBannerBadge);
+      await prefs.remove(_keySigBannerTitle);
+      await prefs.remove(_keySigBannerSubtitle);
+      await prefs.remove(_keySigBannerButtonText);
+      await prefs.remove(_keySigBannerItemId);
+      await prefs.remove(_keySigBannerImage);
+    } catch (e) {
+      if (kDebugMode) print('Error resetting signature banner: $e');
+    }
+    notifyListeners();
+  }
+
+  // Reset Data
   Future<void> resetAllData() async {
     final prefs = await _getPrefs();
     await prefs.remove(_keyMenuItems);
     await prefs.remove(_keyOrders);
     await prefs.remove(_keyOrderSeq);
+    await prefs.remove(_keySigBannerEnabled);
+    await prefs.remove(_keySigBannerBadge);
+    await prefs.remove(_keySigBannerTitle);
+    await prefs.remove(_keySigBannerSubtitle);
+    await prefs.remove(_keySigBannerButtonText);
+    await prefs.remove(_keySigBannerItemId);
+    await prefs.remove(_keySigBannerImage);
+    _signatureBannerEnabled = true;
+    _signatureBannerBadge = 'CELESTIAL SIGNATURE CRAFT';
+    _signatureBannerTitle = 'Celestial Signature Latte';
+    _signatureBannerSubtitle = 'House specialty handcrafted celestial latte blend with silky sweet foam';
+    _signatureBannerButtonText = 'Order';
+    _signatureBannerItemId = 'nesp_1';
+    _signatureBannerImageBytes = null;
+    _signatureBannerImageBase64 = null;
     _menuItems = List.from(initialCelestialMenu);
     _orders.clear();
     _orderSequence = 1;
     clearCart();
-    _kdsServer.broadcastOrders(immediate: true);
     notifyListeners();
   }
 
   Future<void> clearAllOrdersAndResetCounter({int startNumber = 1}) async {
-    // L1 fix: restock all menu items before clearing orders
     for (final order in _orders) {
       if (order.status != OrderStatus.cancelled) {
         for (final item in order.items) {
@@ -2002,19 +1294,16 @@ class PosProvider extends ChangeNotifier {
     await prefs.setInt(_keyOrderSeq, startNumber);
     _saveMenuToStorage();
     clearCart();
-    _kdsServer.broadcastOrders(immediate: true);
     notifyListeners();
   }
 
   Future<void> clearOrderHistoryOnly() async {
-    // Retain active queue orders (confirmed, preparing, ready), remove only historical (completed & cancelled)
     _orders.removeWhere((o) => o.status == OrderStatus.completed || o.status == OrderStatus.cancelled);
     _saveOrdersToStorage();
-    _kdsServer.broadcastOrders(immediate: true);
     notifyListeners();
   }
 
-  // Analytics Metrics — H3/H4 fix: all getters filter by TODAY only
+  // Analytics Metrics
   bool _isToday(DateTime dt) {
     final now = DateTime.now();
     return dt.year == now.year && dt.month == now.month && dt.day == now.day;

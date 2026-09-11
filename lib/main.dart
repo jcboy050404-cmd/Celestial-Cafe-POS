@@ -3,35 +3,55 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'providers/pos_provider.dart';
 import 'screens/analytics_screen.dart';
+import 'screens/food_costing_screen.dart';
 import 'screens/inventory_screen.dart';
-import 'screens/kds_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/orders_history_screen.dart';
-import 'screens/pending_orders_screen.dart';
 import 'screens/pos_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'services/auth_service.dart';
 import 'theme/celestial_theme.dart';
 import 'widgets/header_bar.dart';
 import 'widgets/top_notification.dart';
+import 'widgets/trial_expired_dialog.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
   PosProvider.repairCorruptedStorage();
   runApp(const CelestialCafePosApp());
 }
 
 class CelestialCafePosApp extends StatelessWidget {
-  const CelestialCafePosApp({super.key});
+  final AuthService? authService;
+  final PosProvider? posProvider;
+
+  const CelestialCafePosApp({
+    super.key,
+    this.authService,
+    this.posProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PosProvider()),
+        if (authService != null)
+          ChangeNotifierProvider<AuthService>.value(value: authService!)
+        else
+          ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
+        if (posProvider != null)
+          ChangeNotifierProvider<PosProvider>.value(value: posProvider!)
+        else
+          ChangeNotifierProvider<PosProvider>(create: (_) => PosProvider()),
       ],
-      child: Consumer<PosProvider>(
-        builder: (context, posProvider, _) {
+      child: Consumer2<AuthService, PosProvider>(
+        builder: (context, authService, posProvider, _) {
           return MaterialApp(
             navigatorKey: TopNotification.navigatorKey,
-            title: 'Celestial Cafe POS',
+            title: 'JC POS System',
             debugShowCheckedModeBanner: false,
             theme: CelestialTheme.themeData,
             builder: (context, child) {
@@ -42,7 +62,9 @@ class CelestialCafePosApp extends StatelessWidget {
                 child: child!,
               );
             },
-            home: const MainWorkstationScaffold(),
+            home: authService.isLoggedIn
+                ? const MainWorkstationScaffold()
+                : const LoginScreen(),
           );
         },
       ),
@@ -62,6 +84,33 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
   int _lastNavIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Dismiss any leftover dialogs or overlays from login/registration
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      while (TopNotification.navigatorKey.currentState?.canPop() ?? false) {
+        TopNotification.navigatorKey.currentState?.pop();
+      }
+
+      final auth = Provider.of<AuthService>(context, listen: false);
+      if (!auth.isAdmin && auth.currentUser?.isTrialExpired == true) {
+        TrialExpiredDialog.show(context);
+      }
+
+      // Asynchronously refresh cloud license in background
+      auth.refreshUserLicenseFromCloud().then((_) {
+        if (mounted) {
+          final updatedAuth = Provider.of<AuthService>(context, listen: false);
+          if (!updatedAuth.isAdmin && updatedAuth.currentUser?.isTrialExpired == true) {
+            TrialExpiredDialog.show(context);
+          }
+        }
+      }).catchError((_) {});
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
@@ -77,11 +126,10 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
 
     final screens = const [
       PosScreen(),
-      PendingOrdersScreen(),
-      KdsScreen(),
       OrdersHistoryScreen(),
       InventoryScreen(),
       AnalyticsScreen(),
+      FoodCostingScreen(),
     ];
 
     return Scaffold(
@@ -107,7 +155,7 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
               // Screen Content
               Expanded(
                 child: IndexedStack(
-                  index: posProvider.currentNavIndex,
+                  index: posProvider.currentNavIndex.clamp(0, screens.length - 1),
                   children: screens,
                 ),
               ),
@@ -162,70 +210,33 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
                   height: 66,
                   labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                   backgroundColor: Colors.transparent,
-                  selectedIndex: posProvider.currentNavIndex,
+                  selectedIndex: posProvider.currentNavIndex.clamp(0, 4),
                   onDestinationSelected: (index) => posProvider.setNavIndex(index),
-                  destinations: [
-                    const NavigationDestination(
+                  destinations: const [
+                    NavigationDestination(
                       icon: Icon(Icons.point_of_sale_outlined),
                       selectedIcon: Icon(Icons.point_of_sale_rounded),
                       label: 'POS',
                     ),
                     NavigationDestination(
-                      icon: Badge(
-                        isLabelVisible: posProvider.pendingCustomerOrders.isNotEmpty,
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        label: Text(
-                          '${posProvider.pendingCustomerOrders.length}',
-                          style: const TextStyle(color: CelestialTheme.bgDark, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                        child: const Icon(Icons.hourglass_top_outlined),
-                      ),
-                      selectedIcon: Badge(
-                        isLabelVisible: posProvider.pendingCustomerOrders.isNotEmpty,
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        label: Text(
-                          '${posProvider.pendingCustomerOrders.length}',
-                          style: const TextStyle(color: CelestialTheme.bgDark, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                        child: const Icon(Icons.hourglass_top_rounded),
-                      ),
-                      label: 'Pending',
-                    ),
-                    NavigationDestination(
-                      icon: Badge(
-                        isLabelVisible: posProvider.activeKdsOrders.isNotEmpty,
-                        backgroundColor: CelestialTheme.amberBrewing,
-                        label: Text(
-                          '${posProvider.activeKdsOrders.length}',
-                          style: const TextStyle(color: CelestialTheme.bgDark, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                        child: const Icon(Icons.coffee_maker_outlined),
-                      ),
-                      selectedIcon: Badge(
-                        isLabelVisible: posProvider.activeKdsOrders.isNotEmpty,
-                        backgroundColor: CelestialTheme.amberBrewing,
-                        label: Text(
-                          '${posProvider.activeKdsOrders.length}',
-                          style: const TextStyle(color: CelestialTheme.bgDark, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                        child: const Icon(Icons.coffee_maker_rounded),
-                      ),
-                      label: 'KDS',
-                    ),
-                    const NavigationDestination(
                       icon: Icon(Icons.receipt_long_outlined),
                       selectedIcon: Icon(Icons.receipt_long_rounded),
                       label: 'History',
                     ),
-                    const NavigationDestination(
+                    NavigationDestination(
                       icon: Icon(Icons.inventory_2_outlined),
                       selectedIcon: Icon(Icons.inventory_2_rounded),
                       label: 'Stock',
                     ),
-                    const NavigationDestination(
+                    NavigationDestination(
                       icon: Icon(Icons.insights_outlined),
                       selectedIcon: Icon(Icons.insights_rounded),
                       label: 'Insights',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.calculate_outlined),
+                      selectedIcon: Icon(Icons.calculate_rounded),
+                      label: 'Costing',
                     ),
                   ],
                 ),

@@ -1,6 +1,6 @@
 {
-    "name": "celestial_pos",
-    "short_name": "celestial_pos",
+    "name": "JC POS System",
+    "short_name": "JC POS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

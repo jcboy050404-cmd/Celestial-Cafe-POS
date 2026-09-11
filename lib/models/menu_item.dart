@@ -174,6 +174,82 @@ class CustomizationGroup {
   }
 }
 
+/// Supported units for ingredient quantities
+const List<String> kIngredientUnits = [
+  'pcs', 'g', 'kg', 'ml', 'L', 'tsp', 'tbsp', 'cup', 'oz', 'lb', 'sachet', 'slice', 'pack',
+];
+
+class Ingredient {
+  final String name;
+  final double qty;          // quantity used per batch
+  final String unit;         // unit of measurement
+  final double costPerUnit;  // cost per 1 unit in ₱
+  // Legacy flat cost (used when qty==0 && costPerUnit==0 for backwards compat)
+  final double _flatCost;
+
+  const Ingredient({
+    required this.name,
+    this.qty = 0.0,
+    this.unit = 'pcs',
+    this.costPerUnit = 0.0,
+    double cost = 0.0,
+  }) : _flatCost = cost;
+
+  /// The actual line cost: qty × costPerUnit, or flatCost if legacy
+  double get cost {
+    if (qty > 0 && costPerUnit > 0) return qty * costPerUnit;
+    return _flatCost;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'qty': qty,
+        'unit': unit,
+        'costPerUnit': costPerUnit,
+        'cost': _flatCost,
+      };
+
+  factory Ingredient.fromJson(Map<String, dynamic> json) => Ingredient(
+        name: json['name'] as String? ?? '',
+        qty: (json['qty'] as num?)?.toDouble() ?? 0.0,
+        unit: json['unit'] as String? ?? 'pcs',
+        costPerUnit: (json['costPerUnit'] as num?)?.toDouble() ?? 0.0,
+        cost: (json['cost'] as num?)?.toDouble() ?? 0.0,
+      );
+
+  Ingredient copyWith({
+    String? name,
+    double? qty,
+    String? unit,
+    double? costPerUnit,
+    double? cost,
+  }) =>
+      Ingredient(
+        name: name ?? this.name,
+        qty: qty ?? this.qty,
+        unit: unit ?? this.unit,
+        costPerUnit: costPerUnit ?? this.costPerUnit,
+        cost: cost ?? _flatCost,
+      );
+}
+
+class OtherMaterial {
+  final String name;
+  final double cost;
+
+  const OtherMaterial({required this.name, this.cost = 0.0});
+
+  Map<String, dynamic> toJson() => {'name': name, 'cost': cost};
+
+  factory OtherMaterial.fromJson(Map<String, dynamic> json) => OtherMaterial(
+        name: json['name'] as String? ?? '',
+        cost: (json['cost'] as num?)?.toDouble() ?? 0.0,
+      );
+
+  OtherMaterial copyWith({String? name, double? cost}) =>
+      OtherMaterial(name: name ?? this.name, cost: cost ?? this.cost);
+}
+
 class MenuItem {
   final String id;
   final String name;
@@ -189,6 +265,12 @@ class MenuItem {
   final String? imagePath;
   final String? imageBase64;
   final List<CustomizationGroup> customizationGroups;
+  final List<Ingredient> ingredients;
+  // Food costing / recipe fields
+  final List<OtherMaterial> otherMaterials;
+  final int batchYield;                // how many pieces/cups this recipe makes
+  final double desiredMarginPercent;   // owner's target profit margin %
+  final double monthlyOpex;            // monthly overhead (rent + utilities + labor)
 
   MenuItem({
     required this.id,
@@ -205,6 +287,11 @@ class MenuItem {
     this.imagePath,
     this.imageBase64,
     this.customizationGroups = const [],
+    this.ingredients = const [],
+    this.otherMaterials = const [],
+    this.batchYield = 1,
+    this.desiredMarginPercent = 70.0,
+    this.monthlyOpex = 0.0,
   });
 
   Uint8List? _cachedImageBytes;
@@ -285,6 +372,50 @@ class MenuItem {
     return list;
   }
 
+  /// Total ingredient line costs in ₱
+  double get totalIngredientCost =>
+      ingredients.fold(0.0, (sum, ing) => sum + ing.cost);
+
+  /// Total other materials cost in ₱
+  double get totalOtherMaterialsCost =>
+      otherMaterials.fold(0.0, (sum, m) => m.cost + sum);
+
+  /// Total batch cost (ingredients + other materials)
+  double get totalBatchCost => totalIngredientCost + totalOtherMaterialsCost;
+
+  /// Cost per single piece/cup (batch cost ÷ yield)
+  double get costPerPiece =>
+      batchYield > 0 ? totalBatchCost / batchYield : totalBatchCost;
+
+  /// Suggested selling price based on desired margin
+  double get suggestedSellingPrice {
+    if (desiredMarginPercent >= 100) return costPerPiece;
+    return costPerPiece / (1 - desiredMarginPercent / 100);
+  }
+
+  /// Profit per batch at suggested selling price
+  double get profitPerBatch =>
+      (suggestedSellingPrice * batchYield) - totalBatchCost;
+
+  /// Profit per piece at current POS selling price (price - costPerPiece)
+  double get profitPerPiece => price - costPerPiece;
+
+  /// Profit margin as a percentage vs the actual POS selling price.
+  /// Returns null if no ingredients set.
+  double? get profitMarginPercent {
+    if (ingredients.isEmpty || price <= 0) return null;
+    final cost = costPerPiece;
+    return ((price - cost) / price) * 100;
+  }
+
+  /// Break-even units per month (monthly opex ÷ profit per piece at POS price)
+  double? get breakEvenUnitsPerMonth {
+    if (monthlyOpex <= 0 || ingredients.isEmpty) return null;
+    final profitPerPiece = price - costPerPiece;
+    if (profitPerPiece <= 0) return null;
+    return monthlyOpex / profitPerPiece;
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -301,6 +432,11 @@ class MenuItem {
         'imagePath': imagePath,
         'imageBase64': imageBase64,
         'customizationGroups': customizationGroups.map((g) => g.toJson()).toList(),
+        'ingredients': ingredients.map((i) => i.toJson()).toList(),
+        'otherMaterials': otherMaterials.map((m) => m.toJson()).toList(),
+        'batchYield': batchYield,
+        'desiredMarginPercent': desiredMarginPercent,
+        'monthlyOpex': monthlyOpex,
       };
 
   /// Lightweight representation specifically for order items (excludes heavy Base64 image blobs)
@@ -346,6 +482,17 @@ class MenuItem {
               ?.map((g) => CustomizationGroup.fromJson(g as Map<String, dynamic>))
               .toList() ??
           [],
+      ingredients: (json['ingredients'] as List<dynamic>?)
+              ?.map((i) => Ingredient.fromJson(i as Map<String, dynamic>))
+              .toList() ??
+          [],
+      otherMaterials: (json['otherMaterials'] as List<dynamic>?)
+              ?.map((m) => OtherMaterial.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+      batchYield: (json['batchYield'] as int?) ?? 1,
+      desiredMarginPercent: (json['desiredMarginPercent'] as num?)?.toDouble() ?? 70.0,
+      monthlyOpex: (json['monthlyOpex'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -365,6 +512,11 @@ class MenuItem {
     String? imagePath,
     String? imageBase64,
     List<CustomizationGroup>? customizationGroups,
+    List<Ingredient>? ingredients,
+    List<OtherMaterial>? otherMaterials,
+    int? batchYield,
+    double? desiredMarginPercent,
+    double? monthlyOpex,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -381,6 +533,11 @@ class MenuItem {
       imagePath: imagePath ?? this.imagePath,
       imageBase64: imageBase64 ?? this.imageBase64,
       customizationGroups: customizationGroups ?? this.customizationGroups,
+      ingredients: ingredients ?? this.ingredients,
+      otherMaterials: otherMaterials ?? this.otherMaterials,
+      batchYield: batchYield ?? this.batchYield,
+      desiredMarginPercent: desiredMarginPercent ?? this.desiredMarginPercent,
+      monthlyOpex: monthlyOpex ?? this.monthlyOpex,
     );
   }
 

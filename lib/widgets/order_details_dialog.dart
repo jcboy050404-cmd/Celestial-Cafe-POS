@@ -3,10 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/order.dart';
-import '../models/customer_feedback.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
-import 'order_tracking_qr_dialog.dart';
 import 'receipt_dialog.dart';
 
 /// Modal Pop-up Dialog for viewing complete order details
@@ -144,12 +142,6 @@ class OrderDetailsDialog extends StatelessWidget {
 
                     // Payment & Bill Breakdown Card
                     _buildPaymentSummaryCard(currentOrder),
-
-                    // Customer Feedback & Rating Card (if submitted by customer)
-                    if (currentOrder.customerFeedback != null) ...[
-                      const SizedBox(height: 16),
-                      _buildCustomerFeedbackCard(currentOrder.customerFeedback!),
-                    ],
                   ],
                 ),
               ),
@@ -346,6 +338,34 @@ class OrderDetailsDialog extends StatelessWidget {
               ),
             ],
           ),
+          if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Divider(height: 1, color: Color(0x10FFFFFF)),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetaItem(
+                    icon: Icons.location_on_rounded,
+                    label: 'DELIVERY ADDRESS',
+                    value: order.deliveryAddress!,
+                  ),
+                ),
+                if (order.customerPhone != null && order.customerPhone!.isNotEmpty) ...[
+                  Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMetaItem(
+                      icon: Icons.phone_rounded,
+                      label: 'CONTACT NUMBER',
+                      value: order.customerPhone!,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -640,144 +660,7 @@ class OrderDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildCustomerFeedbackCard(CustomerFeedback feedback) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1611),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.star_rounded, size: 18, color: CelestialTheme.goldLight),
-                  const SizedBox(width: 6),
-                  Text(
-                    'CUSTOMER FEEDBACK & RATING',
-                    style: GoogleFonts.outfit(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: CelestialTheme.goldLight,
-                    ),
-                  ),
-                ],
-              ),
-              // Stars
-              Row(
-                children: List.generate(5, (index) {
-                  final filled = index < feedback.rating;
-                  return Icon(
-                    filled ? Icons.star_rounded : Icons.star_outline_rounded,
-                    size: 16,
-                    color: filled ? const Color(0xFFFFB800) : Colors.white24,
-                  );
-                }),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  '${feedback.rating} / 5 Stars',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: CelestialTheme.goldLight,
-                  ),
-                ),
-              ),
-              if (feedback.customerName.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Text(
-                  'by ${feedback.customerName}',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: CelestialTheme.textSubtle,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-              const Spacer(),
-              Text(
-                DateFormat('MMM d, h:mm a').format(feedback.createdAt),
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  color: CelestialTheme.textMuted,
-                ),
-              ),
-            ],
-          ),
-          if (feedback.tags.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: feedback.tags.map((tag) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                  ),
-                  child: Text(
-                    tag,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: CelestialTheme.textLight,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-          if (feedback.message.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Text(
-                '“${feedback.message}”',
-                style: GoogleFonts.outfit(
-                  fontSize: 12.5,
-                  fontStyle: FontStyle.italic,
-                  color: CelestialTheme.textLight,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
     return Row(
@@ -801,22 +684,6 @@ class OrderDetailsDialog extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          // Tracking QR Button
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              OrderTrackingQrDialog.show(context, order);
-            },
-            icon: const Icon(Icons.qr_code_2_rounded, size: 16, color: CelestialTheme.goldLight),
-            label: const Text('Tracking QR', style: TextStyle(fontSize: 11.5, color: CelestialTheme.goldLight)),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-          const SizedBox(width: 8),
-
           // Print Receipt Button
           OutlinedButton.icon(
             onPressed: () {
@@ -869,6 +736,8 @@ class OrderDetailsDialog extends StatelessWidget {
       case OrderStatus.completed:
       case OrderStatus.ready:
         return CelestialTheme.emeraldReady;
+      case OrderStatus.outForDelivery:
+        return CelestialTheme.caramelAccent;
       case OrderStatus.preparing:
         return CelestialTheme.amberBrewing;
       case OrderStatus.confirmed:

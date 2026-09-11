@@ -1,15 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import 'price_editor_dialog.dart';
 import 'top_notification.dart';
+import 'admin_management_dialog.dart';
+import 'create_pin_dialog.dart';
+import 'signature_banner_dialog.dart';
 
 class SettingsDialog extends StatefulWidget {
   final int initialTab;
@@ -23,7 +27,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late TextEditingController _nameController;
   late TextEditingController _taglineController;
   late TextEditingController _addressController;
-  late TextEditingController _pinController;
   late TextEditingController _availabilitySearchController;
   bool _isPickingImage = false;
   bool _isSavingSettings = false;
@@ -42,7 +45,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _nameController = TextEditingController(text: provider.storeName);
     _taglineController = TextEditingController(text: provider.storeTagline);
     _addressController = TextEditingController(text: provider.storeAddress);
-    _pinController = TextEditingController(text: provider.baristaPin);
     _availabilitySearchController = TextEditingController();
   }
 
@@ -51,7 +53,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _nameController.dispose();
     _taglineController.dispose();
     _addressController.dispose();
-    _pinController.dispose();
     _availabilitySearchController.dispose();
     super.dispose();
   }
@@ -105,16 +106,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
       tagline: _taglineController.text,
       address: _addressController.text,
     );
-    if (_pinController.text.trim().length >= 4) {
-      provider.updateBaristaPin(_pinController.text.trim());
-    }
     if (mounted) setState(() => _isSavingSettings = false);
     if (mounted) Navigator.pop(context);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: CelestialTheme.bgCard,
-          content: Text('Store branding and security settings saved!'),
+          content: Text('Store branding settings saved!'),
         ),
       );
     }
@@ -644,73 +642,361 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 12),
 
-                    // Barista KDS Security PIN Manager
+                    // Section: Signature Spotlight Banner Customizer
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: CelestialTheme.bgSurface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: provider.signatureBannerEnabled
+                              ? CelestialTheme.caramelAccent.withValues(alpha: 0.3)
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.security_rounded, color: CelestialTheme.goldLight, size: 20),
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.stars_rounded, color: CelestialTheme.goldLight, size: 18),
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Barista KDS Security PIN',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: CelestialTheme.textLight,
-                                  ),
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    Text(
+                                      'Signature Craft Banner',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.textLight,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: provider.signatureBannerEnabled
+                                            ? CelestialTheme.caramelAccent.withValues(alpha: 0.2)
+                                            : CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        provider.signatureBannerEnabled ? 'ACTIVE' : 'HIDDEN',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: provider.signatureBannerEnabled
+                                              ? CelestialTheme.goldLight
+                                              : CelestialTheme.roseAlert,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 2),
-                                const Text(
-                                  'Prevents table customers from viewing kitchen tickets',
-                                  style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                                Text(
+                                  'Hero spotlight on POS: "${provider.signatureBannerTitle}"',
+                                  style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-                          SizedBox(
-                            width: 90,
-                            height: 38,
-                            child: TextField(
-                              controller: _pinController,
-                              keyboardType: TextInputType.number,
-                              maxLength: 6,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.outfit(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: CelestialTheme.goldLight,
-                                letterSpacing: 2,
-                              ),
-                              decoration: InputDecoration(
-                                counterText: '',
-                                filled: true,
-                                fillColor: CelestialTheme.bgCard,
-                                contentPadding: EdgeInsets.zero,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
-                                ),
-                              ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                barrierColor: Colors.black.withValues(alpha: 0.85),
+                                builder: (ctx) => const SignatureBannerDialog(),
+                              );
+                            },
+                            icon: const Icon(Icons.tune_rounded, size: 14),
+                            label: const Text('Customize', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: CelestialTheme.caramelAccent,
+                              foregroundColor: CelestialTheme.bgDark,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Section 3: User Account & Subscription Tier (Firebase)
+                    Consumer<AuthService>(
+                      builder: (context, auth, _) {
+                        final user = auth.currentUser;
+                        final isPro = auth.isPro;
+                        final isAdmin = auth.isAdmin || auth.checkIfAdmin(user?.email ?? '');
+                        final trialDays = (user?.hasCustomTrial == true ? user!.customTrialDays : null) ?? auth.defaultTrialDays;
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.bgSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isPro ? CelestialTheme.goldPrimary.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    isAdmin
+                                        ? Icons.admin_panel_settings_rounded
+                                        : (isPro ? Icons.workspace_premium_rounded : Icons.account_circle_outlined),
+                                    color: isPro || isAdmin ? CelestialTheme.goldPrimary : CelestialTheme.goldLight,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'ACCOUNT & LICENSE',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.8,
+                                            color: CelestialTheme.goldLight,
+                                          ),
+                                        ),
+                                        Text(
+                                          user?.email ?? 'cashier@celestialcafe.com',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: CelestialTheme.textLight,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isAdmin) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      margin: const EdgeInsets.only(right: 6),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                                      ),
+                                      child: const Text(
+                                        'ADMIN',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: CelestialTheme.goldLight,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isPro
+                                          ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                          : CelestialTheme.amberBrewing.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: isPro ? CelestialTheme.goldPrimary : CelestialTheme.amberBrewing,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      isPro ? 'PRO ACTIVE' : '${user?.trialDaysRemaining ?? trialDays}D TRIAL',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  if (isAdmin)
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => AdminManagementDialog.show(context),
+                                        icon: const Icon(
+                                          Icons.admin_panel_settings_rounded,
+                                          size: 15,
+                                          color: CelestialTheme.goldLight,
+                                        ),
+                                        label: const Text(
+                                          'Manage Licenses',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: CelestialTheme.goldLight,
+                                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: CelestialTheme.bgSurface,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isPro
+                                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.3)
+                                                : CelestialTheme.amberBrewing.withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              isPro ? Icons.verified_rounded : Icons.lock_clock_rounded,
+                                              size: 14,
+                                              color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                isPro
+                                                    ? 'Pro Station Active'
+                                                    : '${user?.trialDaysRemaining ?? trialDays}D Trial License',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          backgroundColor: CelestialTheme.bgSurface,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            side: const BorderSide(color: CelestialTheme.borderWarm),
+                                          ),
+                                          title: const Text('Sign Out Station', style: TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.bold)),
+                                          content: const Text(
+                                            'Are you sure you want to sign out of this terminal session?',
+                                            style: TextStyle(color: CelestialTheme.textMuted),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                                            ),
+                                            ElevatedButton.icon(
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              icon: const Icon(Icons.logout_rounded, size: 15, color: Colors.white),
+                                              style: ElevatedButton.styleFrom(backgroundColor: CelestialTheme.roseAlert),
+                                              label: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirm == true && context.mounted) {
+                                        Navigator.pop(context);
+                                        TopNotification.showSuccess(context, 'Signed out of terminal.');
+                                        await auth.signOut();
+                                      }
+                                    },
+                                    icon: const Icon(Icons.logout_rounded, size: 14, color: Colors.white),
+                                    label: const Text(
+                                      'Sign Out',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: CelestialTheme.roseAlert,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    CreatePinDialog.show(
+                                      context,
+                                      email: user?.email ?? '',
+                                      displayName: user?.displayName,
+                                      isUpdate: auth.hasPin(user?.email),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.pin_outlined, size: 14, color: CelestialTheme.goldLight),
+                                  label: Text(
+                                    auth.hasPin(user?.email) ? 'Update Station PIN' : 'Create Station PIN',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.goldLight),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              if (isAdmin) ...[
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      AdminManagementDialog.show(context);
+                                    },
+                                    icon: const Icon(Icons.admin_panel_settings_rounded, size: 16),
+                                    label: const Text(
+                                      'Admin Portal Access',
+                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: CelestialTheme.goldPrimary,
+                                      foregroundColor: CelestialTheme.bgDark,
+                                      padding: const EdgeInsets.symmetric(vertical: 9),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 12),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/category_management_dialog.dart';
+import '../widgets/ingredients_editor_dialog.dart';
 import '../widgets/item_editor_dialog.dart';
 import '../widgets/item_thumbnail.dart';
 import '../widgets/modifier_availability_dialog.dart';
@@ -141,6 +142,30 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                               style: const TextStyle(fontSize: 9, color: CelestialTheme.goldLight),
                                             ),
                                           ),
+                                          // Profit margin badge
+                                          if (item.profitMarginPercent != null) ...[
+                                            const SizedBox(width: 5),
+                                            Builder(builder: (ctx) {
+                                              final m = item.profitMarginPercent!;
+                                              final Color mc = m >= 60
+                                                  ? CelestialTheme.emeraldReady
+                                                  : m >= 35
+                                                      ? CelestialTheme.amberBrewing
+                                                      : CelestialTheme.roseAlert;
+                                              return Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: mc.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: mc.withValues(alpha: 0.5)),
+                                                ),
+                                                child: Text(
+                                                  '💰 ${m.toStringAsFixed(0)}%',
+                                                  style: TextStyle(fontSize: 9, color: mc, fontWeight: FontWeight.bold),
+                                                ),
+                                              );
+                                            }),
+                                          ],
                                         ],
                                       ),
                                       const SizedBox(height: 4),
@@ -329,6 +354,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                         ),
                                       ),
                                     ],
+                                    const SizedBox(width: 6),
+                                    // 🧮 Ingredients / Cost Calculator button
+                                    Tooltip(
+                                      message: item.ingredients.isEmpty
+                                          ? 'Set ingredient costs to calculate profit margin'
+                                          : 'Ingredient cost: ₱${item.totalIngredientCost.toStringAsFixed(2)} · Margin: ${item.profitMarginPercent?.toStringAsFixed(1) ?? "—"}%',
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => IngredientsEditorDialog.show(context, posProvider, item),
+                                        icon: Icon(
+                                          Icons.calculate_outlined,
+                                          size: 13,
+                                          color: item.ingredients.isNotEmpty
+                                              ? CelestialTheme.emeraldReady
+                                              : CelestialTheme.goldLight,
+                                        ),
+                                        label: Text(
+                                          item.ingredients.isEmpty
+                                              ? 'Ingredients'
+                                              : '₱${item.totalIngredientCost.toStringAsFixed(0)} cost',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: item.ingredients.isNotEmpty
+                                                ? CelestialTheme.emeraldReady
+                                                : CelestialTheme.goldLight,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: item.ingredients.isNotEmpty
+                                              ? CelestialTheme.emeraldReady
+                                              : CelestialTheme.goldLight,
+                                          side: BorderSide(
+                                            color: item.ingredients.isNotEmpty
+                                                ? CelestialTheme.emeraldReady.withValues(alpha: 0.5)
+                                                : CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          minimumSize: Size.zero,
+                                        ),
+                                      ),
+                                    ),
                                     const SizedBox(width: 8),
                                     // In-Stock Toggle Switch
                                     SizedBox(

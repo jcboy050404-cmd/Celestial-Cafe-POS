@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../services/receipt_pdf_service.dart';
 import '../theme/celestial_theme.dart';
-import 'order_tracking_qr_dialog.dart';
 
 /// Thermal Receipt Dialog designed to replicate physical ATM / POS printer slot
 /// with metallic dispenser bezel, thermal paper drop shadow, serrated tear edge,
@@ -23,7 +21,6 @@ class ReceiptDialog extends StatefulWidget {
 
 class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProviderStateMixin {
   bool _isPrinting = false;
-  bool _showQrCode = false;
   late final AnimationController _animController;
   late final Animation<double> _slideAnimation;
   late final Animation<double> _fadeAnimation;
@@ -409,60 +406,7 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
                                         ),
                                       ),
 
-                                      // Live Order Tracking QR (Expandable or Quick View)
-                                      if (_showQrCode) ...[
-                                        const SizedBox(height: 12),
-                                        _buildDashedLine(),
-                                        const SizedBox(height: 10),
-                                        Center(
-                                          child: Column(
-                                            children: [
-                                              Text(
-                                                'SCAN TO TRACK LIVE',
-                                                style: GoogleFonts.outfit(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w700,
-                                                  letterSpacing: 1.2,
-                                                  color: const Color(0xFF474A51),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              InkWell(
-                                                onTap: () => OrderTrackingQrDialog.show(context, order),
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(6),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.white,
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(color: const Color(0xFFDDDDDD)),
-                                                  ),
-                                                  child: QrImageView(
-                                                    data: posProvider.kdsServer.getOrderTrackingUrl(
-                                                      order.id,
-                                                      orderNumber: order.orderNumber,
-                                                    ),
-                                                    version: QrVersions.auto,
-                                                    size: 96,
-                                                    backgroundColor: Colors.white,
-                                                    padding: EdgeInsets.zero,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Tap QR to enlarge for customer',
-                                                style: GoogleFonts.outfit(
-                                                  fontSize: 9,
-                                                  color: const Color(0xFF888E96),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-
-                                      const SizedBox(height: 28), // Bottom padding before teeth
+                                      const SizedBox(height: 24), // Bottom padding before teeth
                                     ],
                                   ),
                                 ),
@@ -552,16 +496,15 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
     );
   }
 
-  /// Top Action Bar (Close button & Live QR toggle)
+  /// Top Action Bar (Close button)
   Widget _buildTopActionBar(BuildContext context, PosProvider posProvider) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: const Color(0xFF1B181E).withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(30),
+            shape: BoxShape.circle,
             border: Border.all(
               color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
               width: 1,
@@ -573,60 +516,12 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
               ),
             ],
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Toggle QR Code button
-              TextButton.icon(
-                onPressed: () => setState(() => _showQrCode = !_showQrCode),
-                icon: Icon(
-                  _showQrCode ? Icons.qr_code_rounded : Icons.qr_code_2_rounded,
-                  size: 16,
-                  color: _showQrCode ? CelestialTheme.emeraldReady : CelestialTheme.goldLight,
-                ),
-                label: Text(
-                  _showQrCode ? 'Hide QR' : 'Track QR',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _showQrCode ? CelestialTheme.emeraldReady : CelestialTheme.goldLight,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 16,
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                color: Colors.white.withValues(alpha: 0.2),
-              ),
-              // Full Screen Tracking QR Button
-              IconButton(
-                onPressed: () => OrderTrackingQrDialog.show(context, widget.order),
-                icon: const Icon(Icons.fullscreen_rounded, size: 18, color: CelestialTheme.goldLight),
-                tooltip: 'Enlarge QR for customer',
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-              ),
-              Container(
-                width: 1,
-                height: 16,
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                color: Colors.white.withValues(alpha: 0.2),
-              ),
-              // Close button
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white70),
-                tooltip: 'Close',
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-              ),
-            ],
+          child: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white70),
+            tooltip: 'Close',
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(8),
           ),
         ),
       ],

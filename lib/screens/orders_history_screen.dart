@@ -5,11 +5,8 @@ import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
-import '../widgets/customer_order_approval_dialog.dart';
 import '../widgets/receipt_dialog.dart';
-import '../widgets/order_tracking_qr_dialog.dart';
 import '../widgets/order_details_dialog.dart';
-import '../widgets/customer_feedback_dialog.dart';
 import '../widgets/top_notification.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
@@ -73,20 +70,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
   Widget _buildHeader(PosProvider provider, bool isMobile) {
     final actionButtons = [
-      OutlinedButton.icon(
-        onPressed: () => _showCustomerFeedbackDialog(context, provider),
-        icon: const Icon(Icons.rate_review_rounded, size: 14, color: CelestialTheme.goldLight),
-        label: Text(
-          'Feedback (${provider.customerFeedbacks.length})',
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: CelestialTheme.goldLight,
-          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
       OutlinedButton.icon(
         onPressed: () {
           showDialog(
@@ -349,7 +332,40 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (order.orderType == OrderType.takeaway || order.orderType == OrderType.delivery)
+                        if (order.orderType == OrderType.delivery)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(top: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: CelestialTheme.caramelAccent.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.6)),
+                                ),
+                                child: const Text(
+                                  '🛵 DELIVERY',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: CelestialTheme.caramelAccent,
+                                  ),
+                                ),
+                              ),
+                              if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '📍 ${order.deliveryAddress}',
+                                    style: const TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          )
+                        else if (order.orderType == OrderType.takeaway)
                           Container(
                             margin: const EdgeInsets.only(top: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
@@ -470,65 +486,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 ),
               ),
 
-              // Customer Review snippet (if submitted)
-              if (order.customerFeedback != null) ...[
-                const SizedBox(height: 6),
-                InkWell(
-                  onTap: () => OrderDetailsDialog.show(context, order),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF221710),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Row(
-                          children: List.generate(5, (idx) {
-                            return Icon(
-                              idx < order.customerFeedback!.rating
-                                  ? Icons.star_rounded
-                                  : Icons.star_outline_rounded,
-                              size: 13,
-                              color: idx < order.customerFeedback!.rating
-                                  ? const Color(0xFFFFB800)
-                                  : Colors.white24,
-                            );
-                          }),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${order.customerFeedback!.rating}.0',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: CelestialTheme.goldLight,
-                          ),
-                        ),
-                        if (order.customerFeedback!.message.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '“${order.customerFeedback!.message}”',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontStyle: FontStyle.italic,
-                                color: CelestialTheme.textLight,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right_rounded, size: 13, color: CelestialTheme.goldLight),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+
 
               const SizedBox(height: 8),
 
@@ -720,10 +678,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => CustomerOrderApprovalDialog.show(context, order),
+                    onPressed: () {
+                      provider.updateOrderStatus(order.id, OrderStatus.completed);
+                      TopNotification.show(
+                        context,
+                        message: 'Order ${order.orderNumber} settled & completed!',
+                        icon: Icons.check_circle_rounded,
+                      );
+                    },
                     icon: const Icon(Icons.check_circle_rounded, size: 16, color: CelestialTheme.bgDark),
                     label: Text(
-                      'Confirm & Settle Payment (₱${order.totalAmount.toStringAsFixed(0)})',
+                      'Confirm & Complete Order (₱${order.totalAmount.toStringAsFixed(0)})',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
@@ -776,15 +741,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    onPressed: () => OrderTrackingQrDialog.show(context, order),
-                    icon: const Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 19),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Customer Tracking QR',
-                  ),
-                  const SizedBox(width: 2),
-                  IconButton(
                     onPressed: () {
                       showDialog(
                         context: context,
@@ -823,6 +779,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         return CelestialTheme.emeraldReady;
       case OrderStatus.preparing:
         return CelestialTheme.amberBrewing;
+      case OrderStatus.outForDelivery:
+        return CelestialTheme.caramelAccent;
       case OrderStatus.confirmed:
         return CelestialTheme.goldPrimary;
       case OrderStatus.pending:
@@ -855,10 +813,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ],
       ),
     );
-  }
-
-  void _showCustomerFeedbackDialog(BuildContext context, PosProvider provider) {
-    CustomerFeedbackDialog.show(context);
   }
 
   void _confirmDeleteSingleOrder(BuildContext context, PosProvider provider, Order order) {

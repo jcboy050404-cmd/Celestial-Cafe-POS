@@ -112,27 +112,26 @@ class AnalyticsScreen extends StatelessWidget {
         subtitle: '${provider.todayOrdersCount} orders placed',
         icon: Icons.payments_rounded,
         iconColor: CelestialTheme.goldPrimary,
-        glow: true,
       ),
       _buildKpiCard(
         title: 'TOTAL ORDERS',
         value: '${provider.todayOrdersCount}',
-        subtitle: '${provider.activeKdsOrders.length} active in queue',
+        subtitle: provider.todayOrdersCount > 0 ? 'Processed today' : 'No orders yet',
         icon: Icons.shopping_bag_rounded,
         iconColor: CelestialTheme.amberBrewing,
       ),
       _buildKpiCard(
         title: 'AVG ORDER VALUE',
         value: '₱${provider.averageOrderValue.toStringAsFixed(0)}',
-        subtitle: 'Live ticket average',
+        subtitle: 'Daily ticket average',
         icon: Icons.trending_up_rounded,
         iconColor: CelestialTheme.emeraldReady,
       ),
       _buildKpiCard(
         title: 'TERMINAL STATUS',
         value: 'POS Ready',
-        subtitle: 'Offline Hotspot Ready',
-        icon: Icons.wifi_tethering_rounded,
+        subtitle: 'Standalone Terminal',
+        icon: Icons.point_of_sale_rounded,
         iconColor: CelestialTheme.blueInfo,
       ),
     ];
@@ -160,7 +159,6 @@ class AnalyticsScreen extends StatelessWidget {
     required String subtitle,
     required IconData icon,
     required Color iconColor,
-    bool glow = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),

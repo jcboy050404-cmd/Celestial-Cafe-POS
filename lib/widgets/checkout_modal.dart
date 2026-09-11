@@ -3,8 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import 'receipt_dialog.dart';
+import 'trial_expired_dialog.dart';
 
 class CheckoutModal extends StatefulWidget {
   const CheckoutModal({super.key});
@@ -51,6 +53,13 @@ class _CheckoutModalState extends State<CheckoutModal> {
           backgroundColor: CelestialTheme.roseAlert,
         ),
       );
+      return;
+    }
+
+    final auth = Provider.of<AuthService>(context, listen: false);
+    if (!auth.isAdmin && auth.currentUser?.isTrialExpired == true) {
+      Navigator.of(context).pop();
+      TrialExpiredDialog.show(context);
       return;
     }
 

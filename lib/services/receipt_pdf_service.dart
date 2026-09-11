@@ -253,41 +253,19 @@ class ReceiptPdfService {
               _buildDashedLine(),
               pw.SizedBox(height: 6),
 
-              // Live Order Tracking QR Code
+              // Order Barcode Verification
               pw.Container(
                 alignment: pw.Alignment.center,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text(
-                      'SCAN TO TRACK ORDER STATUS',
-                      style: pw.TextStyle(
-                        fontSize: 7.5,
-                        fontWeight: pw.FontWeight.bold,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    pw.SizedBox(height: 3),
                     pw.BarcodeWidget(
-                      data: posProvider.kdsServer.getOrderTrackingUrl(
-                        order.id,
-                        orderNumber: order.orderNumber,
-                      ),
-                      barcode: pw.Barcode.qrCode(),
-                      width: 62,
-                      height: 62,
-                      drawText: false,
-                    ),
-                    pw.SizedBox(height: 3),
-                    pw.Text(
-                      'Rings & vibrates phone when ready for pickup',
-                      textAlign: pw.TextAlign.center,
-                      style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700),
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      'TICKET: ${order.orderNumber}',
-                      style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+                      data: order.orderNumber,
+                      barcode: pw.Barcode.code128(),
+                      width: 140,
+                      height: 34,
+                      drawText: true,
+                      textStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
                     ),
                   ],
                 ),

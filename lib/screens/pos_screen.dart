@@ -6,9 +6,9 @@ import '../models/order.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/cart_panel.dart';
-import '../widgets/customer_order_approval_dialog.dart';
 import '../widgets/customization_dialog.dart';
 import '../widgets/menu_item_card.dart';
+import '../widgets/signature_banner_dialog.dart';
 
 class PosScreen extends StatelessWidget {
   const PosScreen({super.key});
@@ -41,10 +41,6 @@ class PosScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Pending Customer Orders Banner (if any self-orders awaiting approval)
-                    if (posProvider.pendingCustomerOrders.isNotEmpty)
-                      _buildPendingApprovalsBanner(context, posProvider),
-
                     // STICKY Search Bar (Search field + Counter, slide tag buttons removed)
                     _buildStickySearchBar(context, posProvider),
 
@@ -75,15 +71,19 @@ class PosScreen extends StatelessWidget {
   }
 
   void _openSignatureLatte(BuildContext context, PosProvider provider) {
+    final targetId = provider.signatureBannerItemId;
     final item = provider.menuItems.firstWhere(
-      (i) => i.id == 'nesp_1' || i.name.toLowerCase().contains('celestial signature latte'),
+      (i) => i.id == targetId,
       orElse: () => provider.menuItems.firstWhere(
-        (i) => i.name.toLowerCase().contains('latte'),
-        orElse: () => provider.menuItems.first,
+        (i) => i.id == 'nesp_1' || i.name.toLowerCase().contains('celestial signature latte'),
+        orElse: () => provider.menuItems.firstWhere(
+          (i) => i.name.toLowerCase().contains('latte'),
+          orElse: () => provider.menuItems.first,
+        ),
       ),
     );
 
-    // Make the Celestial Signature Latte item appear right in the menu catalog list below
+    // Make the signature item appear right in the menu catalog list below
     provider.setCategory(ItemCategory.all);
     provider.setSearchQuery(item.name);
 
@@ -134,6 +134,23 @@ class PosScreen extends StatelessWidget {
 
   // Micro-Skeuomorphism (Hero Elements): Tactile realism with realistic product photography
   Widget _buildHeroBaristaSpotlight(BuildContext context, PosProvider provider, bool isDesktop) {
+    if (!provider.signatureBannerEnabled) {
+      return const SizedBox.shrink();
+    }
+
+    final badgeText = provider.signatureBannerBadge.isNotEmpty
+        ? provider.signatureBannerBadge
+        : (isDesktop ? 'CELESTIAL SIGNATURE CRAFT' : 'SIGNATURE CRAFT');
+    final titleText = provider.signatureBannerTitle.isNotEmpty
+        ? provider.signatureBannerTitle
+        : 'Celestial Signature Latte';
+    final subtitleText = provider.signatureBannerSubtitle.isNotEmpty
+        ? provider.signatureBannerSubtitle
+        : 'House specialty handcrafted celestial latte blend with silky sweet foam';
+    final buttonText = provider.signatureBannerButtonText.isNotEmpty
+        ? provider.signatureBannerButtonText
+        : (isDesktop ? 'Order Signature' : 'Order');
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       decoration: CelestialTheme.tactileHero(),
@@ -161,12 +178,21 @@ class PosScreen extends StatelessWidget {
                           ).createShader(rect);
                         },
                         blendMode: BlendMode.dstIn,
-                        child: Image.asset(
-                          'assets/images/hero_coffee_splash.jpg',
-                          fit: BoxFit.cover,
-                          alignment: Alignment.centerRight,
-                          errorBuilder: (context, error, stackTrace) => Container(color: CelestialTheme.bgCardHover),
-                        ),
+                        child: provider.hasCustomSignatureBannerImage
+                            ? Image.memory(
+                                provider.signatureBannerImageBytes!,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.centerRight,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(color: CelestialTheme.bgCardHover),
+                              )
+                            : Image.asset(
+                                'assets/images/hero_coffee_splash.jpg',
+                                fit: BoxFit.cover,
+                                alignment: Alignment.centerRight,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(color: CelestialTheme.bgCardHover),
+                              ),
                       ),
                     ),
                   ],
@@ -204,7 +230,7 @@ class PosScreen extends StatelessWidget {
                                 const SizedBox(width: 5),
                                 Flexible(
                                   child: Text(
-                                    isDesktop ? 'CELESTIAL SIGNATURE CRAFT' : 'SIGNATURE CRAFT',
+                                    badgeText,
                                     style: GoogleFonts.outfit(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.bold,
@@ -220,7 +246,7 @@ class PosScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            'Celestial Signature Latte',
+                            titleText,
                             style: GoogleFonts.outfit(
                               fontSize: isDesktop ? 17 : 13.5,
                               fontWeight: FontWeight.bold,
@@ -232,7 +258,7 @@ class PosScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'House specialty handcrafted celestial latte blend with silky sweet foam',
+                            subtitleText,
                             style: GoogleFonts.outfit(
                               fontSize: isDesktop ? 11.5 : 10,
                               color: CelestialTheme.creamSoft,
@@ -244,12 +270,37 @@ class PosScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // Quick explore button
+                    // Quick customize button
+                    IconButton(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          barrierColor: Colors.black.withValues(alpha: 0.85),
+                          builder: (ctx) => const SignatureBannerDialog(),
+                        );
+                      },
+                      icon: const Icon(Icons.tune_rounded, size: 16),
+                      tooltip: 'Customize Signature Banner',
+                      color: CelestialTheme.goldLight.withValues(alpha: 0.85),
+                      style: IconButton.styleFrom(
+                        backgroundColor: CelestialTheme.bgSurface.withValues(alpha: 0.75),
+                        padding: const EdgeInsets.all(7),
+                        minimumSize: const Size(34, 34),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
+                            color: CelestialTheme.caramelAccent.withValues(alpha: 0.35),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Quick explore / order button
                     ElevatedButton.icon(
                       onPressed: () => _openSignatureLatte(context, provider),
                       icon: const Icon(Icons.auto_awesome_rounded, size: 14),
                       label: Text(
-                        isDesktop ? 'Order Signature Latte' : 'Order',
+                        buttonText,
                         style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11.5),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -542,7 +593,7 @@ class PosScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             // 1. Signature Craft Banner (Hero Barista Spotlight)
-            if (provider.searchQuery.isEmpty)
+            if (provider.searchQuery.isEmpty && provider.signatureBannerEnabled)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 2),
@@ -611,126 +662,6 @@ class PosScreen extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildPendingApprovalsBanner(BuildContext context, PosProvider provider) {
-    final pending = provider.pendingCustomerOrders;
-    final count = pending.length;
-    final firstOrder = pending.first;
-    final tablesText = pending.map((o) => o.tableNumber ?? 'Dine-In').toSet().take(3).join(', ');
-
-    return InkWell(
-      onTap: () {
-        if (count == 1) {
-          CustomerOrderApprovalDialog.show(context, firstOrder);
-        } else {
-          provider.setNavIndex(1);
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: CelestialTheme.bgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.45), width: 1.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.30),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: CelestialTheme.caramelAccent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.hourglass_top_rounded, color: CelestialTheme.bgDark, size: 16),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '$count CUSTOMER ORDER${count > 1 ? "S" : ""} AWAITING APPROVAL',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.6,
-                            color: CelestialTheme.goldLight,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.35)),
-                          ),
-                          child: Text(
-                            tablesText,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    count == 1
-                        ? 'Order ${firstOrder.orderNumber} (${firstOrder.customerName}) is ready for payment settlement.'
-                        : 'Tap to review and approve incoming table self-orders.',
-                    style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: CelestialTheme.goldGradient,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    count == 1 ? 'Review & Pay' : 'View All ($count)',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: CelestialTheme.bgDark,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.arrow_forward_rounded, size: 12, color: CelestialTheme.bgDark),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

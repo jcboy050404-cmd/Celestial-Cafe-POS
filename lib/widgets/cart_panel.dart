@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import 'checkout_modal.dart';
 import 'item_thumbnail.dart';
 import 'receipt_dialog.dart';
+import 'trial_expired_dialog.dart';
 
 class CartPanel extends StatelessWidget {
   final bool isMobileModal;
@@ -159,41 +161,6 @@ class CartPanel extends StatelessWidget {
 
           // Order Header & Clear button
           _buildCartHeader(context, posProvider),
-
-          if (posProvider.pendingCustomerOrders.isNotEmpty)
-            InkWell(
-              onTap: () {
-                if (isMobileModal) Navigator.pop(context);
-                posProvider.setNavIndex(1);
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                  border: Border(
-                    bottom: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.6), width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.hourglass_top_rounded, size: 16, color: CelestialTheme.goldLight),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${posProvider.pendingCustomerOrders.length} Pending Table Order${posProvider.pendingCustomerOrders.length > 1 ? 's' : ''} • Tap to Review',
-                        style: const TextStyle(
-                          color: CelestialTheme.goldLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: CelestialTheme.goldLight),
-                  ],
-                ),
-              ),
-            ),
 
           const Divider(height: 1),
 
@@ -816,6 +783,11 @@ class CartPanel extends StatelessWidget {
               onPressed: provider.cart.isEmpty
                   ? null
                   : () async {
+                      final auth = Provider.of<AuthService>(context, listen: false);
+                      if (!auth.isAdmin && auth.currentUser?.isTrialExpired == true) {
+                        TrialExpiredDialog.show(context);
+                        return;
+                      }
                       final rootNav = Navigator.of(context, rootNavigator: true);
                       if (isMobileModal) {
                         Navigator.of(context).pop(); // Close bottom sheet

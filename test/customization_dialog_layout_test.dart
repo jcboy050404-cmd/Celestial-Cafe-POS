@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:celestial_pos/models/menu_item.dart';
 import 'package:celestial_pos/widgets/customization_dialog.dart';
-import 'package:celestial_pos/services/web_templates/customer_web_template.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -89,13 +88,5 @@ void main() {
 
     // "Hot" is in 2-column layout (~175-195px), while "Steamed White Rice" is in full-width row (>300px)
     expect(riceSize.width, greaterThan(hotSize.width));
-  });
-
-  test('Customer Web Template contains hasLongText and row layout for single-select groups', () {
-    expect(customerOrderHtmlTemplate.contains('hasLongText'), isTrue);
-    expect(customerOrderHtmlTemplate.contains('selectSingleAddonRow'), isTrue);
-    expect(customerOrderHtmlTemplate.contains('cust-addon-list'), isTrue);
-    expect(customerOrderHtmlTemplate.contains('cust-addon-row'), isTrue);
-    expect(customerOrderHtmlTemplate.contains('cust-addon-name'), isTrue);
   });
 }

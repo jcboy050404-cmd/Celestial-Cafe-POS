@@ -1,4 +1,3 @@
-import 'customer_feedback.dart';
 import 'menu_item.dart';
 
 enum OrderType {
@@ -16,6 +15,7 @@ enum OrderStatus {
   confirmed('In Queue', '📋'),
   preparing('Brewing / Kitchen', '🔥'),
   ready('Ready for Pickup', '✨'),
+  outForDelivery('Out for Delivery', '🛵'),
   completed('Completed', '✅'),
   cancelled('Cancelled', '❌');
 
@@ -26,7 +26,8 @@ enum OrderStatus {
 
 enum PaymentMethod {
   cash('Cash', '💵'),
-  mobilePay('GCash', '📱');
+  mobilePay('GCash', '📱'),
+  cod('Cash on Delivery (COD)', '🛵');
 
   final String label;
   final String icon;
@@ -137,6 +138,8 @@ class Order {
   final OrderType orderType;
   final String? tableNumber;
   final String customerName;
+  final String? deliveryAddress;
+  final String? customerPhone;
   final List<OrderItem> items;
   final double subtotal;
   final double taxAmount;
@@ -151,7 +154,6 @@ class Order {
   final DateTime createdAt;
   final String cashierName;
   final String? orderNotes;
-  CustomerFeedback? customerFeedback;
 
   Order({
     required this.id,
@@ -159,6 +161,8 @@ class Order {
     required this.orderType,
     this.tableNumber,
     required this.customerName,
+    this.deliveryAddress,
+    this.customerPhone,
     required this.items,
     required this.subtotal,
     required this.taxAmount,
@@ -173,7 +177,6 @@ class Order {
     required this.createdAt,
     required this.cashierName,
     this.orderNotes,
-    this.customerFeedback,
   });
 
   Map<String, dynamic> toJson() => {
@@ -182,6 +185,8 @@ class Order {
         'orderType': orderType.name,
         'tableNumber': tableNumber,
         'customerName': customerName,
+        'deliveryAddress': deliveryAddress,
+        'customerPhone': customerPhone,
         'items': items.map((i) => i.toJson()).toList(),
         'subtotal': subtotal,
         'taxAmount': taxAmount,
@@ -196,7 +201,6 @@ class Order {
         'createdAt': createdAt.toIso8601String(),
         'cashierName': cashierName,
         'orderNotes': orderNotes,
-        'customerFeedback': customerFeedback?.toJson(),
       };
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -224,6 +228,8 @@ class Order {
       orderType: oType,
       tableNumber: json['tableNumber'] as String?,
       customerName: json['customerName'] as String? ?? '',
+      deliveryAddress: json['deliveryAddress'] as String?,
+      customerPhone: json['customerPhone'] as String?,
       items: (json['items'] as List<dynamic>?)
               ?.map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
               .toList() ??
@@ -243,9 +249,6 @@ class Order {
           : DateTime.now(),
       cashierName: json['cashierName'] as String? ?? 'Main POS',
       orderNotes: json['orderNotes'] as String?,
-      customerFeedback: json['customerFeedback'] != null
-          ? CustomerFeedback.fromJson(json['customerFeedback'] as Map<String, dynamic>)
-          : null,
     );
   }
 
@@ -275,6 +278,8 @@ class Order {
     OrderType? orderType,
     String? tableNumber,
     String? customerName,
+    String? deliveryAddress,
+    String? customerPhone,
     List<OrderItem>? items,
     double? subtotal,
     double? taxAmount,
@@ -289,7 +294,6 @@ class Order {
     DateTime? createdAt,
     String? cashierName,
     String? orderNotes,
-    CustomerFeedback? customerFeedback,
   }) {
     return Order(
       id: id ?? this.id,
@@ -297,6 +301,8 @@ class Order {
       orderType: orderType ?? this.orderType,
       tableNumber: tableNumber ?? this.tableNumber,
       customerName: customerName ?? this.customerName,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      customerPhone: customerPhone ?? this.customerPhone,
       items: items ?? this.items,
       subtotal: subtotal ?? this.subtotal,
       taxAmount: taxAmount ?? this.taxAmount,
@@ -311,7 +317,6 @@ class Order {
       createdAt: createdAt ?? this.createdAt,
       cashierName: cashierName ?? this.cashierName,
       orderNotes: orderNotes ?? this.orderNotes,
-      customerFeedback: customerFeedback ?? this.customerFeedback,
     );
   }
 }

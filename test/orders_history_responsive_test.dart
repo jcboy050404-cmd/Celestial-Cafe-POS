@@ -27,20 +27,11 @@ void main() {
       final provider = PosProvider();
       final firstItem = provider.menuItems.first;
 
-      final order = provider.submitCustomerSelfOrder(
-        tableNumber: 'Table 01',
-        customerName: 'Guest',
-        items: [
-          OrderItem(
-            id: 'item_test_1',
-            menuItem: firstItem,
-            quantity: 2,
-          ),
-        ],
+      provider.addToCart(firstItem, quantity: 2);
+      provider.completeCheckout(
         paymentMethod: PaymentMethod.cash,
+        amountTendered: 1000,
       );
-
-      provider.updateOrderStatus(order.id, OrderStatus.completed);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -56,7 +47,6 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       expect(find.text('Order History'), findsOneWidget);
-      expect(find.text('Feedback (0)'), findsOneWidget);
       expect(find.text('Start at #1'), findsOneWidget);
       expect(find.text('Clear History'), findsOneWidget);
     });

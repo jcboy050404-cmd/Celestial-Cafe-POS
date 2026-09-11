@@ -235,7 +235,7 @@ class PriceEditorDialog {
                               ),
                               Switch.adaptive(
                                 value: applyModifiersGlobally,
-                                activeColor: const Color(0xFFD48B28),
+                                activeThumbColor: const Color(0xFFD48B28),
                                 activeTrackColor: const Color(0xFF382214),
                                 onChanged: (val) => setDialogState(() => applyModifiersGlobally = val),
                               ),
@@ -588,7 +588,7 @@ class PriceEditorDialog {
                           ),
                           Switch.adaptive(
                             value: applyGlobally,
-                            activeColor: const Color(0xFFD48B28),
+                            activeThumbColor: const Color(0xFFD48B28),
                             activeTrackColor: const Color(0xFF382214),
                             onChanged: (val) => setDlgState(() => applyGlobally = val),
                           ),

@@ -71,13 +71,11 @@ void main() {
       }
     }
 
-    // Verify Customer Web JSON reflects the updated prices
-    final customerMenu = provider.getMenuJsonForCustomer();
-    final customerCombo = customerMenu.firstWhere((m) => m['id'] == 'dn_1');
-    final custCustoms = (customerCombo['customizations'] as List);
-    final custFlavor = custCustoms.firstWhere((g) => g['id'] == 'dinner_flavor');
-    final custSpicy = (custFlavor['options'] as List).firstWhere((o) => (o['name'] as String).contains('Spicy'));
-    expect(custSpicy['priceAdjustment'], 10.0);
+    // Verify provider menu item reflects updated modifier price
+    final comboItem = provider.menuItems.firstWhere((m) => m.id == 'dn_1');
+    final flavorGroup = comboItem.customizationGroups.firstWhere((g) => g.id == 'dinner_flavor');
+    final spicyOption = flavorGroup.options.firstWhere((o) => o.name.contains('Spicy'));
+    expect(spicyOption.extraPrice, 10.0);
   });
 
   testWidgets('PriceEditorDialog opens and allows editing option prices', (tester) async {

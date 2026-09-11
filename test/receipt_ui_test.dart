@@ -86,6 +86,6 @@ void main() {
     expect(find.text('1x Chicken Soup'), findsOneWidget);
     expect(find.text('2x Tomato Soup'), findsOneWidget);
     expect(find.text('Print Receipt'), findsOneWidget);
-    expect(find.text('Track QR'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:celestial_pos/providers/pos_provider.dart';
+import 'package:celestial_pos/services/auth_service.dart';
 import 'package:celestial_pos/widgets/settings_dialog.dart';
 
 void main() {
@@ -19,8 +20,11 @@ void main() {
       final provider = PosProvider();
 
       await tester.pumpWidget(
-        ChangeNotifierProvider<PosProvider>.value(
-          value: provider,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<PosProvider>.value(value: provider),
+            ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: Builder(
@@ -53,8 +57,11 @@ void main() {
       final provider = PosProvider();
 
       await tester.pumpWidget(
-        ChangeNotifierProvider<PosProvider>.value(
-          value: provider,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<PosProvider>.value(value: provider),
+            ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: Builder(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:celestial_pos/models/menu_item.dart';
-import 'package:celestial_pos/models/order.dart';
 import 'package:celestial_pos/providers/pos_provider.dart';
 import 'package:celestial_pos/widgets/customization_dialog.dart';
 

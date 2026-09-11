@@ -125,11 +125,14 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
         _selectedOptions[group.id] = currentSelected.where((o) => o.name != option.name).toList();
       } else {
         if (currentSelected.any((o) => o.name == option.name)) {
-          final liveGroup = _liveItem.customizationGroups.firstWhere(
+          // Read from _currentItem (already updated above) to avoid stale provider state
+          final updatedGroup = _currentItem.customizationGroups.firstWhere(
             (g) => g.id == group.id,
             orElse: () => group,
           );
-          final nextAvailable = liveGroup.options.where((o) => o.isAvailable && o.name != option.name).firstOrNull;
+          final nextAvailable = updatedGroup.options
+              .where((o) => o.isAvailable && o.name != option.name)
+              .firstOrNull;
           _selectedOptions[group.id] = nextAvailable != null ? [nextAvailable] : [];
         }
       }
@@ -305,7 +308,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           ),
                           Switch.adaptive(
                             value: applyGlobally,
-                            activeColor: const Color(0xFFD48B28),
+                            activeThumbColor: const Color(0xFFD48B28),
                             activeTrackColor: const Color(0xFF382214),
                             inactiveThumbColor: const Color(0xFF9E8A7D),
                             inactiveTrackColor: const Color(0xFF281F1A),
@@ -324,7 +327,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                         shrinkWrap: true,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         itemCount: liveGroup.options.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (context, index) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final opt = liveGroup.options[index];
                           final isAvail = opt.isAvailable;
@@ -436,7 +439,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                 const SizedBox(width: 8),
                                 Switch.adaptive(
                                   value: isAvail,
-                                  activeColor: const Color(0xFF10B981),
+                                  activeThumbColor: const Color(0xFF10B981),
                                   activeTrackColor: const Color(0xFF10B981).withValues(alpha: 0.3),
                                   inactiveThumbColor: CelestialTheme.roseAlert,
                                   inactiveTrackColor: CelestialTheme.roseAlert.withValues(alpha: 0.25),
