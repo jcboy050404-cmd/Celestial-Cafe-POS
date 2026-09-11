@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -603,26 +604,88 @@ class _LoginScreenState extends State<LoginScreen>
 
     return Scaffold(
       backgroundColor: CelestialTheme.bgDark,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 32, vertical: 24),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 460),
-            padding: EdgeInsets.all(isMobile ? 24 : 36),
-            decoration: BoxDecoration(
-              color: CelestialTheme.bgCard,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: CelestialTheme.borderWarm, width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. High-resolution cinematic cafe background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login_bg.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
             ),
-            child: FadeTransition(
-              opacity: _fadeAnim,
+          ),
+
+          // 2. Cinematic Vignette and Dark Espresso Gradient Overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.25,
+                  colors: [
+                    CelestialTheme.bgDark.withValues(alpha: 0.70),
+                    CelestialTheme.bgDark.withValues(alpha: 0.88),
+                    Colors.black.withValues(alpha: 0.96),
+                  ],
+                  stops: const [0.0, 0.55, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Ambient Gold Glow Halo behind Card
+          Center(
+            child: Container(
+              width: 420,
+              height: 420,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.16),
+                    blurRadius: 180,
+                    spreadRadius: 60,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 4. Foreground Content with Frosted Glassmorphic Login Card
+          Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 32, vertical: 24),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    padding: EdgeInsets.all(isMobile ? 24 : 36),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141210).withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                        width: 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          blurRadius: 40,
+                          spreadRadius: 4,
+                          offset: const Offset(0, 16),
+                        ),
+                        BoxShadow(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.08),
+                          blurRadius: 30,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -784,8 +847,12 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+],
+),
+);
+}
 
   // ── SIGN IN FORM ──────────────────────────────────────────────────────────
   Widget _buildSignInForm(AuthService auth) {
