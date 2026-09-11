@@ -629,30 +629,40 @@ class _LoginScreenState extends State<LoginScreen>
                 children: [
                   // Brand logo
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.6),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 10,
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.22),
+                          blurRadius: 18,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/images/Logo.png',
+                        'assets/images/jc_pos_logo.png',
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          color: CelestialTheme.bgSurface,
-                          child: const Icon(Icons.local_cafe_rounded,
-                              color: CelestialTheme.goldPrimary, size: 32),
+                        errorBuilder: (context, error, stackTrace) => Image.asset(
+                          'assets/images/Logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: CelestialTheme.bgSurface,
+                            child: const Icon(Icons.point_of_sale_rounded,
+                                color: CelestialTheme.goldPrimary, size: 36),
+                          ),
                         ),
                       ),
                     ),
