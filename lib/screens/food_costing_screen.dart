@@ -264,9 +264,9 @@ class _MenuCostTableTabState extends State<_MenuCostTableTab> {
                     border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
                   ),
                   child: TextField(
-                    style: const TextStyle(fontSize: 12, color: CelestialTheme.textLight),
+                    style: TextStyle(fontSize: 12, color: CelestialTheme.textLight),
                     onChanged: (v) => setState(() => _search = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Search items…',
                       hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.textSubtle),
                       prefixIcon: Icon(Icons.search_rounded, size: 16, color: CelestialTheme.goldPrimary),
@@ -430,7 +430,7 @@ class _MenuCostTableTabState extends State<_MenuCostTableTab> {
                       ),
                       Text(
                         item.categoryLabel,
-                        style: const TextStyle(fontSize: 9, color: CelestialTheme.textMuted),
+                        style: TextStyle(fontSize: 9, color: CelestialTheme.textMuted),
                       ),
                     ],
                   ),
@@ -547,7 +547,7 @@ class _MenuCostTableTabState extends State<_MenuCostTableTab> {
 
   Widget _th(String text) => Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.bold,
           color: CelestialTheme.textMuted,
@@ -560,7 +560,7 @@ class _MenuCostTableTabState extends State<_MenuCostTableTab> {
         child: Text(
           text,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.bold,
             color: CelestialTheme.textMuted,
@@ -862,8 +862,8 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
                   key: ValueKey(_selectedItem?.id),
                   initialValue: _selectedItem,
                   dropdownColor: CelestialTheme.bgCard,
-                  style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                  hint: const Text('Select a menu item to load its recipe…',
+                  style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                  hint: Text('Select a menu item to load its recipe…',
                       style: TextStyle(fontSize: 12, color: CelestialTheme.textSubtle)),
                   decoration: InputDecoration(
                     isDense: true,
@@ -1006,8 +1006,8 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
               children: [
                 TextButton.icon(
                   onPressed: _addIngRow,
-                  icon: const Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
-                  label: const Text('Add Ingredient',
+                  icon: Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
+                  label: Text('Add Ingredient',
                       style: TextStyle(fontSize: 11, color: CelestialTheme.goldPrimary)),
                   style: TextButton.styleFrom(padding: EdgeInsets.zero),
                 ),
@@ -1081,8 +1081,8 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
               children: [
                 TextButton.icon(
                   onPressed: _addMatRow,
-                  icon: const Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
-                  label: const Text('Add Material',
+                  icon: Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
+                  label: Text('Add Material',
                       style: TextStyle(fontSize: 11, color: CelestialTheme.goldPrimary)),
                   style: TextButton.styleFrom(padding: EdgeInsets.zero),
                 ),
@@ -1316,10 +1316,10 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
             ? null
             : () => _saveToItem(context, provider),
         icon: _isSaving
-            ? const SizedBox(
+            ? SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
               )
             : const Icon(Icons.save_rounded, size: 16),
         label: Text(
@@ -1332,7 +1332,7 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _selectedItem != null ? CelestialTheme.goldPrimary : CelestialTheme.bgCard,
-          foregroundColor: _selectedItem != null ? CelestialTheme.bgDark : CelestialTheme.textMuted,
+          foregroundColor: _selectedItem != null ? CelestialTheme.primaryBtnText : CelestialTheme.textMuted,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -1383,8 +1383,9 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
     StateSetter setS, {
     String hint = '',
     bool isNum = false,
-    Color accentColor = CelestialTheme.goldPrimary,
+    Color? accentColor,
   }) {
+    final effectiveAccent = accentColor ?? CelestialTheme.goldPrimary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1402,26 +1403,26 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
           controller: ctrl,
           keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
           inputFormatters: isNum ? [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))] : null,
-          style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+          style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
           onChanged: (_) => setS(() {}),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textSubtle),
+            hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.textSubtle),
             filled: true,
             fillColor: CelestialTheme.bgSurface,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: accentColor.withValues(alpha: 0.3)),
+              borderSide: BorderSide(color: effectiveAccent.withValues(alpha: 0.3)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+              borderSide: BorderSide(color: effectiveAccent.withValues(alpha: 0.2)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: accentColor.withValues(alpha: 0.7)),
+              borderSide: BorderSide(color: effectiveAccent.withValues(alpha: 0.7)),
             ),
           ),
         ),
@@ -1449,9 +1450,9 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
       onChanged: (_) => setS(() {}),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
+        hintStyle: TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
         prefixText: prefix,
-        prefixStyle: const TextStyle(fontSize: 10, color: CelestialTheme.goldPrimary),
+        prefixStyle: TextStyle(fontSize: 10, color: CelestialTheme.goldPrimary),
         filled: true,
         fillColor: isNum
             ? CelestialTheme.goldPrimary.withValues(alpha: 0.06)
@@ -1493,7 +1494,7 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
         child: DropdownButton<String>(
           value: value,
           dropdownColor: CelestialTheme.bgCard,
-          style: const TextStyle(color: CelestialTheme.textLight, fontSize: 11),
+          style: TextStyle(color: CelestialTheme.textLight, fontSize: 11),
           isExpanded: true,
           items: kIngredientUnits.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
           onChanged: onChanged,
@@ -1572,7 +1573,7 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
 
   Widget _th(String text) => Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.bold,
           color: CelestialTheme.textMuted,
@@ -1585,7 +1586,7 @@ class _RecipeCalculatorTabState extends State<_RecipeCalculatorTab> {
         child: Text(
           text,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.bold,
             color: CelestialTheme.textMuted,

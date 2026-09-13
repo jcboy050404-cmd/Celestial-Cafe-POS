@@ -6,8 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
+import '../services/auth_service.dart';
+import '../services/cloud_backup_service.dart';
+import '../theme/celestial_theme.dart';
 
 class PosProvider extends ChangeNotifier {
+  static const String _keyThemeMode = 'celestial_theme_mode_v1';
   static const String _keyMenuItems = 'celestial_menu_items_v1';
   static const String _keyOrders = 'celestial_orders_v1';
   static const String _keyOrderSeq = 'celestial_order_seq_v1';
@@ -34,7 +38,7 @@ class PosProvider extends ChangeNotifier {
   String? _customLogoBase64;
   Uint8List? _customLogoBytes;
   String _storeName = 'CELESTIAL CAFE';
-  String _storeTagline = 'COFFEE • MILKTEA • CHEESECAKE • BITES';
+  String _storeTagline = '';
   String _storeAddress = 'Celestial Cafe Main Branch\nTel: (02) 8721-4900 • TIN #482-901-382-000';
 
   // Signature Craft Hero Banner Customization
@@ -166,26 +170,18 @@ class PosProvider extends ChangeNotifier {
           _menuItems = decoded
               .map((item) => MenuItem.fromJson(item as Map<String, dynamic>))
               .toList();
-
-          final existingIds = _menuItems.map((m) => m.id).toSet();
-          bool menuUpdated = false;
-          for (var initialItem in initialCelestialMenu) {
-            if (!existingIds.contains(initialItem.id)) {
-              _menuItems.add(initialItem);
-              menuUpdated = true;
-            }
-          }
-          if (menuUpdated) {
-            _saveMenuToStorage();
+          if (_menuItems.isEmpty) {
+            _menuItems = List.from(initialCelestialMenu);
+            await _saveMenuToStorage();
           }
         } catch (e) {
           if (kDebugMode) print('Error parsing stored menu JSON: $e');
           _menuItems = List.from(initialCelestialMenu);
-          _saveMenuToStorage();
+          await _saveMenuToStorage();
         }
       } else {
         _menuItems = List.from(initialCelestialMenu);
-        _saveMenuToStorage();
+        await _saveMenuToStorage();
       }
 
       // 3. Load custom categories
@@ -289,6 +285,12 @@ class PosProvider extends ChangeNotifier {
           _signatureBannerImageBytes = base64Decode(savedSigBannerImage);
         } catch (_) {}
       }
+      final savedTheme = prefs.getString(_keyThemeMode);
+      if (savedTheme == PosThemeMode.londonBistro.name) {
+        CelestialTheme.setThemeMode(PosThemeMode.londonBistro);
+      } else {
+        CelestialTheme.setThemeMode(PosThemeMode.classicEspresso);
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading from local storage: $e');
@@ -297,6 +299,19 @@ class PosProvider extends ChangeNotifier {
 
     _pruneOldOrders();
     _isLoaded = true;
+    notifyListeners();
+  }
+
+  PosThemeMode get themeMode => CelestialTheme.currentMode;
+
+  Future<void> setThemeMode(PosThemeMode mode) async {
+    CelestialTheme.setThemeMode(mode);
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setString(_keyThemeMode, mode.name);
+    } catch (e) {
+      if (kDebugMode) print('Error saving theme mode: $e');
+    }
     notifyListeners();
   }
 
@@ -379,6 +394,7 @@ class PosProvider extends ChangeNotifier {
 
   // Getters - Store & Branding
   Uint8List? get customLogoBytes => _customLogoBytes;
+  String? get customLogoBase64 => _customLogoBase64;
   bool get hasCustomLogo => _customLogoBytes != null;
   String get storeName => _storeName;
   String get storeTagline => _storeTagline;
@@ -1178,6 +1194,62 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Synchronizes store branding & logo to Firebase Cloud if the user is PRO.
+  /// Does not block offline POS usage and handles connection loss gracefully.
+  Future<bool> syncProCloudBackup(AppUser? user) async {
+    if (user == null || (!user.isPro && !user.isAdmin)) return false;
+    return await CloudBackupService().backupProData(
+      user: user,
+      storeName: _storeName,
+      storeTagline: _storeTagline,
+      storeAddress: _storeAddress,
+      logoBytes: _customLogoBytes,
+      logoBase64: _customLogoBase64,
+    );
+  }
+
+  /// Restores store branding and custom logo from a Pro cloud backup.
+  /// Saves directly to local SharedPreferences so data survives offline use.
+  Future<bool> restoreFromProCloudBackup(Map<String, dynamic> backup) async {
+    try {
+      final name = backup['storeName'] as String?;
+      final tagline = backup['storeTagline'] as String?;
+      final address = backup['storeAddress'] as String?;
+
+      if (name != null && name.trim().isNotEmpty) {
+        _storeName = name.trim();
+      }
+      if (tagline != null) {
+        _storeTagline = tagline.trim();
+      }
+      if (address != null) {
+        _storeAddress = address.trim();
+      }
+
+      final logoBase64 = backup['customLogoBase64'] as String?;
+      if (logoBase64 != null && logoBase64.isNotEmpty) {
+        try {
+          _customLogoBase64 = logoBase64;
+          _customLogoBytes = base64Decode(logoBase64);
+        } catch (_) {}
+      }
+
+      final prefs = await _getPrefs();
+      await prefs.setString(_keyStoreName, _storeName);
+      await prefs.setString(_keyStoreTagline, _storeTagline);
+      await prefs.setString(_keyStoreAddress, _storeAddress);
+      if (_customLogoBase64 != null) {
+        await prefs.setString(_keyCustomLogo, _customLogoBase64!);
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('PosProvider: restoreFromProCloudBackup error: $e');
+      return false;
+    }
+  }
+
   Future<void> updateSignatureBanner({
     bool? enabled,
     String? badge,
@@ -1253,6 +1325,7 @@ class PosProvider extends ChangeNotifier {
     await prefs.remove(_keyMenuItems);
     await prefs.remove(_keyOrders);
     await prefs.remove(_keyOrderSeq);
+    await prefs.remove(_keyCustomCategories);
     await prefs.remove(_keySigBannerEnabled);
     await prefs.remove(_keySigBannerBadge);
     await prefs.remove(_keySigBannerTitle);
@@ -1268,10 +1341,35 @@ class PosProvider extends ChangeNotifier {
     _signatureBannerItemId = 'nesp_1';
     _signatureBannerImageBytes = null;
     _signatureBannerImageBase64 = null;
+    _customCategories.clear();
     _menuItems = List.from(initialCelestialMenu);
+    await _saveMenuToStorage();
+    await _saveCustomCategoriesToStorage();
     _orders.clear();
     _orderSequence = 1;
     clearCart();
+    notifyListeners();
+  }
+
+  Future<void> resetCategoriesAndMenu() async {
+    _customCategories.clear();
+    await _saveCustomCategoriesToStorage();
+    _menuItems = List.from(initialCelestialMenu);
+    await _saveMenuToStorage();
+    _selectedCategoryId = 'all';
+    _selectedCategory = ItemCategory.all;
+    notifyListeners();
+  }
+
+  Future<void> loadSampleMenu() async {
+    _menuItems = List.from(initialCelestialMenu);
+    await _saveMenuToStorage();
+    notifyListeners();
+  }
+
+  Future<void> clearAllMenuItems() async {
+    _menuItems.clear();
+    await _saveMenuToStorage();
     notifyListeners();
   }
 

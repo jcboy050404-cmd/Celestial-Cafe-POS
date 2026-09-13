@@ -62,7 +62,7 @@ class UpgradeProDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.workspace_premium_rounded,
                         color: CelestialTheme.goldPrimary,
                         size: 24,
@@ -93,14 +93,14 @@ class UpgradeProDialog extends StatelessWidget {
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                  icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                   splashRadius: 18,
                 ),
               ],
             ),
 
             const SizedBox(height: 18),
-            const Divider(color: CelestialTheme.borderSubtle, height: 1),
+            Divider(color: CelestialTheme.borderSubtle, height: 1),
             const SizedBox(height: 18),
 
             // Current Status Banner
@@ -128,7 +128,7 @@ class UpgradeProDialog extends StatelessWidget {
                       style: GoogleFonts.outfit(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: CelestialTheme.bgDark,
+                        color: CelestialTheme.primaryBtnText,
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -194,6 +194,10 @@ class UpgradeProDialog extends StatelessWidget {
               'Unlimited Catalog & Custom Categories',
               'Create unlimited custom categories, modifiers, and beverage variants',
             ),
+            _buildFeatureRow(
+              'Cloud Email Backup & Restore',
+              'Automatic cloud recovery for your cafe settings, logo, and license even after reinstalling or clearing app data',
+            ),
 
             const SizedBox(height: 16),
 
@@ -216,7 +220,7 @@ class UpgradeProDialog extends StatelessWidget {
                         color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.admin_panel_settings_rounded, color: CelestialTheme.goldLight, size: 20),
+                      child: Icon(Icons.admin_panel_settings_rounded, color: CelestialTheme.goldLight, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -258,7 +262,7 @@ class UpgradeProDialog extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: CelestialTheme.bgCard,
                       foregroundColor: CelestialTheme.textLight,
-                      side: const BorderSide(color: CelestialTheme.borderWarm),
+                      side: BorderSide(color: CelestialTheme.borderWarm),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
@@ -277,7 +281,7 @@ class UpgradeProDialog extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.verified_user_rounded, color: CelestialTheme.goldLight, size: 22),
+                    Icon(Icons.verified_user_rounded, color: CelestialTheme.goldLight, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -323,7 +327,7 @@ class UpgradeProDialog extends StatelessWidget {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: CelestialTheme.goldPrimary,
-                      foregroundColor: CelestialTheme.bgDark,
+                      foregroundColor: CelestialTheme.primaryBtnText,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
@@ -344,7 +348,7 @@ class UpgradeProDialog extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle_outline_rounded, color: CelestialTheme.goldPrimary, size: 16),
+          Icon(Icons.check_circle_outline_rounded, color: CelestialTheme.goldPrimary, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

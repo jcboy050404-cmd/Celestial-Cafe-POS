@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,12 +8,14 @@ import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../services/auth_service.dart';
+import '../services/cloud_backup_service.dart';
 import '../theme/celestial_theme.dart';
 import 'price_editor_dialog.dart';
 import 'top_notification.dart';
 import 'admin_management_dialog.dart';
 import 'create_pin_dialog.dart';
 import 'signature_banner_dialog.dart';
+import 'upgrade_pro_dialog.dart';
 
 class SettingsDialog extends StatefulWidget {
   final int initialTab;
@@ -30,6 +32,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late TextEditingController _availabilitySearchController;
   bool _isPickingImage = false;
   bool _isSavingSettings = false;
+  bool _isCloudSyncing = false;
+  bool _isCloudRestoring = false;
   int _activeTab = 0; // 0 = Store & Branding, 1 = Item & Modifier Availability (86 List)
   String _availabilitySearchQuery = '';
   ItemCategory _selectedAvailabilityCategory = ItemCategory.all;
@@ -58,6 +62,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   Future<void> _pickAndUploadLogo(PosProvider provider) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isPickingImage = true);
     try {
       final files = await FilePickerPlatform.instance.pickFiles(
@@ -66,19 +72,18 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
       if (files.isNotEmpty) {
         final file = files.first;
-        Uint8List? bytes;
+        final Uint8List bytes = await file.readAsBytes();
 
-        if (file.path != null) {
-          bytes = await File(file.path!).readAsBytes();
-        }
-
-        if (bytes != null && mounted) {
+        if (mounted) {
           await provider.setCustomLogo(bytes);
+          if (auth.isPro || auth.isAdmin) {
+            unawaited(provider.syncProCloudBackup(auth.currentUser));
+          }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+            messenger.showSnackBar(
+              SnackBar(
                 backgroundColor: CelestialTheme.bgCard,
-                content: Text('✨ Cafe logo updated and saved successfully!'),
+                content: const Text('✨ Cafe logo updated and saved successfully!'),
               ),
             );
           }
@@ -86,7 +91,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             backgroundColor: CelestialTheme.roseAlert,
             content: Text('⚠️ Failed to pick image: $e'),
@@ -99,6 +104,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   void _saveSettings(PosProvider provider) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
     setState(() => _isSavingSettings = true);
     await Future.delayed(const Duration(milliseconds: 250));
     provider.updateStoreDetails(
@@ -106,16 +114,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
       tagline: _taglineController.text,
       address: _addressController.text,
     );
-    if (mounted) setState(() => _isSavingSettings = false);
-    if (mounted) Navigator.pop(context);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: CelestialTheme.bgCard,
-          content: Text('Store branding settings saved!'),
-        ),
-      );
+    if (auth.isPro || auth.isAdmin) {
+      unawaited(provider.syncProCloudBackup(auth.currentUser));
     }
+    if (mounted) setState(() => _isSavingSettings = false);
+    nav.pop();
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: CelestialTheme.bgCard,
+        content: Text('Store branding settings saved!'),
+      ),
+    );
   }
 
   @override
@@ -155,7 +164,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             // Header
             Container(
               padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: 14),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: CelestialTheme.bgCard,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
@@ -170,7 +179,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   Expanded(
                     child: Text(
                       _activeTab == 0
-                          ? (isMobile ? 'Store Settings' : 'Store Settings & Logo')
+                          ? (isMobile ? 'Store & Theme Settings' : 'Store Settings, Theme & Logo')
                           : (isMobile ? 'Item & Modifier 86 List' : 'Item & Modifier Availability (86 List)'),
                       style: GoogleFonts.outfit(
                         fontSize: isMobile ? 15 : 17,
@@ -184,7 +193,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   const SizedBox(width: 6),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                    icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                     splashRadius: 18,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -206,7 +215,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 children: [
                   Expanded(
                     child: _buildTabButton(
-                      title: isMobile ? 'Store' : 'Store & Branding',
+                      title: isMobile ? 'Store & Theme' : 'Store, Theme & Branding',
                       icon: Icons.storefront_rounded,
                       isSelected: _activeTab == 0,
                       onTap: () => setState(() => _activeTab = 0),
@@ -236,6 +245,156 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Section 0: POS Theme & Atmosphere (Dual Theme Switcher)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: provider.themeMode == PosThemeMode.londonBistro
+                            ? const Color(0xFFE52538).withValues(alpha: 0.14)
+                            : CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: provider.themeMode == PosThemeMode.londonBistro
+                              ? const Color(0xFFE52538).withValues(alpha: 0.45)
+                              : CelestialTheme.goldPrimary.withValues(alpha: 0.40),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.palette_rounded,
+                            size: 18,
+                            color: provider.themeMode == PosThemeMode.londonBistro
+                                ? const Color(0xFFE52538)
+                                : CelestialTheme.goldLight,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'CHANGE POS THEME & ATMOSPHERE',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.8,
+                                    color: CelestialTheme.textLight,
+                                  ),
+                                ),
+                                Text(
+                                  'Toggle between Warm Classic and London Bistro styling in real-time',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: CelestialTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (MediaQuery.of(context).size.width >= 360)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: provider.themeMode == PosThemeMode.londonBistro
+                                    ? const Color(0xFFE52538).withValues(alpha: 0.25)
+                                    : CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                provider.themeMode == PosThemeMode.londonBistro
+                                    ? '🇬🇧 London Bistro'
+                                    : '☕ Classic Espresso',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: provider.themeMode == PosThemeMode.londonBistro
+                                      ? const Color(0xFFE52538)
+                                      : CelestialTheme.goldLight,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (isMobile) ...[
+                      _buildThemeCard(
+                        context: context,
+                        mode: PosThemeMode.classicEspresso,
+                        isSelected: provider.themeMode == PosThemeMode.classicEspresso,
+                        onTap: () {
+                          provider.setThemeMode(PosThemeMode.classicEspresso);
+                          setState(() {});
+                        },
+                        title: 'Classic Warm Espresso',
+                        subtitle: 'Roasted espresso, honey gold & toasted caramel',
+                        primaryColor: const Color(0xFFD4A359),
+                        accentColor: const Color(0xFFC48248),
+                        bgColor: const Color(0xFF000000),
+                        icon: Icons.coffee_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildThemeCard(
+                        context: context,
+                        mode: PosThemeMode.londonBistro,
+                        isSelected: provider.themeMode == PosThemeMode.londonBistro,
+                        onTap: () {
+                          provider.setThemeMode(PosThemeMode.londonBistro);
+                          setState(() {});
+                        },
+                        title: 'London Bistro Resto',
+                        subtitle: 'Obsidian matte black & British royal red (Pure Black & Red)',
+                        primaryColor: const Color(0xFFE52538),
+                        accentColor: const Color(0xFFC8102E),
+                        bgColor: const Color(0xFF060608),
+                        icon: Icons.local_bar_rounded,
+                      ),
+                    ] else
+                      Row(
+                        children: [
+                          // Option A: Classic Warm Espresso
+                          Expanded(
+                            child: _buildThemeCard(
+                              context: context,
+                              mode: PosThemeMode.classicEspresso,
+                              isSelected: provider.themeMode == PosThemeMode.classicEspresso,
+                              onTap: () {
+                                provider.setThemeMode(PosThemeMode.classicEspresso);
+                                setState(() {});
+                              },
+                              title: 'Classic Warm Espresso',
+                              subtitle: 'Roasted espresso, honey gold & toasted caramel',
+                              primaryColor: const Color(0xFFD4A359),
+                              accentColor: const Color(0xFFC48248),
+                              bgColor: const Color(0xFF000000),
+                              icon: Icons.coffee_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Option B: London Bistro Black & Red
+                          Expanded(
+                            child: _buildThemeCard(
+                              context: context,
+                              mode: PosThemeMode.londonBistro,
+                              isSelected: provider.themeMode == PosThemeMode.londonBistro,
+                              onTap: () {
+                                provider.setThemeMode(PosThemeMode.londonBistro);
+                                setState(() {});
+                              },
+                              title: 'London Bistro Resto',
+                              subtitle: 'Obsidian matte black & British royal red (Pure Black & Red)',
+                              primaryColor: const Color(0xFFE52538),
+                              accentColor: const Color(0xFFC8102E),
+                              bgColor: const Color(0xFF060608),
+                              icon: Icons.local_bar_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 20),
+
                     // Section 1: Logo Upload & Preview
                     Text(
                       'CAFE LOGO',
@@ -257,33 +416,60 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       child: Row(
                         children: [
                           // Logo Preview Box
-                          Container(
-                            width: 76,
-                            height: 76,
-                            decoration: BoxDecoration(
-                              color: CelestialTheme.bgSurface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: provider.hasCustomLogo
-                                  ? Image.memory(
-                                      provider.customLogoBytes!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.asset(
-                                      'assets/images/Logo.png',
-                                      fit: BoxFit.cover,
+                          GestureDetector(
+                            onTap: _isPickingImage ? null : () => _pickAndUploadLogo(provider),
+                            child: Tooltip(
+                              message: 'Click to upload or edit cafe logo',
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 76,
+                                    height: 76,
+                                    decoration: BoxDecoration(
+                                      color: CelestialTheme.bgSurface,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                                        width: 1.8,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.18),
+                                          blurRadius: 12,
+                                        ),
+                                      ],
                                     ),
+                                    child: ClipOval(
+                                      child: provider.hasCustomLogo
+                                          ? Image.memory(
+                                              provider.customLogoBytes!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Image.asset(
+                                              'assets/images/Logo.png',
+                                              fit: BoxFit.cover,
+                                            ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.goldPrimary,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: CelestialTheme.bgDark, width: 1.5),
+                                      ),
+                                      child: Icon(
+                                        Icons.camera_alt_rounded,
+                                        size: 13,
+                                        color: CelestialTheme.primaryBtnText,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -316,16 +502,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     ElevatedButton.icon(
                                       onPressed: _isPickingImage ? null : () => _pickAndUploadLogo(provider),
                                       icon: _isPickingImage
-                                          ? const SizedBox(
+                                          ? SizedBox(
                                               width: 12,
                                               height: 12,
-                                              child: CircularProgressIndicator(strokeWidth: 1.5, color: CelestialTheme.bgDark),
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                                             )
                                           : const Icon(Icons.upload_file_rounded, size: 14),
-                                      label: const Text('Upload Logo', style: TextStyle(fontSize: 11)),
+                                      label: Text(
+                                        provider.hasCustomLogo ? 'Change Logo' : 'Upload Logo',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                      ),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: CelestialTheme.goldPrimary,
-                                        foregroundColor: CelestialTheme.bgDark,
+                                        foregroundColor: CelestialTheme.primaryBtnText,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
@@ -333,11 +522,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     if (provider.hasCustomLogo)
                                       OutlinedButton.icon(
                                         onPressed: () => provider.resetToDefaultLogo(),
-                                        icon: const Icon(Icons.restart_alt_rounded, size: 14),
+                                        icon: const Icon(Icons.restore_rounded, size: 14),
                                         label: const Text('Reset', style: TextStyle(fontSize: 11)),
                                         style: OutlinedButton.styleFrom(
-                                          foregroundColor: CelestialTheme.roseAlert,
-                                          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
+                                          foregroundColor: CelestialTheme.textMuted,
+                                          side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                         ),
@@ -351,6 +540,128 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       ),
                     ),
 
+                    const SizedBox(height: 20),
+
+                    // Section 1.5: Menu Catalog Template & Management
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'MENU CATALOG TEMPLATE',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                              color: CelestialTheme.goldLight,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          child: Text(
+                            '${provider.menuItems.length} items in catalog',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.restaurant_menu_rounded, size: 20, color: CelestialTheme.goldLight),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  provider.menuItems.isEmpty ? 'Clean Slate (0 Items)' : '${provider.menuItems.length} Items in Catalog',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: CelestialTheme.textLight,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  provider.menuItems.isEmpty
+                                      ? 'Your catalog is clean and empty. You can add custom items in Menu & Stock, or load the sample template.'
+                                      : 'You can clear all default items to start fresh, or re-load the sample cafe catalog.',
+                                  style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  children: [
+                                    if (provider.menuItems.isNotEmpty)
+                                      OutlinedButton.icon(
+                                        onPressed: () => _confirmClearMenu(context, provider),
+                                        icon: const Icon(Icons.delete_sweep_rounded, size: 14),
+                                        label: const Text('Clear All Default Items', style: TextStyle(fontSize: 11)),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: CelestialTheme.roseAlert,
+                                          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await provider.loadSampleMenu();
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              backgroundColor: CelestialTheme.bgSurfaceLight,
+                                              content: Text('Sample cafe menu items loaded!', style: TextStyle(color: CelestialTheme.goldLight)),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      icon: const Icon(Icons.download_rounded, size: 14),
+                                      label: const Text('Load Sample Cafe Menu', style: TextStyle(fontSize: 11)),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: CelestialTheme.goldLight,
+                                        side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 20),
 
                     // Section 2: Display & Accessibility (Text Scaling)
@@ -402,7 +713,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.remove_red_eye_outlined, color: CelestialTheme.goldPrimary, size: 18),
+                              Icon(Icons.remove_red_eye_outlined, color: CelestialTheme.goldPrimary, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -435,7 +746,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           // Live Slider Control
                           Row(
                             children: [
-                              const Icon(Icons.text_fields_rounded, size: 14, color: CelestialTheme.textMuted),
+                              Icon(Icons.text_fields_rounded, size: 14, color: CelestialTheme.textMuted),
                               const SizedBox(width: 6),
                               Text('A', style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted)),
                               Expanded(
@@ -493,7 +804,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Icon(Icons.coffee_rounded, size: 18, color: CelestialTheme.goldLight),
+                                  child: Icon(Icons.coffee_rounded, size: 18, color: CelestialTheme.goldLight),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
@@ -532,6 +843,246 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                 ),
                               ],
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Section: POS Theme & Style Customization
+                    Text(
+                      'POS THEME & STYLE',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                        color: CelestialTheme.goldLight,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Choose your workstation color aesthetic:',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              color: CelestialTheme.textMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              // Option 1: Classic Warm Espresso
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    provider.setThemeMode(PosThemeMode.classicEspresso);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        backgroundColor: Color(0xFF14100D),
+                                        content: Text('☕ Switched to Classic Warm Espresso & Honey Gold theme!'),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF14100D),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: provider.themeMode == PosThemeMode.classicEspresso
+                                            ? const Color(0xFFD4A359)
+                                            : Colors.white.withValues(alpha: 0.1),
+                                        width: provider.themeMode == PosThemeMode.classicEspresso ? 2.0 : 1.0,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFD4A359),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFC48248),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF000000),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Classic Espresso',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFFF6EFE9),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Warm Honey Gold',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 10,
+                                            color: const Color(0xFFD6C8BD),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        if (provider.themeMode == PosThemeMode.classicEspresso) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFD4A359).withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'ACTIVE',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFFEED09D),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              // Option 2: London Bistro Black & Red
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    provider.setThemeMode(PosThemeMode.londonBistro);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        backgroundColor: Color(0xFF141014),
+                                        content: Text('🇬🇧 Switched to London Bistro Black & Royal Red theme!'),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF141014),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: provider.themeMode == PosThemeMode.londonBistro
+                                            ? const Color(0xFFE52538)
+                                            : Colors.white.withValues(alpha: 0.1),
+                                        width: provider.themeMode == PosThemeMode.londonBistro ? 2.0 : 1.0,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFE52538),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFC8102E),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF060608),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'London Bistro',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFFFAF7F5),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Black & Royal Red',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 10,
+                                            color: const Color(0xFFD4C8C8),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        if (provider.themeMode == PosThemeMode.londonBistro) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFE52538).withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'ACTIVE',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFFFF5263),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -610,7 +1161,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                 const SizedBox(height: 2),
                                 Text(
                                   'Next Order: #${provider.currentOrderSequence}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
                                     color: CelestialTheme.goldLight,
                                     fontWeight: FontWeight.bold,
@@ -624,7 +1175,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             onPressed: () {
                               provider.resetOrderSequence(startNumber: 1);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
+                                SnackBar(
                                   backgroundColor: CelestialTheme.bgCard,
                                   content: Text('Order sequence reset to start at #1'),
                                 ),
@@ -664,7 +1215,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                               color: CelestialTheme.caramelAccent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.stars_rounded, color: CelestialTheme.goldLight, size: 18),
+                            child: Icon(Icons.stars_rounded, color: CelestialTheme.goldLight, size: 18),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -728,7 +1279,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             label: const Text('Customize', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: CelestialTheme.caramelAccent,
-                              foregroundColor: CelestialTheme.bgDark,
+                              foregroundColor: CelestialTheme.primaryBtnText,
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
@@ -800,7 +1351,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'ADMIN',
                                         style: TextStyle(
                                           fontSize: 9,
@@ -839,7 +1390,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     Expanded(
                                       child: OutlinedButton.icon(
                                         onPressed: () => AdminManagementDialog.show(context),
-                                        icon: const Icon(
+                                        icon: Icon(
                                           Icons.admin_panel_settings_rounded,
                                           size: 15,
                                           color: CelestialTheme.goldLight,
@@ -905,17 +1456,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                           backgroundColor: CelestialTheme.bgSurface,
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(16),
-                                            side: const BorderSide(color: CelestialTheme.borderWarm),
+                                            side: BorderSide(color: CelestialTheme.borderWarm),
                                           ),
-                                          title: const Text('Sign Out Station', style: TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.bold)),
-                                          content: const Text(
+                                          title: Text('Sign Out Station', style: TextStyle(color: CelestialTheme.textLight, fontWeight: FontWeight.bold)),
+                                          content: Text(
                                             'Are you sure you want to sign out of this terminal session?',
                                             style: TextStyle(color: CelestialTheme.textMuted),
                                           ),
                                           actions: [
                                             TextButton(
                                               onPressed: () => Navigator.pop(ctx, false),
-                                              child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                                              child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                                             ),
                                             ElevatedButton.icon(
                                               onPressed: () => Navigator.pop(ctx, true),
@@ -958,10 +1509,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                       isUpdate: auth.hasPin(user?.email),
                                     );
                                   },
-                                  icon: const Icon(Icons.pin_outlined, size: 14, color: CelestialTheme.goldLight),
+                                  icon: Icon(Icons.pin_outlined, size: 14, color: CelestialTheme.goldLight),
                                   label: Text(
                                     auth.hasPin(user?.email) ? 'Update Station PIN' : 'Create Station PIN',
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.goldLight),
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.goldLight),
                                   ),
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
@@ -986,7 +1537,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: CelestialTheme.goldPrimary,
-                                      foregroundColor: CelestialTheme.bgDark,
+                                      foregroundColor: CelestialTheme.primaryBtnText,
                                       padding: const EdgeInsets.symmetric(vertical: 9),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
@@ -996,6 +1547,285 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             ],
                           ),
                         );
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Section: Cloud Email Backup & Restore (Pro Exclusive)
+                    Consumer<AuthService>(
+                      builder: (context, auth, _) {
+                        final user = auth.currentUser;
+                        final isPro = auth.isPro || auth.isAdmin;
+                        final email = user?.email ?? '';
+
+                        if (isPro) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.bgSurface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: CelestialTheme.goldPrimary.withValues(alpha: 0.45),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_done_rounded,
+                                      color: CelestialTheme.goldPrimary,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'CLOUD EMAIL BACKUP',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                              color: CelestialTheme.goldLight,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Automatic cloud protection active',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 12,
+                                              color: CelestialTheme.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: CelestialTheme.goldPrimary),
+                                      ),
+                                      child: Text(
+                                        'PRO SYNCED',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: CelestialTheme.goldLight,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Your store branding, settings, and cafe logo are automatically backed up to Firebase under $email. If you clear app data or reinstall, your data will be recovered automatically.',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11.5,
+                                    color: CelestialTheme.textLight.withValues(alpha: 0.85),
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: _isCloudSyncing
+                                            ? null
+                                            : () async {
+                                                final messenger = ScaffoldMessenger.of(context);
+                                                setState(() => _isCloudSyncing = true);
+                                                final success = await provider.syncProCloudBackup(user);
+                                                if (mounted) setState(() => _isCloudSyncing = false);
+                                                if (mounted) {
+                                                  messenger.showSnackBar(
+                                                    SnackBar(
+                                                      backgroundColor: success
+                                                          ? CelestialTheme.bgCard
+                                                          : CelestialTheme.amberBrewing,
+                                                      content: Text(
+                                                        success
+                                                            ? '✨ Pro cloud backup saved successfully to Firebase!'
+                                                            : '⚠️ Device offline. Changes will sync when internet reconnects.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                        icon: _isCloudSyncing
+                                            ? SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
+                                              )
+                                            : const Icon(Icons.cloud_upload_rounded, size: 16),
+                                        label: Text(
+                                          _isCloudSyncing ? 'Syncing...' : 'Backup Now',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: CelestialTheme.goldPrimary,
+                                          foregroundColor: CelestialTheme.primaryBtnText,
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: _isCloudRestoring
+                                            ? null
+                                            : () async {
+                                                final messenger = ScaffoldMessenger.of(context);
+                                                setState(() => _isCloudRestoring = true);
+                                                final backup = await CloudBackupService().fetchProBackup(email);
+                                                if (backup != null) {
+                                                  await provider.restoreFromProCloudBackup(backup);
+                                                  _nameController.text = provider.storeName;
+                                                  _taglineController.text = provider.storeTagline;
+                                                  _addressController.text = provider.storeAddress;
+                                                }
+                                                if (mounted) setState(() => _isCloudRestoring = false);
+                                                if (mounted) {
+                                                  messenger.showSnackBar(
+                                                    SnackBar(
+                                                      backgroundColor: backup != null
+                                                          ? CelestialTheme.bgCard
+                                                          : CelestialTheme.roseAlert,
+                                                      content: Text(
+                                                        backup != null
+                                                            ? '✨ Pro settings and logo restored from Cloud!'
+                                                            : 'No cloud backup found or device is offline.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                        icon: _isCloudRestoring
+                                            ? SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.goldLight),
+                                              )
+                                            : Icon(Icons.cloud_download_rounded, size: 16, color: CelestialTheme.goldLight),
+                                        label: Text(
+                                          _isCloudRestoring ? 'Restoring...' : 'Restore from Cloud',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          // Free Trial account - Pro Only feature banner
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.bgSurface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_off_rounded,
+                                      color: CelestialTheme.amberBrewing,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'CLOUD EMAIL BACKUP',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                              color: CelestialTheme.textLight,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Stored on local device only',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 12,
+                                              color: CelestialTheme.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.amberBrewing.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: CelestialTheme.amberBrewing),
+                                      ),
+                                      child: Text(
+                                        'PRO ONLY',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: CelestialTheme.amberBrewing,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Cloud backup and automatic data recovery after clearing app data is an exclusive Pro feature. Upgrade to protect your business settings, custom logo, and menu.',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11.5,
+                                    color: CelestialTheme.textMuted,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => UpgradeProDialog.show(context),
+                                    icon: const Icon(Icons.workspace_premium_rounded, size: 15),
+                                    label: const Text(
+                                      'Upgrade to Pro to Unlock Cloud Backup',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: CelestialTheme.goldPrimary,
+                                      foregroundColor: CelestialTheme.primaryBtnText,
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
                       },
                     ),
 
@@ -1014,7 +1844,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert, size: 20),
+                              Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert, size: 20),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -1029,7 +1859,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                       ),
                                     ),
                                     const SizedBox(height: 2),
-                                    const Text(
+                                    Text(
                                       'Clear orders for a fresh shift or completely wipe application data',
                                       style: TextStyle(fontSize: 10.5, color: CelestialTheme.textMuted),
                                     ),
@@ -1045,8 +1875,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             children: [
                               OutlinedButton.icon(
                                 onPressed: () => _confirmClearOrders(context, provider),
-                                icon: const Icon(Icons.cleaning_services_rounded, size: 14, color: CelestialTheme.amberBrewing),
-                                label: const Text(
+                                icon: Icon(Icons.cleaning_services_rounded, size: 14, color: CelestialTheme.amberBrewing),
+                                label: Text(
                                   'Clear All Orders (Start Shift #1)',
                                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.amberBrewing),
                                 ),
@@ -1095,13 +1925,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
     if (_activeTab == 1) {
       return Container(
         padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 10),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: CelestialTheme.bgCard,
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.flash_on_rounded, size: 16, color: CelestialTheme.goldLight),
+            Icon(Icons.flash_on_rounded, size: 16, color: CelestialTheme.goldLight),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1121,7 +1951,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               label: const Text('Done'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,
-                foregroundColor: CelestialTheme.bgDark,
+                foregroundColor: CelestialTheme.primaryBtnText,
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 visualDensity: VisualDensity.compact,
@@ -1134,7 +1964,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: CelestialTheme.bgCard,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
       ),
@@ -1149,7 +1979,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                   visualDensity: VisualDensity.compact,
                 ),
-                child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
               ),
             ),
             const SizedBox(width: 8),
@@ -1158,16 +1988,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
               child: ElevatedButton.icon(
                 onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
                 icon: _isSavingSettings
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                       )
                     : const Icon(Icons.check_rounded, size: 16),
                 label: Text(_isSavingSettings ? 'Saving...' : 'Save Settings'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: CelestialTheme.goldPrimary,
-                  foregroundColor: CelestialTheme.bgDark,
+                  foregroundColor: CelestialTheme.primaryBtnText,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   visualDensity: VisualDensity.compact,
@@ -1180,22 +2010,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-              child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+              child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
             ),
             const SizedBox(width: 10),
             ElevatedButton.icon(
               onPressed: _isSavingSettings ? null : () => _saveSettings(provider),
               icon: _isSavingSettings
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                     )
                   : const Icon(Icons.check_rounded, size: 16),
               label: Text(_isSavingSettings ? 'Saving...' : 'Save Changes'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,
-                foregroundColor: CelestialTheme.bgDark,
+                foregroundColor: CelestialTheme.primaryBtnText,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -1328,14 +2158,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             _availabilitySearchQuery = val.trim();
                           });
                         },
-                        style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                        style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
                         decoration: InputDecoration(
                           hintText: 'Search items or modifiers (e.g. Oat Milk, Pearls, Latte)...',
-                          hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
-                          prefixIcon: const Icon(Icons.search_rounded, color: CelestialTheme.goldPrimary, size: 18),
+                          hintStyle: TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
+                          prefixIcon: Icon(Icons.search_rounded, color: CelestialTheme.goldPrimary, size: 18),
                           suffixIcon: _availabilitySearchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
+                                  icon: Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
                                   onPressed: () {
                                     _availabilitySearchController.clear();
                                     setState(() => _availabilitySearchQuery = '');
@@ -1355,7 +2185,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+                            borderSide: BorderSide(color: CelestialTheme.goldPrimary),
                           ),
                         ),
                       ),
@@ -1507,7 +2337,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           _showOnlyUnavailable
                               ? 'No items are currently marked as not available.'
                               : 'Try adjusting your search or category filter.',
-                          style: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                          style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                         ),
                       ],
                     ),
@@ -1582,13 +2412,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, _, _) => Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
                               )
-                            : item.imagePath != null && item.imagePath!.isNotEmpty && File(item.imagePath!).existsSync()
-                                ? Image.file(
-                                    File(item.imagePath!),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
-                                  )
-                                : Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
+                            : Center(child: Text(item.icon, style: const TextStyle(fontSize: 20))),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1652,7 +2476,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           ),
                           Text(
                             '${item.category.icon} ${item.category.label} • ₱${item.price.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                            style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                           ),
                           if (hasGroups)
                             Text(
@@ -1755,7 +2579,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.restart_alt_rounded, size: 13, color: CelestialTheme.emeraldReady),
+                                Icon(Icons.restart_alt_rounded, size: 13, color: CelestialTheme.emeraldReady),
                                 const SizedBox(width: 4),
                                 Text(
                                   'Make All Available',
@@ -1812,7 +2636,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 child: Text(
                   group.isRequired ? 'REQUIRED' : 'OPTIONAL',
-                  style: const TextStyle(fontSize: 8.5, color: CelestialTheme.textMuted, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 8.5, color: CelestialTheme.textMuted, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -1887,12 +2711,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           decoration: BoxDecoration(
                             color: option.extraPrice > 0
                                 ? CelestialTheme.goldPrimary.withValues(alpha: 0.18)
-                                : const Color(0xFF281F1A),
+                                : CelestialTheme.bgCard,
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(
                               color: option.extraPrice > 0
                                   ? CelestialTheme.goldPrimary.withValues(alpha: 0.4)
-                                  : const Color(0xFF4A3B32),
+                                  : CelestialTheme.borderWarm,
                               width: 0.8,
                             ),
                           ),
@@ -1912,7 +2736,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                 ),
                               ),
                               const SizedBox(width: 2.5),
-                              const Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
+                              Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
                             ],
                           ),
                         ),
@@ -1957,7 +2781,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.restart_alt_rounded, color: CelestialTheme.goldPrimary, size: 22),
+            Icon(Icons.restart_alt_rounded, color: CelestialTheme.goldPrimary, size: 22),
             const SizedBox(width: 8),
             Text(
               'Reset All Availability?',
@@ -1965,14 +2789,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ],
         ),
-        content: const Text(
+        content: Text(
           'This will mark all sold-out items and unavailable modifiers back to AVAILABLE across the entire store menu.',
           style: TextStyle(fontSize: 12.5, color: CelestialTheme.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1985,7 +2809,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.goldPrimary,
-              foregroundColor: CelestialTheme.bgDark,
+              foregroundColor: CelestialTheme.primaryBtnText,
             ),
             child: const Text('Reset All'),
           ),
@@ -2032,7 +2856,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.tune_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                        Icon(Icons.tune_rounded, color: CelestialTheme.goldPrimary, size: 22),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -2046,7 +2870,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                   color: CelestialTheme.textLight,
                                 ),
                               ),
-                              const Text(
+                              Text(
                                 'Toggle an ingredient or modifier across all drinks at once',
                                 style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                               ),
@@ -2055,7 +2879,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                         ),
                       ],
                     ),
@@ -2093,7 +2917,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                       ),
                                       Text(
                                         'Used in ${itemsWithOpt.length} item(s)',
-                                        style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                        style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                                       ),
                                     ],
                                   ),
@@ -2144,7 +2968,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         onPressed: () => Navigator.pop(ctx),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CelestialTheme.goldPrimary,
-                          foregroundColor: CelestialTheme.bgDark,
+                          foregroundColor: CelestialTheme.primaryBtnText,
                         ),
                         child: const Text('Close'),
                       ),
@@ -2181,10 +3005,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
         TextField(
           controller: controller,
           maxLines: maxLines,
-          style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
+            hintStyle: TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
             prefixIcon: Icon(icon, color: CelestialTheme.goldPrimary, size: 18),
             filled: true,
             fillColor: CelestialTheme.bgCard,
@@ -2199,7 +3023,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+              borderSide: BorderSide(color: CelestialTheme.goldPrimary),
             ),
           ),
         ),
@@ -2257,7 +3081,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: CelestialTheme.amberBrewing),
+            Icon(Icons.warning_amber_rounded, color: CelestialTheme.amberBrewing),
             const SizedBox(width: 8),
             Text(
               'Clear All Orders?',
@@ -2265,14 +3089,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ],
         ),
-        content: const Text(
+        content: Text(
           'This will clear all active and historical orders, restock sold items, and reset the order counter to #1 for a fresh shift.\n\nMenu items, prices, and custom photos will be kept.',
           style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton.icon(
             onPressed: () async {
@@ -2302,7 +3126,60 @@ class _SettingsDialogState extends State<SettingsDialog> {
             label: const Text('Clear Orders'),
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.amberBrewing,
-              foregroundColor: CelestialTheme.bgDark,
+              foregroundColor: CelestialTheme.primaryBtnText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearMenu(BuildContext context, PosProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert),
+            const SizedBox(width: 8),
+            Text(
+              'Clear All Menu Items?',
+              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will remove all default and custom menu items from your catalog so you can start with a completely fresh, empty menu.\n\nYou can re-load the sample cafe menu at any time.',
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await provider.clearAllMenuItems();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: CelestialTheme.bgSurfaceLight,
+                    content: Text('Menu catalog cleared! You have a fresh slate.', style: TextStyle(color: CelestialTheme.goldLight)),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.delete_sweep_rounded, size: 16),
+            label: const Text('Clear All Items'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.roseAlert,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -2321,7 +3198,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.delete_forever_rounded, color: CelestialTheme.roseAlert),
+            Icon(Icons.delete_forever_rounded, color: CelestialTheme.roseAlert),
             const SizedBox(width: 8),
             Text(
               'Factory Reset All Data?',
@@ -2329,14 +3206,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ],
         ),
-        content: const Text(
+        content: Text(
           'WARNING: This will completely wipe all orders, reset custom menu item prices and stock, delete uploaded photos, and restore the cafe catalog to default.\n\nThis action cannot be undone!',
           style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton.icon(
             onPressed: () async {
@@ -2370,6 +3247,147 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeCard({
+    required BuildContext context,
+    required PosThemeMode mode,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required String title,
+    required String subtitle,
+    required Color primaryColor,
+    required Color accentColor,
+    required Color bgColor,
+    required IconData icon,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryColor.withValues(alpha: 0.12) : CelestialTheme.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? primaryColor : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 2.0 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: primaryColor.withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 18, color: primaryColor),
+                ),
+                const Spacer(),
+                if (isSelected)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.check_rounded, size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'ACTIVE',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: Text(
+                      'SELECT',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.textMuted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? primaryColor : CelestialTheme.textLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 10,
+                color: CelestialTheme.textMuted,
+                height: 1.3,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _colorSwatch(bgColor),
+                const SizedBox(width: 6),
+                _colorSwatch(primaryColor),
+                const SizedBox(width: 6),
+                _colorSwatch(accentColor),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _colorSwatch(Color color) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
       ),
     );
   }

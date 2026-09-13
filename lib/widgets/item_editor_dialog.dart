@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -42,19 +41,19 @@ class ItemEditorDialog {
                 photoPreview = Image.memory(
                   base64Decode(currentImageBase64!),
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: CelestialTheme.roseAlert),
+                  errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: CelestialTheme.roseAlert),
                 );
               } catch (_) {
-                photoPreview = const Icon(Icons.broken_image, color: CelestialTheme.roseAlert);
+                photoPreview = Icon(Icons.broken_image, color: CelestialTheme.roseAlert);
               }
-            } else if (currentImagePath != null && currentImagePath!.isNotEmpty) {
-              photoPreview = Image.file(
-                File(currentImagePath!),
+            } else if (currentImagePath != null && currentImagePath!.isNotEmpty && currentImagePath!.startsWith('assets/')) {
+              photoPreview = Image.asset(
+                currentImagePath!,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: CelestialTheme.roseAlert),
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: CelestialTheme.roseAlert),
               );
             } else {
-              photoPreview = const Center(
+              photoPreview = Center(
                 child: Icon(Icons.add_a_photo_rounded, color: CelestialTheme.goldPrimary, size: 24),
               );
             }
@@ -114,7 +113,7 @@ class ItemEditorDialog {
                                       color: CelestialTheme.goldLight,
                                     ),
                                   ),
-                                  const Text(
+                                  Text(
                                     'Shows on POS & Customer Table QR Menu',
                                     style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                                   ),
@@ -127,13 +126,11 @@ class ItemEditorDialog {
                                   final files = await FilePickerPlatform.instance.pickFiles(type: FileType.image);
                                   if (files.isNotEmpty) {
                                     final file = files.first;
-                                    if (file.path != null) {
-                                      final bytes = await File(file.path!).readAsBytes();
-                                      setDialogState(() {
-                                        currentImagePath = file.path;
-                                        currentImageBase64 = base64Encode(bytes);
-                                      });
-                                    }
+                                    final bytes = await file.readAsBytes();
+                                    setDialogState(() {
+                                      currentImagePath = file.name;
+                                      currentImageBase64 = base64Encode(bytes);
+                                    });
                                   }
                                 } catch (e) {
                                   if (context.mounted) {
@@ -155,7 +152,7 @@ class ItemEditorDialog {
                             if (currentImageBase64 != null || currentImagePath != null) ...[
                               const SizedBox(width: 4),
                               IconButton(
-                                icon: const Icon(Icons.close_rounded, color: CelestialTheme.roseAlert, size: 18),
+                                icon: Icon(Icons.close_rounded, color: CelestialTheme.roseAlert, size: 18),
                                 onPressed: () {
                                   setDialogState(() {
                                     currentImagePath = null;
@@ -181,7 +178,7 @@ class ItemEditorDialog {
                               style: const TextStyle(fontSize: 22),
                               decoration: InputDecoration(
                                 labelText: 'Emoji',
-                                labelStyle: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                labelStyle: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                                 filled: true,
                                 fillColor: CelestialTheme.bgCard,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -192,10 +189,10 @@ class ItemEditorDialog {
                           Expanded(
                             child: TextField(
                               controller: nameController,
-                              style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                              style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
                               decoration: InputDecoration(
                                 labelText: 'Item Name',
-                                labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                                labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                                 filled: true,
                                 fillColor: CelestialTheme.bgCard,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -210,10 +207,10 @@ class ItemEditorDialog {
                       DropdownButtonFormField<String>(
                         initialValue: selectedCategoryKey,
                         dropdownColor: CelestialTheme.bgCard,
-                        style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                        style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
                         decoration: InputDecoration(
                           labelText: 'Category',
-                          labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                          labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                           filled: true,
                           fillColor: CelestialTheme.bgCard,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -261,10 +258,10 @@ class ItemEditorDialog {
                             child: TextField(
                               controller: priceController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                              style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
                               decoration: InputDecoration(
                                 labelText: 'Price (₱)',
-                                labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                                labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                                 filled: true,
                                 fillColor: CelestialTheme.bgCard,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -276,10 +273,10 @@ class ItemEditorDialog {
                             child: TextField(
                               controller: stockController,
                               keyboardType: TextInputType.number,
-                              style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                              style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
                               decoration: InputDecoration(
                                 labelText: 'Initial Stock',
-                                labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                                labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                                 filled: true,
                                 fillColor: CelestialTheme.bgCard,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -294,10 +291,10 @@ class ItemEditorDialog {
                       TextField(
                         controller: descController,
                         maxLines: 2,
-                        style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                        style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
                         decoration: InputDecoration(
                           labelText: 'Description',
-                          labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                          labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                           filled: true,
                           fillColor: CelestialTheme.bgCard,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -310,7 +307,7 @@ class ItemEditorDialog {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
                   onPressed: isSaving
@@ -325,7 +322,7 @@ class ItemEditorDialog {
 
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text('⚠️ Please enter an item name.'),
                                 backgroundColor: CelestialTheme.roseAlert,
                               ),
@@ -335,7 +332,7 @@ class ItemEditorDialog {
 
                           if (price <= 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text('⚠️ Please enter a valid price greater than ₱0.'),
                                 backgroundColor: CelestialTheme.roseAlert,
                               ),
@@ -402,13 +399,13 @@ class ItemEditorDialog {
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                   ),
                   child: isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                         )
                       : Text(isEditing ? 'Save Changes' : 'Create Item'),
                 ),

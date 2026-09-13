@@ -565,10 +565,10 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
                   }
                 },
           icon: _isPrinting
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                 )
               : const Icon(Icons.print_rounded, size: 18),
           label: Text(
@@ -577,7 +577,7 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: CelestialTheme.goldPrimary,
-            foregroundColor: CelestialTheme.bgDark,
+            foregroundColor: CelestialTheme.primaryBtnText,
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             elevation: 8,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

@@ -45,6 +45,7 @@ class AppUser {
   final int customTrialDays;
   final bool hasCustomTrial;
   final String? idToken;
+  final List<String> disabledFeatures;
 
   AppUser({
     required this.uid,
@@ -58,9 +59,15 @@ class AppUser {
     this.customTrialDays = 14,
     this.hasCustomTrial = false,
     this.idToken,
+    this.disabledFeatures = const [],
   });
 
   bool get isPro => tier == SubscriptionTier.pro;
+
+  bool isFeatureEnabled(String featureKey) {
+    if (isAdmin) return true;
+    return !disabledFeatures.contains(featureKey);
+  }
 
   int effectiveTrialDays([int? fallbackDefault]) {
     if (hasCustomTrial) return customTrialDays;
@@ -89,6 +96,7 @@ class AppUser {
     int? customTrialDays,
     bool? hasCustomTrial,
     String? idToken,
+    List<String>? disabledFeatures,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -102,6 +110,7 @@ class AppUser {
       customTrialDays: customTrialDays ?? this.customTrialDays,
       hasCustomTrial: hasCustomTrial ?? this.hasCustomTrial,
       idToken: idToken ?? this.idToken,
+      disabledFeatures: disabledFeatures ?? this.disabledFeatures,
     );
   }
 
@@ -117,6 +126,7 @@ class AppUser {
         'customTrialDays': customTrialDays,
         'hasCustomTrial': hasCustomTrial,
         'idToken': idToken,
+        'disabledFeatures': disabledFeatures,
       };
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -138,6 +148,10 @@ class AppUser {
       customTrialDays: json['customTrialDays'] as int? ?? 14,
       hasCustomTrial: json['hasCustomTrial'] as bool? ?? false,
       idToken: json['idToken'] as String?,
+      disabledFeatures: (json['disabledFeatures'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 }
@@ -182,10 +196,11 @@ class AuthService extends ChangeNotifier {
   final _secureStorage = const FlutterSecureStorage();
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
-  static const String _defaultWebClientId = '';
+  static const String _defaultWebClientId =
+      '533417380248-0hqfnmv71a6fo3pe9p2ghlsa28cod10l.apps.googleusercontent.com';
   static const String _defaultDesktopClientId = String.fromEnvironment(
     'GOOGLE_DESKTOP_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: '533417380248-0hqfnmv71a6fo3pe9p2ghlsa28cod10l.apps.googleusercontent.com',
   );
   static const String _defaultDesktopClientSecret = String.fromEnvironment(
     'GOOGLE_DESKTOP_CLIENT_SECRET',
@@ -206,9 +221,9 @@ class AuthService extends ChangeNotifier {
   /// Builds a GoogleSignIn client instance.
   /// On Android, [serverClientId] requests an ID token from Google Play Services.
   GoogleSignIn _buildGoogleSignIn({bool withServerClientId = true}) {
-    final clientId = webClientId.trim();
+    final clientId = webClientId.trim().isNotEmpty ? webClientId.trim() : _defaultWebClientId;
     return GoogleSignIn(
-      clientId: kIsWeb ? (clientId.isNotEmpty ? clientId : null) : null,
+      clientId: kIsWeb ? clientId : null,
       serverClientId: (withServerClientId && clientId.isNotEmpty) ? clientId : null,
       scopes: const ['email', 'profile'],
     );
@@ -279,6 +294,15 @@ class AuthService extends ChangeNotifier {
     return null;
   }
 
+  static bool get _isFlutterTest {
+    if (kIsWeb) return false;
+    try {
+      return Platform.environment.containsKey('FLUTTER_TEST');
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> _syncUserWithFirebase(
     String email,
     String pin, {
@@ -288,7 +312,7 @@ class AuthService extends ChangeNotifier {
     int? customTrialDays,
   }) async {
     try {
-      if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
+      if (_isFlutterTest) return;
       final cleanEmail = email.trim().toLowerCase();
       final fbPassword = 'celestial_pin_${cleanEmail}_$pin';
 
@@ -402,7 +426,7 @@ class AuthService extends ChangeNotifier {
     required bool isAdmin,
   }) async {
     try {
-      if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
+      if (_isFlutterTest) return;
       final cleanEmail = targetEmail.trim().toLowerCase();
       final rtdbKey = cleanEmail.replaceAll('.', ',');
 
@@ -440,9 +464,48 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  static Future<void> _syncAccountFeaturesToRealtimeDatabase({
+    required String targetEmail,
+    required List<String> disabledFeatures,
+  }) async {
+    try {
+      if (_isFlutterTest) return;
+      final cleanEmail = targetEmail.trim().toLowerCase();
+      final rtdbKey = cleanEmail.replaceAll('.', ',');
+
+      final rtdbData = {
+        'email': cleanEmail,
+        'disabledFeatures': disabledFeatures,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      String? authToken = _cachedFirebaseToken;
+      final queryParam = (authToken != null && authToken.isNotEmpty) ? '?auth=$authToken' : '';
+      var rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json$queryParam');
+
+      var res = await http.patch(
+        rtdbUri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(rtdbData),
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode != 200) {
+        rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json');
+        await http.patch(
+          rtdbUri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(rtdbData),
+        ).timeout(const Duration(seconds: 4));
+      }
+      debugPrint('AuthService: Synced disabled features $disabledFeatures for $cleanEmail to Firebase RTDB');
+    } catch (e) {
+      debugPrint('AuthService: _syncAccountFeaturesToRealtimeDatabase error: $e');
+    }
+  }
+
   static Future<Map<String, dynamic>?> _fetchUserFromRealtimeDatabase(String email, {String? pin}) async {
     try {
-      if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return null;
+      if (_isFlutterTest) return null;
       final cleanEmail = email.trim().toLowerCase();
       final rtdbKey = cleanEmail.replaceAll('.', ',');
 
@@ -587,6 +650,7 @@ class AuthService extends ChangeNotifier {
   SubscriptionTier get currentTier => _currentUser?.tier ?? SubscriptionTier.trial;
   bool get isPro => _currentUser?.isPro ?? false;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool isFeatureEnabled(String featureKey) => _currentUser?.isFeatureEnabled(featureKey) ?? true;
   int get defaultTrialDays => _defaultTrialDays;
   List<String> get adminEmails => List.unmodifiable(_adminEmails);
   List<AppUser> get managedAccounts => List.unmodifiable(_managedAccounts);
@@ -612,7 +676,7 @@ class AuthService extends ChangeNotifier {
 
   void startCloudLicenseSyncTimer({bool forceInTest = false}) {
     _cloudSyncTimer?.cancel();
-    if (!forceInTest && !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
+    if (!forceInTest && _isFlutterTest) return;
     if (_currentUser == null || _currentUser!.isAdmin) return;
     _cloudSyncTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
       if (_currentUser != null && !_currentUser!.isAdmin) {
@@ -653,7 +717,7 @@ class AuthService extends ChangeNotifier {
         await prefs.setString(_keyLastStationPhoto, _lastStationPhoto!);
       }
       await prefs.setBool(_keyLastStationIsGoogle, isGoogle);
-      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      if (!_isFlutterTest) {
         if (_lastStationName != null) {
           await _secureStorage.write(key: _secureStationNameKey, value: _lastStationName!);
         }
@@ -681,7 +745,7 @@ class AuthService extends ChangeNotifier {
       await prefs.remove(_keyLastStationName);
       await prefs.remove(_keyLastStationPhoto);
       await prefs.remove(_keyLastStationIsGoogle);
-      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      if (!_isFlutterTest) {
         await _secureStorage.delete(key: _secureStationEmailKey);
         await _secureStorage.delete(key: _secureStationNameKey);
         await _secureStorage.delete(key: _secureStationPhotoKey);
@@ -693,7 +757,7 @@ class AuthService extends ChangeNotifier {
   /// Silently inspects if an active Google session is authorized on device (Android/iOS/Web/macOS).
   /// If found, populates recent login information so the user immediately sees their Google account.
   Future<void> checkActiveGoogleSession() async {
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    if (_isFlutterTest) return;
     if (!kIsWeb &&
         !(defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
@@ -963,7 +1027,7 @@ class AuthService extends ChangeNotifier {
     _initCompleter = completer;
 
     try {
-      if (!kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST')) {
+      if (!kIsWeb && !_isFlutterTest) {
         if (Firebase.apps.isEmpty) {
           await Firebase.initializeApp(
             options: DefaultFirebaseOptions.currentPlatform,
@@ -1141,7 +1205,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _writeToSecureStorage(AppUser user) async {
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    if (_isFlutterTest) return;
     try {
       await _clearSecureStorage();
       await _secureStorage.write(key: _secureEmailKey, value: user.email);
@@ -1157,7 +1221,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _clearSecureStorage() async {
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    if (_isFlutterTest) return;
     try {
       await _secureStorage.delete(key: _secureEmailKey);
       await _secureStorage.delete(key: _secureDisplayKey);
@@ -1324,6 +1388,9 @@ class AuthService extends ChangeNotifier {
       final effectiveTier = (existing.tier == SubscriptionTier.pro || user.tier == SubscriptionTier.pro)
           ? SubscriptionTier.pro
           : SubscriptionTier.trial;
+      final effectiveDisabledFeatures = user.disabledFeatures.isNotEmpty
+          ? user.disabledFeatures
+          : existing.disabledFeatures;
 
       _managedAccounts[idx] = user.copyWith(
         hasCustomTrial: effectiveCustomTrial,
@@ -1332,6 +1399,7 @@ class AuthService extends ChangeNotifier {
         trialStartDate: (existing.hasCustomTrial && !existing.isTrialExpired)
             ? existing.trialStartDate
             : user.trialStartDate,
+        disabledFeatures: effectiveDisabledFeatures,
       );
     } else {
       _managedAccounts.add(user);
@@ -1353,7 +1421,7 @@ class AuthService extends ChangeNotifier {
       final prefs = await _getPrefs();
       final jsonStr = jsonEncode(_pinCredentials);
       await prefs.setString(_keyPinCredentials, jsonStr);
-      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      if (!_isFlutterTest) {
         try {
           await _secureStorage.write(key: 'celestial_auth_pin_credentials_v1', value: jsonStr);
         } catch (_) {}
@@ -1725,6 +1793,18 @@ class AuthService extends ChangeNotifier {
       clientSecret = _defaultDesktopClientSecret;
     }
 
+    if (clientId.trim().isEmpty) {
+      clientId = webClientId.trim().isNotEmpty ? webClientId.trim() : _defaultWebClientId;
+    }
+
+    if (clientId.trim().isEmpty) {
+      _errorMessage = 'Google OAuth Client ID is not configured on Windows. Please enter your email and 4-digit PIN to sign in.';
+      _isLoading = false;
+      _authStatusMessage = null;
+      notifyListeners();
+      return null;
+    }
+
     HttpServer? server;
     try {
       // 0. Close any previous dangling OAuth server
@@ -1913,10 +1993,12 @@ class AuthService extends ChangeNotifier {
 
       if (code == null) {
         final error = request.uri.queryParameters['error'];
+        final errorDesc = request.uri.queryParameters['error_description'];
         if (error != null) {
-          debugPrint('AuthService: Google OAuth returned error: $error');
+          debugPrint('AuthService: Google OAuth returned error: $error ($errorDesc)');
+          _errorMessage = errorDesc ?? 'Google sign-in authorization was denied ($error).';
         }
-        return null; // User cancelled
+        return null; // User cancelled or denied
       }
 
       // 5. Exchange code for tokens with PKCE code_verifier + optional client_secret
@@ -2248,6 +2330,9 @@ class AuthService extends ChangeNotifier {
           _isLoading = false;
           _authStatusMessage = null;
           notifyListeners();
+          if (_errorMessage != null && _errorMessage!.isNotEmpty) {
+            return GoogleAuthResult.error;
+          }
           return GoogleAuthResult.cancelled;
         }
 
@@ -2293,7 +2378,18 @@ class AuthService extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('Google Sign-In prompt error: $e');
-        _errorMessage = 'Google Sign-In could not be opened: ${e.toString()}';
+        final err = e.toString().toLowerCase();
+        if (err.contains('popup_closed') || err.contains('closed by user')) {
+          _isLoading = false;
+          _authStatusMessage = null;
+          notifyListeners();
+          return GoogleAuthResult.cancelled;
+        }
+        if (kIsWeb && (err.contains('disallowed_useragent') || err.contains('blocked') || err.contains('popup_blocked'))) {
+          _errorMessage = 'Google Sign-In was blocked by your browser. If you are inside Messenger or an in-app browser, tap (...) at the top and select "Open in Chrome/Safari", or sign in with your Email & PIN.';
+        } else {
+          _errorMessage = 'Google Sign-In could not be opened: ${e.toString().replaceAll("Exception:", "").trim()}';
+        }
         _isLoading = false;
         _authStatusMessage = null;
         notifyListeners();
@@ -2650,7 +2746,7 @@ class AuthService extends ChangeNotifier {
   Future<bool> refreshUserLicenseFromCloud() async {
     if (_currentUser == null) return false;
     try {
-      if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return false;
+      if (_isFlutterTest) return false;
       final remote = await _fetchUserFromRealtimeDatabase(_currentUser!.email);
       if (remote != null) {
         final remoteDays = (remote['customTrialDays'] as num?)?.toInt();
@@ -2658,6 +2754,9 @@ class AuthService extends ChangeNotifier {
         final remoteTierStr = remote['tier']?.toString();
         final remoteIsAdmin = remote['isAdmin'] == true || checkIfAdmin(_currentUser!.email);
         final remoteTier = (remoteTierStr == 'pro' || remoteIsAdmin) ? SubscriptionTier.pro : SubscriptionTier.trial;
+        final remoteDisabledFeatures = (remote['disabledFeatures'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList();
 
         _currentUser = _currentUser!.copyWith(
           customTrialDays: remoteDays ?? _currentUser!.customTrialDays,
@@ -2665,6 +2764,7 @@ class AuthService extends ChangeNotifier {
           trialStartDate: remoteStart ?? _currentUser!.trialStartDate,
           tier: remoteTier,
           isAdmin: remoteIsAdmin,
+          disabledFeatures: remoteDisabledFeatures ?? _currentUser!.disabledFeatures,
         );
 
         _upsertManagedAccount(_currentUser!);
@@ -2677,6 +2777,54 @@ class AuthService extends ChangeNotifier {
       debugPrint('AuthService: refreshUserLicenseFromCloud error: $e');
     }
     return false;
+  }
+
+  // --- Manage Account: Update Feature Permissions (Admin Only) ---
+  Future<void> updateAccountDisabledFeatures(
+    String uid,
+    List<String> disabledFeatures,
+  ) async {
+    if (!isAdmin) {
+      debugPrint('[AUTH] updateAccountDisabledFeatures rejected: Only administrators can configure feature permissions.');
+      return;
+    }
+    final cleanList = List<String>.unmodifiable(disabledFeatures);
+    final idx = _managedAccounts.indexWhere(
+      (a) => a.uid == uid || a.email.toLowerCase() == uid.toLowerCase(),
+    );
+    if (idx >= 0) {
+      final existing = _managedAccounts[idx];
+      final updated = existing.copyWith(disabledFeatures: cleanList);
+      _managedAccounts[idx] = updated;
+
+      // Sync active session if this account is currently logged in
+      if (_currentUser != null &&
+          (_currentUser!.uid == uid ||
+           _currentUser!.email.toLowerCase() == updated.email.toLowerCase())) {
+        _currentUser = _currentUser!.copyWith(disabledFeatures: cleanList);
+        await _persistUser(_currentUser!);
+      }
+
+      await _persistManagedAccounts();
+      notifyListeners();
+
+      unawaited(_syncAccountFeaturesToRealtimeDatabase(
+        targetEmail: updated.email,
+        disabledFeatures: cleanList,
+      ));
+    } else if (_currentUser != null &&
+        (_currentUser!.uid == uid || _currentUser!.email.toLowerCase() == uid.toLowerCase())) {
+      _currentUser = _currentUser!.copyWith(disabledFeatures: cleanList);
+      _upsertManagedAccount(_currentUser!);
+      await _persistUser(_currentUser!);
+      await _persistManagedAccounts();
+      notifyListeners();
+
+      unawaited(_syncAccountFeaturesToRealtimeDatabase(
+        targetEmail: _currentUser!.email,
+        disabledFeatures: cleanList,
+      ));
+    }
   }
 
   // --- Manage Account: Grant Extra Trial Days (JC Celestial Admin Only) ---
@@ -2807,22 +2955,32 @@ class AuthService extends ChangeNotifier {
 
     try {
       if (_isFirebaseAvailable) {
-        await fb_auth.FirebaseAuth.instance.signOut();
-      }
-      if (!Platform.environment.containsKey('FLUTTER_TEST') && (kIsWeb || (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS))) {
-        try {
-          final googleSignIn = _buildGoogleSignIn(withServerClientId: false);
-          final signedIn = await googleSignIn.isSignedIn().timeout(const Duration(milliseconds: 1200), onTimeout: () => false);
-          if (signedIn) {
-            await googleSignIn.signOut().timeout(const Duration(milliseconds: 1200), onTimeout: () => null);
-          }
-        } catch (_) {}
+        await fb_auth.FirebaseAuth.instance.signOut().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => null,
+        );
       }
     } catch (e) {
-      debugPrint('Sign-out note: $e');
+      debugPrint('Sign-out note (Firebase): $e');
     }
 
-    await _clearSecureStorage();
+    try {
+      if (!_isFlutterTest && (kIsWeb || (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS))) {
+        final googleSignIn = _buildGoogleSignIn(withServerClientId: false);
+        final signedIn = await googleSignIn.isSignedIn().timeout(const Duration(milliseconds: 1200), onTimeout: () => false);
+        if (signedIn) {
+          await googleSignIn.signOut().timeout(const Duration(milliseconds: 1200), onTimeout: () => null);
+        }
+      }
+    } catch (e) {
+      debugPrint('Sign-out note (Google): $e');
+    }
+
+    try {
+      await _clearSecureStorage();
+    } catch (e) {
+      debugPrint('Sign-out note (SecureStorage): $e');
+    }
 
     try {
       final prefs = await _getPrefs();
@@ -2840,7 +2998,10 @@ class AuthService extends ChangeNotifier {
       debugPrint('Error clearing session preferences: $e');
     }
 
-    stopCloudLicenseSyncTimer();
+    try {
+      stopCloudLicenseSyncTimer();
+    } catch (_) {}
+
     _currentUser = null;
     _isLoading = false;
     notifyListeners();

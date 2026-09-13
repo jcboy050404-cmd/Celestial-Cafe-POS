@@ -1040,7 +1040,7 @@ void main() {
     );
   });
 
-  testWidgets('HeaderBar renders prominent Sign Out button and Account Modal with sign out confirmation', (WidgetTester tester) async {
+  testWidgets('HeaderBar renders clean header and Account Modal with terminal sign out', (WidgetTester tester) async {
     final auth = AuthService(
       initialUser: AppUser(
         uid: 'test_cashier_uid',
@@ -1054,8 +1054,9 @@ void main() {
     await tester.pumpWidget(CelestialCafePosApp(authService: auth));
     await tester.pumpAndSettle();
 
-    // Verify Desktop Sign Out button is visible in header
-    expect(find.text('Sign Out'), findsOneWidget);
+    // Verify clean header: Settings icon and Account Chip exist, redundant loose sign out is removed
+    expect(find.byIcon(Icons.settings_outlined), findsWidgets);
+    expect(find.text('cashier@celestialcafe.com'), findsOneWidget);
 
     // Tap the user account chip to open Account Modal
     await tester.tap(find.text('cashier@celestialcafe.com'));

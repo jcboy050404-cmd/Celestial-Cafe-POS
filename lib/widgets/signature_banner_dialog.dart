@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -68,12 +67,9 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
       final files = await FilePickerPlatform.instance.pickFiles(type: FileType.image);
       if (files.isNotEmpty) {
         final file = files.first;
-        Uint8List? bytes;
-        if (file.path != null) {
-          bytes = await File(file.path!).readAsBytes();
-        }
+        final Uint8List bytes = await file.readAsBytes();
 
-        if (bytes != null && mounted) {
+        if (mounted) {
           setState(() {
             _customImageBytes = bytes;
             _removeCustomImage = false;
@@ -126,11 +122,11 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: CelestialTheme.borderSubtle),
+            side: BorderSide(color: CelestialTheme.borderSubtle),
           ),
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: CelestialTheme.caramelAccent, size: 20),
+              Icon(Icons.check_circle_rounded, color: CelestialTheme.caramelAccent, size: 20),
               const SizedBox(width: 10),
               const Text(
                 'Signature craft banner customized and saved!',
@@ -150,26 +146,26 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
         backgroundColor: CelestialTheme.bgCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: CelestialTheme.borderSubtle),
+          side: BorderSide(color: CelestialTheme.borderSubtle),
         ),
         title: Text(
           'Reset Signature Banner?',
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        content: const Text(
+        content: Text(
           'This will restore the original Celestial Signature Latte banner settings.',
           style: TextStyle(color: CelestialTheme.creamSoft),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.caramelAccent,
-              foregroundColor: CelestialTheme.bgDark,
+              foregroundColor: CelestialTheme.primaryBtnText,
             ),
             child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -200,10 +196,12 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
     // Resolve featured menu item
-    final featuredItem = provider.menuItems.firstWhere(
-      (i) => i.id == _selectedItemId,
-      orElse: () => provider.menuItems.first,
-    );
+    final featuredItem = provider.menuItems.isNotEmpty
+        ? provider.menuItems.firstWhere(
+            (i) => i.id == _selectedItemId,
+            orElse: () => provider.menuItems.first,
+          )
+        : null;
 
     return Dialog(
       backgroundColor: CelestialTheme.bgDark,
@@ -239,7 +237,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.3)),
                     ),
-                    child: const Icon(Icons.stars_rounded, color: CelestialTheme.goldLight, size: 22),
+                    child: Icon(Icons.stars_rounded, color: CelestialTheme.goldLight, size: 22),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -267,7 +265,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: CelestialTheme.creamSoft, size: 20),
+                    icon: Icon(Icons.close_rounded, color: CelestialTheme.creamSoft, size: 20),
                     tooltip: 'Close',
                   ),
                 ],
@@ -398,12 +396,15 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: provider.menuItems.any((i) => i.id == _selectedItemId)
-                              ? _selectedItemId
-                              : provider.menuItems.first.id,
+                          value: provider.menuItems.isNotEmpty
+                              ? (provider.menuItems.any((i) => i.id == _selectedItemId)
+                                  ? _selectedItemId
+                                  : provider.menuItems.first.id)
+                              : null,
+                          hint: Text('No menu items available', style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12)),
                           isExpanded: true,
                           dropdownColor: CelestialTheme.bgCard,
-                          icon: const Icon(Icons.arrow_drop_down_rounded, color: CelestialTheme.goldLight),
+                          icon: Icon(Icons.arrow_drop_down_rounded, color: CelestialTheme.goldLight),
                           items: provider.menuItems.map((item) {
                             return DropdownMenuItem<String>(
                               value: item.id,
@@ -447,21 +448,22 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                     ),
 
                     const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => _autoFillFromItem(featuredItem),
-                        icon: const Icon(Icons.sync_rounded, size: 14, color: CelestialTheme.caramelAccent),
-                        label: Text(
-                          'Re-sync Title & Subtitle from "${featuredItem.name}"',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: CelestialTheme.caramelAccent,
+                    if (featuredItem != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _autoFillFromItem(featuredItem),
+                          icon: Icon(Icons.sync_rounded, size: 14, color: CelestialTheme.caramelAccent),
+                          label: Text(
+                            'Re-sync Title & Subtitle from "${featuredItem.name}"',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: CelestialTheme.caramelAccent,
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
                     const SizedBox(height: 16),
 
@@ -621,16 +623,16 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                                     ElevatedButton.icon(
                                       onPressed: _isPickingImage ? null : _pickImage,
                                       icon: _isPickingImage
-                                          ? const SizedBox(
+                                          ? SizedBox(
                                               width: 12,
                                               height: 12,
-                                              child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.black),
+                                              child: CircularProgressIndicator(strokeWidth: 1.5, color: CelestialTheme.primaryBtnText),
                                             )
                                           : const Icon(Icons.upload_file_rounded, size: 14),
                                       label: const Text('Upload Photo', style: TextStyle(fontSize: 11)),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: CelestialTheme.caramelAccent,
-                                        foregroundColor: CelestialTheme.bgDark,
+                                        foregroundColor: CelestialTheme.primaryBtnText,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
@@ -689,16 +691,16 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: CelestialTheme.creamSoft)),
+                    child: Text('Cancel', style: TextStyle(color: CelestialTheme.creamSoft)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton.icon(
                     onPressed: _isSaving ? null : () => _save(provider),
                     icon: _isSaving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                           )
                         : const Icon(Icons.check_circle_rounded, size: 16),
                     label: Text(
@@ -707,7 +709,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: CelestialTheme.caramelAccent,
-                      foregroundColor: CelestialTheme.bgDark,
+                      foregroundColor: CelestialTheme.primaryBtnText,
                       elevation: 3,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -722,15 +724,15 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
     );
   }
 
-  Widget _buildPreviewBanner(BuildContext context, bool isDesktop, MenuItem featuredItem) {
+  Widget _buildPreviewBanner(BuildContext context, bool isDesktop, MenuItem? featuredItem) {
     final badgeText = _badgeController.text.trim().isEmpty
         ? (isDesktop ? 'CELESTIAL SIGNATURE CRAFT' : 'SIGNATURE CRAFT')
         : _badgeController.text.trim();
     final titleText = _titleController.text.trim().isEmpty
-        ? featuredItem.name
+        ? (featuredItem?.name ?? 'Signature Item')
         : _titleController.text.trim();
     final subtitleText = _subtitleController.text.trim().isEmpty
-        ? featuredItem.description
+        ? (featuredItem?.description ?? 'Handcrafted cafe specialty')
         : _subtitleController.text.trim();
     final buttonText = _buttonTextController.text.trim().isEmpty
         ? 'Order'
@@ -854,7 +856,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.caramelAccent,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                     elevation: 2,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -873,7 +875,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.visibility_off_rounded, color: CelestialTheme.roseAlert, size: 18),
+                    Icon(Icons.visibility_off_rounded, color: CelestialTheme.roseAlert, size: 18),
                     const SizedBox(width: 8),
                     Text(
                       'Banner Hidden (Enable to show on POS screen)',
@@ -932,7 +934,7 @@ class _SignatureBannerDialogState extends State<SignatureBannerDialog> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: CelestialTheme.caramelAccent, width: 1.2),
+              borderSide: BorderSide(color: CelestialTheme.caramelAccent, width: 1.2),
             ),
           ),
         ),

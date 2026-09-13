@@ -474,7 +474,7 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: CelestialTheme.goldPrimary,
-                              foregroundColor: CelestialTheme.bgDark,
+                              foregroundColor: CelestialTheme.primaryBtnText,
                               disabledBackgroundColor:
                                   CelestialTheme.emeraldReady.withValues(alpha: 0.8),
                               disabledForegroundColor: Colors.white,

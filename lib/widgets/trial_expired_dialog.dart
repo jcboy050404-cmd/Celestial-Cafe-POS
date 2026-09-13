@@ -79,12 +79,12 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
         backgroundColor: CelestialTheme.bgCard,
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: CelestialTheme.emeraldReady, size: 18),
+            Icon(Icons.check_circle_rounded, color: CelestialTheme.emeraldReady, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Developer email copied: $_devPrimaryEmail',
-                style: const TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
               ),
             ),
           ],
@@ -112,14 +112,14 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
           backgroundColor: CelestialTheme.bgSurface,
           content: Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: CelestialTheme.goldPrimary, size: 20),
+              Icon(Icons.auto_awesome_rounded, color: CelestialTheme.goldPrimary, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   auth.isPro
                       ? '✨ Pro License Active! Station unlocked.'
                       : '✨ Trial renewed! ${auth.currentUser?.trialDaysRemaining ?? 0} days available.',
-                  style: const TextStyle(color: CelestialTheme.goldLight, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: CelestialTheme.goldLight, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -129,7 +129,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           backgroundColor: CelestialTheme.bgCard,
           content: Text(
             'Trial is still 0 days / expired. Please reach out to the developer to activate.',
@@ -195,7 +195,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.timer_off_rounded,
                   color: CelestialTheme.roseAlert,
                   size: 32,
@@ -232,7 +232,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.lock_clock_rounded, size: 12, color: CelestialTheme.roseAlert),
+                    Icon(Icons.lock_clock_rounded, size: 12, color: CelestialTheme.roseAlert),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
@@ -284,7 +284,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                             color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.support_agent_rounded, color: CelestialTheme.goldLight, size: 18),
+                          child: Icon(Icons.support_agent_rounded, color: CelestialTheme.goldLight, size: 18),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -324,7 +324,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.email_outlined, color: CelestialTheme.goldPrimary, size: 15),
+                            Icon(Icons.email_outlined, color: CelestialTheme.goldPrimary, size: 15),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -337,7 +337,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const Icon(Icons.copy_rounded, color: CelestialTheme.textMuted, size: 14),
+                            Icon(Icons.copy_rounded, color: CelestialTheme.textMuted, size: 14),
                           ],
                         ),
                       ),
@@ -355,7 +355,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CelestialTheme.goldPrimary,
-                          foregroundColor: CelestialTheme.bgDark,
+                          foregroundColor: CelestialTheme.primaryBtnText,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 0,
                         ),
@@ -377,12 +377,12 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                       child: OutlinedButton.icon(
                         onPressed: _isCheckingLicense ? null : () => _handleRefreshLicense(auth),
                         icon: _isCheckingLicense
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 14,
                                 height: 14,
                                 child: CircularProgressIndicator(color: CelestialTheme.goldLight, strokeWidth: 2),
                               )
-                            : const Icon(Icons.sync_rounded, size: 16, color: CelestialTheme.goldLight),
+                            : Icon(Icons.sync_rounded, size: 16, color: CelestialTheme.goldLight),
                         label: Text(
                           _isCheckingLicense ? 'Checking...' : 'Refresh License',
                           style: GoogleFonts.outfit(

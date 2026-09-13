@@ -1,1 +1,58 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"celestial-cafe-pos-2026","appId":"1:223139901314:android:c25638178246ab248fa99b","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"celestial-cafe-pos-2026","configurations":{"android":"1:223139901314:android:c25638178246ab248fa99b","ios":"1:223139901314:ios:b5309e0462cbdbf88fa99b","macos":"1:223139901314:ios:b5309e0462cbdbf88fa99b","web":"1:223139901314:web:f345bde2d1018d128fa99b","windows":"1:223139901314:web:35fe01d2adafba238fa99b"}}}}}}
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate, max-age=0"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "celestial-cafe-pos-2026",
+          "appId": "1:223139901314:android:c25638178246ab248fa99b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "celestial-cafe-pos-2026",
+          "configurations": {
+            "android": "1:223139901314:android:c25638178246ab248fa99b",
+            "ios": "1:223139901314:ios:b5309e0462cbdbf88fa99b",
+            "macos": "1:223139901314:ios:b5309e0462cbdbf88fa99b",
+            "web": "1:223139901314:web:f345bde2d1018d128fa99b",
+            "windows": "1:223139901314:web:35fe01d2adafba238fa99b"
+          }
+        }
+      }
+    }
+  }
+}

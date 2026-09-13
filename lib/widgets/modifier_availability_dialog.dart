@@ -54,7 +54,7 @@ class ModifierAvailabilityDialog {
                                   color: CelestialTheme.textLight,
                                 ),
                               ),
-                              const Text(
+                              Text(
                                 'Mark individual sizes, syrups, and add-ons as sold out',
                                 style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                               ),
@@ -63,7 +63,7 @@ class ModifierAvailabilityDialog {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                         ),
                       ],
                     ),
@@ -160,12 +160,12 @@ class ModifierAvailabilityDialog {
                                                   decoration: BoxDecoration(
                                                     color: opt.extraPrice > 0
                                                         ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
-                                                        : const Color(0xFF281F1A),
+                                                        : CelestialTheme.bgCard,
                                                     borderRadius: BorderRadius.circular(4),
                                                     border: Border.all(
                                                       color: opt.extraPrice > 0
                                                           ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
-                                                          : const Color(0xFF4A3B32),
+                                                          : CelestialTheme.borderWarm,
                                                       width: 0.8,
                                                     ),
                                                   ),
@@ -181,7 +181,7 @@ class ModifierAvailabilityDialog {
                                                         ),
                                                       ),
                                                       const SizedBox(width: 2.5),
-                                                      const Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
+                                                      Icon(Icons.edit, size: 8.5, color: CelestialTheme.goldPrimary),
                                                     ],
                                                   ),
                                                 ),
@@ -223,7 +223,7 @@ class ModifierAvailabilityDialog {
                           onPressed: () => Navigator.pop(ctx),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: CelestialTheme.goldPrimary,
-                            foregroundColor: CelestialTheme.bgDark,
+                            foregroundColor: CelestialTheme.primaryBtnText,
                           ),
                           child: const Text('Done'),
                         ),

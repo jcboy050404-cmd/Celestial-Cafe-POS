@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/app_feature.dart';
 import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 
@@ -11,7 +12,7 @@ class AdminManagementDialog extends StatefulWidget {
     final auth = Provider.of<AuthService>(context, listen: false);
     if (!auth.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           backgroundColor: CelestialTheme.bgCard,
           content: Text('Access Denied: Store administrator privileges required.'),
         ),
@@ -86,7 +87,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                                   color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.edit_calendar_rounded,
                                   color: CelestialTheme.goldLight,
                                   size: 20,
@@ -121,7 +122,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
@@ -158,8 +159,8 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                             filled: true,
                             fillColor: CelestialTheme.bgCard,
                             hintText: 'e.g. 30',
-                            hintStyle: const TextStyle(color: CelestialTheme.textMuted),
-                            prefixIcon: const Icon(Icons.hourglass_top_rounded, color: CelestialTheme.goldPrimary, size: 20),
+                            hintStyle: TextStyle(color: CelestialTheme.textMuted),
+                            prefixIcon: Icon(Icons.hourglass_top_rounded, color: CelestialTheme.goldPrimary, size: 20),
                             suffixText: 'DAYS',
                             suffixStyle: GoogleFonts.outfit(
                               fontWeight: FontWeight.bold,
@@ -177,7 +178,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
+                              borderSide: BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
                             ),
                           ),
                         ),
@@ -349,7 +350,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         icon: Icon(
                           currentInput == 0 ? Icons.timer_off_rounded : Icons.check_rounded,
                           size: 16,
-                          color: currentInput == 0 ? Colors.white : CelestialTheme.bgDark,
+                          color: currentInput == 0 ? Colors.white : CelestialTheme.primaryBtnText,
                         ),
                         label: Text(
                           currentInput == 0 ? 'End Station Trial (0 Days)' : 'Apply Trial Days',
@@ -357,7 +358,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: currentInput == 0 ? CelestialTheme.roseAlert : CelestialTheme.goldPrimary,
-                          foregroundColor: currentInput == 0 ? Colors.white : CelestialTheme.bgDark,
+                          foregroundColor: currentInput == 0 ? Colors.white : CelestialTheme.primaryBtnText,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
@@ -369,6 +370,370 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
             ),
           ),
         );
+        },
+      ),
+    );
+  }
+
+  void _showAccountFeaturesDialog(BuildContext context, AuthService auth, AppUser account) {
+    List<String> selectedDisabled = List<String>.from(account.disabledFeatures);
+    final isAdminAccount = account.isAdmin;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isFeatureActive(String key) {
+            if (isAdminAccount) return true;
+            return !selectedDisabled.contains(key);
+          }
+
+          void toggleFeature(String key, bool enabled) {
+            if (isAdminAccount) return;
+            setDialogState(() {
+              if (enabled) {
+                selectedDisabled.remove(key);
+              } else {
+                if (!selectedDisabled.contains(key)) {
+                  selectedDisabled.add(key);
+                }
+              }
+            });
+          }
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 520),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.tune_rounded,
+                                  color: CelestialTheme.goldLight,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Station Features & Permissions',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.textLight,
+                                      ),
+                                    ),
+                                    Text(
+                                      account.email,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        color: CelestialTheme.textMuted,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Admin Notice
+                    if (isAdminAccount)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.shield_rounded, color: CelestialTheme.goldLight, size: 22),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Store Administrator: Admin accounts permanently retain full access to all features (Food Costing, Analytics, Menu, History & Settings).',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: CelestialTheme.goldLight,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (!isAdminAccount) ...[
+                      Text(
+                        'Customize which tabs and modules this Gmail/station account can access. Disabled features will not appear on their screen.',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: CelestialTheme.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Quick Preset Chips
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            Text(
+                              'Presets:',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: CelestialTheme.textLight,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ActionChip(
+                              label: Text('Full Access', style: GoogleFonts.outfit(fontSize: 10.5)),
+                              backgroundColor: selectedDisabled.isEmpty ? CelestialTheme.goldPrimary.withValues(alpha: 0.25) : CelestialTheme.bgCard,
+                              labelStyle: GoogleFonts.outfit(
+                                color: selectedDisabled.isEmpty ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              side: BorderSide(color: selectedDisabled.isEmpty ? CelestialTheme.goldPrimary : Colors.white12),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedDisabled.clear();
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            ActionChip(
+                              label: Text('Cashier Only', style: GoogleFonts.outfit(fontSize: 10.5)),
+                              backgroundColor: CelestialTheme.bgCard,
+                              labelStyle: GoogleFonts.outfit(color: CelestialTheme.textMuted, fontWeight: FontWeight.w600),
+                              side: const BorderSide(color: Colors.white12),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedDisabled = [
+                                    AppFeature.foodCosting,
+                                    AppFeature.analytics,
+                                    AppFeature.storeSettings,
+                                    AppFeature.inventory,
+                                  ];
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            ActionChip(
+                              label: Text('Kitchen Only', style: GoogleFonts.outfit(fontSize: 10.5)),
+                              backgroundColor: CelestialTheme.bgCard,
+                              labelStyle: GoogleFonts.outfit(color: CelestialTheme.textMuted, fontWeight: FontWeight.w600),
+                              side: const BorderSide(color: Colors.white12),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedDisabled = [
+                                    AppFeature.foodCosting,
+                                    AppFeature.analytics,
+                                    AppFeature.storeSettings,
+                                    AppFeature.orderHistory,
+                                  ];
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Feature List
+                    ...AppFeature.allFeatures.map((feat) {
+                      final isEnabled = isFeatureActive(feat.key);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isEnabled
+                              ? CelestialTheme.bgCard
+                              : Colors.red.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isEnabled
+                                ? (isAdminAccount ? CelestialTheme.goldPrimary.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.08))
+                                : CelestialTheme.roseAlert.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isEnabled
+                                    ? CelestialTheme.goldPrimary.withValues(alpha: 0.15)
+                                    : CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                feat.icon,
+                                color: isEnabled ? CelestialTheme.goldLight : CelestialTheme.roseAlert,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        feat.title,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: isEnabled ? CelestialTheme.textLight : CelestialTheme.textMuted,
+                                        ),
+                                      ),
+                                      if (!isEnabled) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.3)),
+                                          ),
+                                          child: Text(
+                                            'HIDDEN',
+                                            style: TextStyle(
+                                              fontSize: 8.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: CelestialTheme.roseAlert,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    feat.description,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10.5,
+                                      color: CelestialTheme.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: isEnabled,
+                              activeTrackColor: CelestialTheme.goldPrimary,
+                              activeThumbColor: Colors.white,
+                              inactiveTrackColor: CelestialTheme.bgDark,
+                              inactiveThumbColor: CelestialTheme.textMuted,
+                              onChanged: isAdminAccount
+                                  ? null
+                                  : (val) => toggleFeature(feat.key, val),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 16),
+
+                    // Actions
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text('Close', style: GoogleFonts.outfit(color: CelestialTheme.textMuted)),
+                        ),
+                        if (!isAdminAccount) ...[
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await auth.updateAccountDisabledFeatures(account.uid, selectedDisabled);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Permissions updated for ${account.email}'),
+                                    backgroundColor: CelestialTheme.bgCard,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.check_rounded, size: 16),
+                            label: Text(
+                              'Save Permissions',
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: CelestialTheme.goldPrimary,
+                              foregroundColor: CelestialTheme.primaryBtnText,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
         },
       ),
     );
@@ -415,7 +780,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
@@ -426,8 +791,8 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                     controller: emailController,
                     decoration: InputDecoration(
                       labelText: 'Terminal Gmail / Email',
-                      labelStyle: const TextStyle(color: CelestialTheme.textMuted),
-                      prefixIcon: const Icon(Icons.email_outlined, color: CelestialTheme.goldPrimary, size: 18),
+                      labelStyle: TextStyle(color: CelestialTheme.textMuted),
+                      prefixIcon: Icon(Icons.email_outlined, color: CelestialTheme.goldPrimary, size: 18),
                       filled: true,
                       fillColor: CelestialTheme.bgCard,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -439,15 +804,15 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                     controller: nameController,
                     decoration: InputDecoration(
                       labelText: 'Station Name (e.g. Patio POS)',
-                      labelStyle: const TextStyle(color: CelestialTheme.textMuted),
-                      prefixIcon: const Icon(Icons.badge_outlined, color: CelestialTheme.goldPrimary, size: 18),
+                      labelStyle: TextStyle(color: CelestialTheme.textMuted),
+                      prefixIcon: Icon(Icons.badge_outlined, color: CelestialTheme.goldPrimary, size: 18),
                       filled: true,
                       fillColor: CelestialTheme.bgCard,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     style: const TextStyle(color: Colors.white),
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
@@ -456,12 +821,12 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                           dropdownColor: CelestialTheme.bgCard,
                           decoration: InputDecoration(
                             labelText: 'License Tier',
-                            labelStyle: const TextStyle(color: CelestialTheme.textMuted),
+                            labelStyle: TextStyle(color: CelestialTheme.textMuted),
                             filled: true,
                             fillColor: CelestialTheme.bgCard,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: SubscriptionTier.trial,
                               child: Text('Trial License', style: TextStyle(color: CelestialTheme.amberBrewing)),
@@ -484,7 +849,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               labelText: 'Trial Days',
-                              labelStyle: const TextStyle(color: CelestialTheme.textMuted),
+                              labelStyle: TextStyle(color: CelestialTheme.textMuted),
                               suffixText: 'd',
                               filled: true,
                               fillColor: CelestialTheme.bgCard,
@@ -521,7 +886,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CelestialTheme.goldPrimary,
-                          foregroundColor: CelestialTheme.bgDark,
+                          foregroundColor: CelestialTheme.primaryBtnText,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: const Text('Add Station'),
@@ -574,7 +939,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'e.g. manager.celestial@gmail.com',
-                    hintStyle: const TextStyle(color: CelestialTheme.textMuted),
+                    hintStyle: TextStyle(color: CelestialTheme.textMuted),
                     filled: true,
                     fillColor: CelestialTheme.bgCard,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -599,7 +964,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.bgDark,
+                        foregroundColor: CelestialTheme.primaryBtnText,
                       ),
                       child: const Text('Authorize Admin'),
                     ),
@@ -644,7 +1009,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.tune_rounded, color: CelestialTheme.goldLight, size: 20),
+                      child: Icon(Icons.tune_rounded, color: CelestialTheme.goldLight, size: 20),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -674,7 +1039,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 14, color: CelestialTheme.goldLight),
+                      Icon(Icons.info_outline_rounded, size: 14, color: CelestialTheme.goldLight),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -698,7 +1063,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+                      borderSide: BorderSide(color: CelestialTheme.goldPrimary),
                     ),
                   ),
                 ),
@@ -764,7 +1129,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                       label: Text('Save Default', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.bgDark,
+                        foregroundColor: CelestialTheme.primaryBtnText,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
@@ -797,7 +1162,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.gpp_bad_rounded, color: CelestialTheme.roseAlert, size: 48),
+              Icon(Icons.gpp_bad_rounded, color: CelestialTheme.roseAlert, size: 48),
               const SizedBox(height: 14),
               Text(
                 'Access Restricted',
@@ -882,7 +1247,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                       color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.admin_panel_settings_rounded, color: CelestialTheme.goldLight, size: 22),
+                    child: Icon(Icons.admin_panel_settings_rounded, color: CelestialTheme.goldLight, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -937,7 +1302,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 22),
+                    icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 22),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   ),
@@ -1002,7 +1367,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.tune_rounded, size: 14, color: CelestialTheme.goldLight),
+                                  Icon(Icons.tune_rounded, size: 14, color: CelestialTheme.goldLight),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
@@ -1023,7 +1388,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                           Flexible(
                             child: TextButton.icon(
                               onPressed: () => _showAddAdminDialog(context, auth),
-                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 14, color: CelestialTheme.goldLight),
+                              icon: Icon(Icons.person_add_alt_1_rounded, size: 14, color: CelestialTheme.goldLight),
                               label: Text(
                                 '+ Admin Gmail',
                                 style: GoogleFonts.outfit(fontSize: 10.5, fontWeight: FontWeight.w600, color: CelestialTheme.goldLight),
@@ -1042,7 +1407,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.tune_rounded, size: 16, color: CelestialTheme.goldLight),
+                              Icon(Icons.tune_rounded, size: 16, color: CelestialTheme.goldLight),
                               const SizedBox(width: 8),
                               Text(
                                 'Default Trial: ${auth.defaultTrialDays} Days',
@@ -1064,7 +1429,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                           ),
                           TextButton.icon(
                             onPressed: () => _showAddAdminDialog(context, auth),
-                            icon: const Icon(Icons.person_add_alt_1_rounded, size: 15, color: CelestialTheme.goldLight),
+                            icon: Icon(Icons.person_add_alt_1_rounded, size: 15, color: CelestialTheme.goldLight),
                             label: Text(
                               '+ Authorize Admin Gmail',
                               style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.goldLight),
@@ -1091,8 +1456,8 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
                             hintText: 'Search by terminal email or name...',
-                            hintStyle: const TextStyle(color: CelestialTheme.textMuted, fontSize: 12),
-                            prefixIcon: const Icon(Icons.search_rounded, size: 18, color: CelestialTheme.textMuted),
+                            hintStyle: TextStyle(color: CelestialTheme.textMuted, fontSize: 12),
+                            prefixIcon: Icon(Icons.search_rounded, size: 18, color: CelestialTheme.textMuted),
                             filled: true,
                             fillColor: CelestialTheme.bgCard,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1106,7 +1471,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+                              borderSide: BorderSide(color: CelestialTheme.goldPrimary),
                             ),
                           ),
                         ),
@@ -1140,7 +1505,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: CelestialTheme.goldPrimary,
-                                foregroundColor: CelestialTheme.bgDark,
+                                foregroundColor: CelestialTheme.primaryBtnText,
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
@@ -1157,8 +1522,8 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                             style: const TextStyle(color: Colors.white, fontSize: 13),
                             decoration: InputDecoration(
                               hintText: 'Search by terminal email or name...',
-                              hintStyle: const TextStyle(color: CelestialTheme.textMuted, fontSize: 13),
-                              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: CelestialTheme.textMuted),
+                              hintStyle: TextStyle(color: CelestialTheme.textMuted, fontSize: 13),
+                              prefixIcon: Icon(Icons.search_rounded, size: 18, color: CelestialTheme.textMuted),
                               filled: true,
                               fillColor: CelestialTheme.bgCard,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1172,7 +1537,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: CelestialTheme.goldPrimary),
+                                borderSide: BorderSide(color: CelestialTheme.goldPrimary),
                               ),
                             ),
                           ),
@@ -1204,7 +1569,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: CelestialTheme.goldPrimary,
-                            foregroundColor: CelestialTheme.bgDark,
+                            foregroundColor: CelestialTheme.primaryBtnText,
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
@@ -1356,7 +1721,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
             title: const Text('Delete Terminal?', style: TextStyle(color: Colors.white)),
             content: Text(
               'Are you sure you want to remove ${account.email} from managed accounts?',
-              style: const TextStyle(color: CelestialTheme.textMuted),
+              style: TextStyle(color: CelestialTheme.textMuted),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
@@ -1372,7 +1737,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
           await auth.deleteManagedAccount(account.uid);
         }
       },
-      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: CelestialTheme.textMuted),
+      icon: Icon(Icons.delete_outline_rounded, size: 18, color: CelestialTheme.textMuted),
       tooltip: 'Remove terminal',
       splashRadius: 18,
       padding: EdgeInsets.zero,
@@ -1441,12 +1806,31 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     'ADMIN',
                                     style: TextStyle(
                                       fontSize: 8.5,
                                       fontWeight: FontWeight.bold,
                                       color: CelestialTheme.goldLight,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (!account.isAdmin && account.disabledFeatures.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    '${account.disabledFeatures.length} Restricted',
+                                    style: TextStyle(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: CelestialTheme.roseAlert,
                                     ),
                                   ),
                                 ),
@@ -1565,8 +1949,28 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isPro ? CelestialTheme.brownRich : CelestialTheme.goldPrimary,
-                          foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.bgDark,
+                          foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.primaryBtnText,
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showAccountFeaturesDialog(context, auth, account),
+                        icon: const Icon(Icons.tune_rounded, size: 14),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Features',
+                            style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CelestialTheme.textLight,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
@@ -1628,6 +2032,25 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                               ),
                             ),
                           ],
+                          if (!account.isAdmin && account.disabledFeatures.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                '${account.disabledFeatures.length} Restricted',
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.roseAlert,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       Text(
@@ -1669,6 +2092,23 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
 
                 const SizedBox(width: 12),
 
+                // Features Permissions Button
+                OutlinedButton.icon(
+                  onPressed: () => _showAccountFeaturesDialog(context, auth, account),
+                  icon: const Icon(Icons.tune_rounded, size: 15),
+                  label: Text(
+                    'Features',
+                    style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: CelestialTheme.textLight,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
                 // Custom Input Trial Action Button
                 if (!isPro) ...[
                   OutlinedButton.icon(
@@ -1704,7 +2144,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isPro ? CelestialTheme.brownRich : CelestialTheme.goldPrimary,
-                    foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.bgDark,
+                    foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.primaryBtnText,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),

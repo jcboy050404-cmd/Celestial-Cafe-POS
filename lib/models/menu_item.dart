@@ -172,6 +172,81 @@ class CustomizationGroup {
       defaultIndex: defaultIndex ?? this.defaultIndex,
     );
   }
+
+  // Pre-configured Modifier Category Presets for easy creation
+  static CustomizationGroup createTemperatureGroup({double icedExtra = 0.0}) => CustomizationGroup(
+        id: 'temp',
+        title: 'Temperature',
+        isRequired: true,
+        defaultIndex: 0,
+        options: [
+          const CustomizationOption(name: 'Hot', extraPrice: 0.0),
+          CustomizationOption(name: 'Iced', extraPrice: icedExtra),
+        ],
+      );
+
+  static CustomizationGroup createSweetnessGroup() => const CustomizationGroup(
+        id: 'sweetness',
+        title: 'Sweetness Level',
+        isRequired: true,
+        defaultIndex: 2,
+        options: [
+          CustomizationOption(name: '100% Regular', extraPrice: 0.0),
+          CustomizationOption(name: '75% Less Sweet', extraPrice: 0.0),
+          CustomizationOption(name: '50% Half Sweet', extraPrice: 0.0),
+          CustomizationOption(name: '25% Mild', extraPrice: 0.0),
+          CustomizationOption(name: '0% Unsweetened', extraPrice: 0.0),
+        ],
+      );
+
+  static CustomizationGroup createSizeGroup({double largeExtra = 20.0}) => CustomizationGroup(
+        id: 'size',
+        title: 'Cup Size',
+        isRequired: true,
+        defaultIndex: 0,
+        options: [
+          const CustomizationOption(name: '16oz Regular', extraPrice: 0.0),
+          CustomizationOption(name: '22oz Large', extraPrice: largeExtra),
+        ],
+      );
+
+  static CustomizationGroup createAddonsGroup() => const CustomizationGroup(
+        id: 'addons',
+        title: 'Add-ons & Extras',
+        isMultiSelect: true,
+        isRequired: false,
+        options: [
+          CustomizationOption(name: 'Extra Shot Espresso', extraPrice: 25.0),
+          CustomizationOption(name: 'Oat Milk Sub', extraPrice: 30.0),
+          CustomizationOption(name: 'Vanilla Syrup', extraPrice: 15.0),
+          CustomizationOption(name: 'Caramel Drizzle', extraPrice: 15.0),
+        ],
+      );
+
+  static CustomizationGroup createSinkersGroup() => const CustomizationGroup(
+        id: 'sinkers',
+        title: 'Sinkers & Toppings',
+        isMultiSelect: true,
+        isRequired: false,
+        options: [
+          CustomizationOption(name: 'Black Tapioca Pearls', extraPrice: 15.0),
+          CustomizationOption(name: 'Cream Cheese Foam', extraPrice: 20.0),
+          CustomizationOption(name: 'Nata de Coco', extraPrice: 15.0),
+          CustomizationOption(name: 'Egg Pudding', extraPrice: 15.0),
+        ],
+      );
+
+  static CustomizationGroup createSpiceLevelGroup() => const CustomizationGroup(
+        id: 'spice_level',
+        title: 'Spice Level',
+        isRequired: true,
+        defaultIndex: 0,
+        options: [
+          CustomizationOption(name: 'Mild', extraPrice: 0.0),
+          CustomizationOption(name: 'Medium Spicy', extraPrice: 0.0),
+          CustomizationOption(name: 'Extra Hot 🔥', extraPrice: 5.0),
+        ],
+      );
 }
 
 /// Supported units for ingredient quantities

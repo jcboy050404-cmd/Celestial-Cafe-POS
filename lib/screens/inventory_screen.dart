@@ -39,38 +39,57 @@ class _InventoryScreenState extends State<InventoryScreen> {
       return matchesSearch && matchesCat;
     }).toList();
 
-    return Container(
-      color: CelestialTheme.bgDark,
-      child: Column(
-        children: [
-          // Header & Toolbar
-          _buildHeader(context, posProvider, isMobile),
+    return Scaffold(
+      backgroundColor: CelestialTheme.bgDark,
+      body: SafeArea(
+        child: Material(
+          color: CelestialTheme.bgDark,
+          child: Column(
+            children: [
+              // Header & Toolbar
+              _buildHeader(context, posProvider, isMobile),
 
-          const Divider(height: 1),
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
 
-          // Inventory Table / List
-          Expanded(
-            child: items.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.inventory_2_outlined, size: 48, color: CelestialTheme.textMuted),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No Menu Items Found',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+              // Inventory Table / List
+              Expanded(
+                child: items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.inventory_2_outlined, size: 48, color: CelestialTheme.textMuted),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No Menu Items Found',
+                              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Try adjusting your search or category filter.',
+                              style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                            ),
+                            if (posProvider.menuItems.isEmpty) ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  await posProvider.resetCategoriesAndMenu();
+                                },
+                                icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                                label: const Text('Restore Default Categories & Menu'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: CelestialTheme.goldPrimary,
+                                  foregroundColor: CelestialTheme.primaryBtnText,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Try adjusting your search or category filter.',
-                          style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    padding: EdgeInsets.all(isMobile ? 12 : 20),
+                      )
+                    : ListView.separated(
+                        padding: EdgeInsets.all(isMobile ? 12 : 20),
                     itemCount: items.length,
                     separatorBuilder: (ctx, idx) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
@@ -139,7 +158,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                             ),
                                             child: Text(
                                               item.categoryLabel,
-                                              style: const TextStyle(fontSize: 9, color: CelestialTheme.goldLight),
+                                              style: TextStyle(fontSize: 9, color: CelestialTheme.goldLight),
                                             ),
                                           ),
                                           // Profit margin badge
@@ -194,7 +213,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                                     ),
                                                   ),
                                                   const SizedBox(width: 4),
-                                                  const Icon(Icons.edit, size: 10, color: CelestialTheme.goldPrimary),
+                                                  Icon(Icons.edit, size: 10, color: CelestialTheme.goldPrimary),
                                                 ],
                                               ),
                                             ),
@@ -203,7 +222,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                           Expanded(
                                             child: Text(
                                               item.description,
-                                              style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                              style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
@@ -215,14 +234,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 ),
                                 IconButton(
                                   onPressed: () => ItemEditorDialog.show(context, posProvider, item),
-                                  icon: const Icon(Icons.edit_note_rounded, size: 20, color: CelestialTheme.goldLight),
+                                  icon: Icon(Icons.edit_note_rounded, size: 20, color: CelestialTheme.goldLight),
                                   tooltip: 'Edit Full Details',
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                 ),
                                 IconButton(
                                   onPressed: () => posProvider.deleteMenuItem(item.id),
-                                  icon: const Icon(Icons.delete_outline, size: 16, color: CelestialTheme.roseAlert),
+                                  icon: Icon(Icons.delete_outline, size: 16, color: CelestialTheme.roseAlert),
                                   tooltip: 'Delete Item',
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -418,6 +437,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ],
       ),
+    ),
+    ),
     );
   }
 
@@ -427,7 +448,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
         onPressed: () => CategoryManagementDialog.show(
           context,
           provider,
-          onUpdated: () => setState(() {}),
+          onUpdated: () => setState(() {
+            // Reset local category filter if selected category was deleted (e.g. after reset)
+            if (_categoryFilterId != null && _categoryFilterId != 'all') {
+              final stillExists = provider.allCategoryTabs.any((t) => t.id == _categoryFilterId);
+              if (!stillExists) _categoryFilterId = null;
+            }
+          }),
         ),
         icon: const Icon(Icons.category_outlined, size: 15),
         label: Text(
@@ -501,7 +528,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         label: Text(isMobile ? 'Add' : 'Add Item', style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
           backgroundColor: CelestialTheme.goldPrimary,
-          foregroundColor: CelestialTheme.bgDark,
+          foregroundColor: CelestialTheme.primaryBtnText,
           padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: isMobile ? 8 : 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -517,7 +544,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
           if (isMobile) ...[
             Row(
               children: [
-                const Icon(Icons.inventory_2_rounded, color: CelestialTheme.goldPrimary, size: 20),
+                if (Navigator.canPop(context)) ...[
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.arrow_back_rounded, color: CelestialTheme.textLight, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Back to Station',
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Icon(Icons.inventory_2_rounded, color: CelestialTheme.goldPrimary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -541,7 +578,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ] else ...[
             Row(
               children: [
-                const Icon(Icons.inventory_2_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                if (Navigator.canPop(context)) ...[
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.arrow_back_rounded, color: CelestialTheme.textLight),
+                    tooltip: 'Back to Station',
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Icon(Icons.inventory_2_rounded, color: CelestialTheme.goldPrimary, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -553,7 +598,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ),
                 ),
-                ...actionButtons,
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: actionButtons,
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -567,9 +623,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: TextField(
-              style: const TextStyle(fontSize: 12, color: CelestialTheme.textLight),
+              style: TextStyle(fontSize: 12, color: CelestialTheme.textLight),
               onChanged: (val) => setState(() => _searchQuery = val),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Filter items to update price or stock...',
                 hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.textSubtle),
                 prefixIcon: Icon(Icons.search_rounded, size: 16, color: CelestialTheme.goldPrimary),

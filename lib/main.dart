@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'models/app_feature.dart';
 import 'providers/pos_provider.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/food_costing_screen.dart';
@@ -10,6 +11,7 @@ import 'screens/orders_history_screen.dart';
 import 'screens/pos_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/auth_service.dart';
+import 'services/cloud_backup_service.dart';
 import 'theme/celestial_theme.dart';
 import 'widgets/header_bar.dart';
 import 'widgets/top_notification.dart';
@@ -100,13 +102,24 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
         TrialExpiredDialog.show(context);
       }
 
-      // Asynchronously refresh cloud license in background
-      auth.refreshUserLicenseFromCloud().then((_) {
-        if (mounted) {
-          final updatedAuth = Provider.of<AuthService>(context, listen: false);
-          if (!updatedAuth.isAdmin && updatedAuth.currentUser?.isTrialExpired == true) {
-            TrialExpiredDialog.show(context);
-          }
+      // Asynchronously refresh cloud license and restore Pro backup if available
+      auth.refreshUserLicenseFromCloud().then((_) async {
+        if (!mounted) return;
+        final updatedAuth = Provider.of<AuthService>(context, listen: false);
+        if (!updatedAuth.isAdmin && updatedAuth.currentUser?.isTrialExpired == true) {
+          TrialExpiredDialog.show(context);
+        } else if (updatedAuth.isPro || updatedAuth.isAdmin) {
+          // PRO / Admin: Automatically check if Cloud Backup exists and restore
+          try {
+            final user = updatedAuth.currentUser;
+            if (user != null) {
+              final backup = await CloudBackupService().fetchProBackup(user.email);
+              if (backup != null && mounted) {
+                final pos = Provider.of<PosProvider>(context, listen: false);
+                await pos.restoreFromProCloudBackup(backup);
+              }
+            }
+          } catch (_) {}
         }
       }).catchError((_) {});
     });
@@ -115,7 +128,22 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
   @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
+    final auth = Provider.of<AuthService>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
+
+    // Verify if current active tab is permitted; fallback to POS (0) if restricted
+    final isCurrentTabAllowed = switch (posProvider.currentNavIndex) {
+      1 => auth.isFeatureEnabled(AppFeature.orderHistory),
+      2 => auth.isFeatureEnabled(AppFeature.inventory),
+      3 => auth.isFeatureEnabled(AppFeature.analytics),
+      4 => auth.isFeatureEnabled(AppFeature.foodCosting),
+      _ => true,
+    };
+    if (!isCurrentTabAllowed && posProvider.currentNavIndex != 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) posProvider.setNavIndex(0);
+      });
+    }
 
     if (_lastNavIndex != posProvider.currentNavIndex) {
       _lastNavIndex = posProvider.currentNavIndex;
@@ -133,6 +161,48 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
       AnalyticsScreen(),
       FoodCostingScreen(),
     ];
+
+    final availableDestinations = <({int targetIndex, Widget icon, Widget selectedIcon, String label})>[
+      (
+        targetIndex: 0,
+        icon: const Icon(Icons.point_of_sale_outlined),
+        selectedIcon: const Icon(Icons.point_of_sale_rounded),
+        label: 'POS',
+      ),
+      if (auth.isFeatureEnabled(AppFeature.orderHistory))
+        (
+          targetIndex: 1,
+          icon: const Icon(Icons.receipt_long_outlined),
+          selectedIcon: const Icon(Icons.receipt_long_rounded),
+          label: 'History',
+        ),
+      if (auth.isFeatureEnabled(AppFeature.inventory))
+        (
+          targetIndex: 2,
+          icon: const Icon(Icons.inventory_2_outlined),
+          selectedIcon: const Icon(Icons.inventory_2_rounded),
+          label: 'Stock',
+        ),
+      if (auth.isFeatureEnabled(AppFeature.analytics))
+        (
+          targetIndex: 3,
+          icon: const Icon(Icons.insights_outlined),
+          selectedIcon: const Icon(Icons.insights_rounded),
+          label: 'Insights',
+        ),
+      if (auth.isFeatureEnabled(AppFeature.foodCosting))
+        (
+          targetIndex: 4,
+          icon: const Icon(Icons.calculate_outlined),
+          selectedIcon: const Icon(Icons.calculate_rounded),
+          label: 'Costing',
+        ),
+    ];
+
+    int activeBottomIndex = availableDestinations.indexWhere(
+      (d) => d.targetIndex == posProvider.currentNavIndex,
+    );
+    if (activeBottomIndex < 0) activeBottomIndex = 0;
 
     return Scaffold(
       backgroundColor: CelestialTheme.bgDark,
@@ -203,44 +273,28 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
                   }),
                   iconTheme: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.selected)) {
-                      return const IconThemeData(color: CelestialTheme.goldPrimary, size: 22);
+                      return IconThemeData(color: CelestialTheme.goldPrimary, size: 22);
                     }
-                    return const IconThemeData(color: CelestialTheme.textMuted, size: 20);
+                    return IconThemeData(color: CelestialTheme.textMuted, size: 20);
                   }),
                 ),
                 child: NavigationBar(
                   height: 66,
                   labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                   backgroundColor: Colors.transparent,
-                  selectedIndex: posProvider.currentNavIndex.clamp(0, 4),
-                  onDestinationSelected: (index) => posProvider.setNavIndex(index),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.point_of_sale_outlined),
-                      selectedIcon: Icon(Icons.point_of_sale_rounded),
-                      label: 'POS',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: 'History',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.inventory_2_outlined),
-                      selectedIcon: Icon(Icons.inventory_2_rounded),
-                      label: 'Stock',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.insights_outlined),
-                      selectedIcon: Icon(Icons.insights_rounded),
-                      label: 'Insights',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.calculate_outlined),
-                      selectedIcon: Icon(Icons.calculate_rounded),
-                      label: 'Costing',
-                    ),
-                  ],
+                  selectedIndex: activeBottomIndex.clamp(0, availableDestinations.length - 1),
+                  onDestinationSelected: (index) {
+                    if (index >= 0 && index < availableDestinations.length) {
+                      posProvider.setNavIndex(availableDestinations[index].targetIndex);
+                    }
+                  },
+                  destinations: availableDestinations
+                      .map((d) => NavigationDestination(
+                            icon: d.icon,
+                            selectedIcon: d.selectedIcon,
+                            label: d.label,
+                          ))
+                      .toList(),
                 ),
               ),
             )

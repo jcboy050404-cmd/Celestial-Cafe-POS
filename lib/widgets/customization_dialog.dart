@@ -55,28 +55,28 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF1E1714),
+        backgroundColor: CelestialTheme.bgCard,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: CelestialTheme.borderSubtle),
+          side: BorderSide(color: CelestialTheme.borderSubtle),
         ),
         action: SnackBarAction(
           label: 'RESTOCK',
-          textColor: const Color(0xFFD48B28),
+          textColor: CelestialTheme.goldPrimary,
           onPressed: () {
             _toggleOptionAvailability(group, option, true);
           },
         ),
         content: Row(
           children: [
-            const Icon(Icons.do_not_disturb_on_outlined, color: CelestialTheme.roseAlert, size: 18),
+            Icon(Icons.do_not_disturb_on_outlined, color: CelestialTheme.roseAlert, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 '⚠️ "${option.name}" is currently 86\'d / not available.',
-                style: const TextStyle(color: CelestialTheme.textLight, fontSize: 12),
+                style: TextStyle(color: CelestialTheme.textLight, fontSize: 12),
               ),
             ),
           ],
@@ -148,13 +148,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF1E1714),
+        backgroundColor: CelestialTheme.bgCard,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: newAvail ? const Color(0xFFD48B28) : CelestialTheme.roseAlert,
+            color: newAvail ? CelestialTheme.goldPrimary : CelestialTheme.roseAlert,
             width: 1.0,
           ),
         ),
@@ -206,10 +206,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                   maxHeight: MediaQuery.of(context).size.height * 0.82,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1714),
+                  color: CelestialTheme.bgSurface,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: const Color(0xFF33261F),
+                    color: CelestialTheme.borderWarm,
                     width: 1.2,
                   ),
                   boxShadow: [
@@ -231,13 +231,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF382214),
+                              color: CelestialTheme.bgCardActive,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               _getGroupIcon(liveGroup),
                               size: 18,
-                              color: const Color(0xFFD48B28),
+                              color: CelestialTheme.goldPrimary,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -260,7 +260,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                   'Control in-stock & 86\'d modifier status',
                                   style: GoogleFonts.outfit(
                                     fontSize: 11.5,
-                                    color: const Color(0xFF9E8A7D),
+                                    color: CelestialTheme.textMuted,
                                   ),
                                 ),
                               ],
@@ -268,21 +268,21 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           ),
                           IconButton(
                             onPressed: () => Navigator.pop(sheetCtx),
-                            icon: const Icon(Icons.close_rounded, color: Color(0xFF9E8A7D), size: 20),
+                            icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
                             splashRadius: 18,
                           ),
                         ],
                       ),
                     ),
-                    const Divider(color: Color(0xFF33261F), height: 1),
+                    Divider(color: CelestialTheme.borderWarm, height: 1),
 
                     // Global Switch Banner
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                      color: const Color(0xFF140F0D),
+                      color: CelestialTheme.bgCard,
                       child: Row(
                         children: [
-                          const Icon(Icons.public_rounded, size: 16, color: Color(0xFFD48B28)),
+                          Icon(Icons.public_rounded, size: 16, color: CelestialTheme.goldPrimary),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -300,7 +300,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                   'Update availability cafe-wide across all items',
                                   style: GoogleFonts.outfit(
                                     fontSize: 10,
-                                    color: const Color(0xFF9E8A7D),
+                                    color: CelestialTheme.textMuted,
                                   ),
                                 ),
                               ],
@@ -308,10 +308,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           ),
                           Switch.adaptive(
                             value: applyGlobally,
-                            activeThumbColor: const Color(0xFFD48B28),
-                            activeTrackColor: const Color(0xFF382214),
-                            inactiveThumbColor: const Color(0xFF9E8A7D),
-                            inactiveTrackColor: const Color(0xFF281F1A),
+                            activeThumbColor: CelestialTheme.goldPrimary,
+                            activeTrackColor: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                            inactiveThumbColor: CelestialTheme.textMuted,
+                            inactiveTrackColor: CelestialTheme.bgCardActive,
                             onChanged: (val) {
                               setSheetState(() => applyGlobally = val);
                             },
@@ -319,7 +319,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                         ],
                       ),
                     ),
-                    const Divider(color: Color(0xFF33261F), height: 1),
+                    Divider(color: CelestialTheme.borderWarm, height: 1),
 
                     // Option List
                     Flexible(
@@ -335,11 +335,11 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF140F0D),
+                              color: CelestialTheme.bgCard,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isAvail
-                                    ? const Color(0xFF33261F)
+                                    ? CelestialTheme.borderWarm
                                     : CelestialTheme.roseAlert.withValues(alpha: 0.4),
                               ),
                             ),
@@ -382,13 +382,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: opt.extraPrice > 0
-                                                ? const Color(0xFFD48B28).withValues(alpha: 0.18)
-                                                : const Color(0xFF281F1A),
+                                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.18)
+                                                : CelestialTheme.bgCardActive,
                                             borderRadius: BorderRadius.circular(6),
                                             border: Border.all(
                                               color: opt.extraPrice > 0
-                                                  ? const Color(0xFFD48B28).withValues(alpha: 0.5)
-                                                  : const Color(0xFF4A3B32),
+                                                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                                                  : CelestialTheme.borderWarm,
                                               width: 0.8,
                                             ),
                                           ),
@@ -402,13 +402,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                                 style: GoogleFonts.outfit(
                                                   fontSize: 11,
                                                   color: opt.extraPrice > 0
-                                                      ? const Color(0xFFD48B28)
-                                                      : const Color(0xFFB09D90),
+                                                      ? CelestialTheme.goldPrimary
+                                                      : CelestialTheme.textMuted,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                               const SizedBox(width: 4),
-                                              const Icon(Icons.edit, size: 10, color: Color(0xFFD48B28)),
+                                              Icon(Icons.edit, size: 10, color: CelestialTheme.goldPrimary),
                                             ],
                                           ),
                                         ),
@@ -460,7 +460,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                       ),
                     ),
 
-                    const Divider(color: Color(0xFF33261F), height: 1),
+                    Divider(color: CelestialTheme.borderWarm, height: 1),
 
                     // Bottom Actions
                     Padding(
@@ -507,7 +507,8 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                             child: ElevatedButton(
                               onPressed: () => Navigator.pop(sheetCtx),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFD48B28),
+                                backgroundColor: CelestialTheme.goldPrimary,
+                                foregroundColor: CelestialTheme.isLondon ? Colors.white : CelestialTheme.bgDark,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -516,7 +517,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                               child: Text(
                                 'Done',
                                 style: GoogleFonts.outfit(
-                                  color: const Color(0xFF140F0D),
+                                  color: CelestialTheme.isLondon ? Colors.white : CelestialTheme.bgDark,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13,
                                 ),
@@ -644,10 +645,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
           maxHeight: MediaQuery.of(context).size.height * (isMobile ? 0.94 : 0.90),
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF140F0D),
+          color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: const Color(0xFF2B201A),
+            color: CelestialTheme.borderWarm,
             width: 1.2,
           ),
           boxShadow: [
@@ -713,10 +714,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
       ),
       padding: EdgeInsets.all(isMobile ? 12 : 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1714),
+        color: CelestialTheme.bgCard,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: const Color(0xFF33261F),
+          color: CelestialTheme.borderWarm,
           width: 1.0,
         ),
         boxShadow: [
@@ -738,7 +739,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                 width: double.infinity,
                 height: isMobile ? 160 : 185,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF140F0D),
+                  color: CelestialTheme.bgSurface,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: ClipRRect(
@@ -804,7 +805,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
             Text(
               _liveItem.description.trim(),
               style: GoogleFonts.outfit(
-                color: const Color(0xFF9E94A5),
+                color: CelestialTheme.textMuted,
                 fontSize: isMobile ? 12 : 13,
                 height: 1.35,
               ),
@@ -837,13 +838,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF382214),
+                  color: CelestialTheme.bgCardActive,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   icon,
                   size: 15,
-                  color: const Color(0xFFD48B28),
+                  color: CelestialTheme.goldPrimary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -865,10 +866,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1714),
+                    color: CelestialTheme.bgCard,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: const Color(0xFF33261F),
+                      color: CelestialTheme.borderWarm,
                       width: 0.8,
                     ),
                   ),
@@ -878,7 +879,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
-                      color: const Color(0xFFD48B28),
+                      color: CelestialTheme.goldPrimary,
                     ),
                   ),
                 ),
@@ -890,21 +891,21 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF281F1A),
+                    color: CelestialTheme.bgCardHover,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF3E2F26), width: 0.8),
+                    border: Border.all(color: CelestialTheme.borderWarm, width: 0.8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.tune_rounded, size: 11.5, color: Color(0xFFD48B28)),
+                      Icon(Icons.tune_rounded, size: 11.5, color: CelestialTheme.goldPrimary),
                       const SizedBox(width: 4),
                       Text(
                         'Prices / 86',
                         style: GoogleFonts.outfit(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFFE2D6CE),
+                          color: CelestialTheme.creamSoft,
                         ),
                       ),
                     ],
@@ -969,14 +970,14 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1714),
+                      color: CelestialTheme.bgCard,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: !isAvailable
                             ? CelestialTheme.roseAlert.withValues(alpha: 0.35)
                             : isSelected
-                                ? const Color(0xFFD48B28)
-                                : const Color(0xFF33261F),
+                                ? CelestialTheme.goldPrimary
+                                : CelestialTheme.borderWarm,
                         width: isSelected ? 1.4 : 1.0,
                       ),
                     ),
@@ -987,16 +988,18 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           height: 26,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isSelected ? const Color(0xFFD48B28) : const Color(0xFF281F1A),
+                            color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.bgCardActive,
                             border: Border.all(
-                              color: isSelected ? const Color(0xFFD48B28) : const Color(0xFF3E2F26),
+                              color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.borderWarm,
                             ),
                           ),
                           child: Center(
                             child: Icon(
                               isSelected ? Icons.check_rounded : Icons.add_rounded,
                               size: 15,
-                              color: isSelected ? const Color(0xFF140F0D) : const Color(0xFFB09D90),
+                              color: isSelected
+                                  ? (CelestialTheme.isLondon ? Colors.white : CelestialTheme.bgDark)
+                                  : CelestialTheme.warmGray,
                             ),
                           ),
                         ),
@@ -1013,7 +1016,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                   fontWeight: FontWeight.w700,
                                   color: !isAvailable
                                       ? CelestialTheme.roseAlert
-                                      : (isSelected ? Colors.white : const Color(0xFFE2D6CE)),
+                                      : (isSelected ? Colors.white : CelestialTheme.creamSoft),
                                   decoration: !isAvailable ? TextDecoration.lineThrough : null,
                                 ),
                                 maxLines: 1,
@@ -1034,7 +1037,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                         width: 0.8,
                                       ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'Not Available',
                                       style: TextStyle(
                                         fontSize: 8,
@@ -1087,13 +1090,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFFD48B28).withValues(alpha: 0.22)
-            : const Color(0xFF281F1A),
+            ? CelestialTheme.goldPrimary.withValues(alpha: 0.22)
+            : CelestialTheme.bgCardActive,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isSelected
-              ? const Color(0xFFD48B28)
-              : const Color(0xFF3E2F26),
+              ? CelestialTheme.goldPrimary
+              : CelestialTheme.borderWarm,
           width: 0.8,
         ),
       ),
@@ -1104,7 +1107,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
         style: GoogleFonts.outfit(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: isSelected ? const Color(0xFFD48B28) : const Color(0xFF8E8398),
+          color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.textMuted,
         ),
       ),
     );
@@ -1195,14 +1198,14 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
           vertical: !isAvailable ? 8 : 12,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1714),
+          color: CelestialTheme.bgCard,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: !isAvailable
                 ? CelestialTheme.roseAlert.withValues(alpha: 0.35)
                 : isSelected
-                    ? const Color(0xFFD48B28)
-                    : const Color(0xFF33261F),
+                    ? CelestialTheme.goldPrimary
+                    : CelestialTheme.borderWarm,
             width: isSelected ? 1.8 : 1.0,
           ),
         ),
@@ -1219,8 +1222,8 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
               color: !isAvailable
                   ? CelestialTheme.roseAlert.withValues(alpha: 0.7)
                   : isSelected
-                      ? const Color(0xFFD48B28)
-                      : const Color(0xFF635147),
+                      ? CelestialTheme.goldPrimary
+                      : CelestialTheme.warmGray,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1238,7 +1241,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             color: !isAvailable
                                 ? CelestialTheme.roseAlert
-                                : (isSelected ? Colors.white : const Color(0xFFE2D6CE)),
+                                : (isSelected ? Colors.white : CelestialTheme.creamSoft),
                             decoration: !isAvailable ? TextDecoration.lineThrough : null,
                           ),
                           maxLines: 2,
@@ -1282,7 +1285,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                             width: 0.8,
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Not Available',
                           style: TextStyle(
                             fontSize: 8,
@@ -1309,10 +1312,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
         horizontal: isMobile ? 16 : 18,
         vertical: 14,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF140F0D),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgSurface,
         border: Border(
-          top: BorderSide(color: Color(0xFF2B201A), width: 1.0),
+          top: BorderSide(color: CelestialTheme.borderWarm, width: 1.0),
         ),
       ),
       child: Row(
@@ -1321,10 +1324,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
           Container(
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1714),
+              color: CelestialTheme.bgCard,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: const Color(0xFF33261F),
+                color: CelestialTheme.borderWarm,
                 width: 1.0,
               ),
             ),
@@ -1337,8 +1340,8 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                       ? () => setState(() => _quantity--)
                       : null,
                   icon: const Icon(Icons.remove_rounded, size: 18),
-                  color: const Color(0xFFD48B28),
-                  disabledColor: const Color(0xFFD48B28).withValues(alpha: 0.3),
+                  color: CelestialTheme.goldPrimary,
+                  disabledColor: CelestialTheme.goldPrimary.withValues(alpha: 0.3),
                   splashRadius: 18,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
@@ -1358,7 +1361,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                   key: const Key('customization_qty_plus'),
                   onPressed: () => setState(() => _quantity++),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  color: const Color(0xFFD48B28),
+                  color: CelestialTheme.goldPrimary,
                   splashRadius: 18,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
@@ -1369,7 +1372,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
 
           const SizedBox(width: 12),
 
-          // Warm Amber/Gold Add to Order Button
+          // Dynamic Theme Add to Order Button
           Expanded(
             child: Material(
               color: Colors.transparent,
@@ -1388,33 +1391,33 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                 child: Container(
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD48B28),
+                    color: CelestialTheme.goldPrimary,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        blurRadius: 10,
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                        blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Center(
                     child: _isAdding
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.2,
-                              color: Color(0xFF140F0D),
+                              color: CelestialTheme.primaryBtnText,
                             ),
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.shopping_cart_outlined,
                                 size: 20,
-                                color: Color(0xFF140F0D),
+                                color: CelestialTheme.primaryBtnText,
                               ),
                               const SizedBox(width: 8),
                               Flexible(
@@ -1426,7 +1429,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                     fontSize: isMobile ? 15 : 16,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.2,
-                                    color: const Color(0xFF140F0D),
+                                    color: CelestialTheme.primaryBtnText,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),

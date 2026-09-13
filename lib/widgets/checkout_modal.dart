@@ -48,7 +48,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
 
     if (_selectedMethod == PaymentMethod.cash && _amountTendered < total) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Tendered amount cannot be less than total due!'),
           backgroundColor: CelestialTheme.roseAlert,
         ),
@@ -186,7 +186,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
         children: [
           Row(
             children: [
-              const Icon(Icons.point_of_sale_rounded, color: CelestialTheme.goldLight, size: 22),
+              Icon(Icons.point_of_sale_rounded, color: CelestialTheme.goldLight, size: 22),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,7 +212,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
           ),
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+            icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
             splashRadius: 18,
           ),
         ],
@@ -371,13 +371,13 @@ class _CheckoutModalState extends State<CheckoutModal> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.payments_outlined, color: CelestialTheme.goldPrimary, size: 20),
+                Icon(Icons.payments_outlined, color: CelestialTheme.goldPrimary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'RECEIVED FROM CUSTOMER',
                         style: TextStyle(
                           fontSize: 10,
@@ -399,7 +399,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
                             _amountTendered = double.tryParse(val.trim().replaceAll(',', '.')) ?? 0.0;
                           });
                         },
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
@@ -432,7 +432,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
                   ),
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         'CHANGE',
                         style: TextStyle(fontSize: 9, letterSpacing: 0.8, color: CelestialTheme.textSubtle),
                       ),
@@ -564,7 +564,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          child: const Center(
+          child: Center(
             child: Column(
               children: [
                 Icon(Icons.qr_code_scanner_rounded, color: CelestialTheme.goldPrimary, size: 34),
@@ -617,25 +617,25 @@ class _CheckoutModalState extends State<CheckoutModal> {
               onPressed: _isProcessing ? null : _processPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,
-                foregroundColor: CelestialTheme.bgDark,
+                foregroundColor: CelestialTheme.primaryBtnText,
                 elevation: 8,
                 shadowColor: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
                 padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _isProcessing
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: CelestialTheme.bgDark,
+                        color: CelestialTheme.primaryBtnText,
                       ),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 18),
+                        Icon(Icons.check_circle_rounded, size: 18, color: CelestialTheme.primaryBtnText),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
@@ -643,6 +643,7 @@ class _CheckoutModalState extends State<CheckoutModal> {
                             style: GoogleFonts.outfit(
                               fontSize: isMobile ? 13 : 15,
                               fontWeight: FontWeight.bold,
+                              color: CelestialTheme.primaryBtnText,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),

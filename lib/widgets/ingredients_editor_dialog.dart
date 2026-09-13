@@ -180,14 +180,14 @@ class _IngredientsEditorContentState
                 ),
                 Text(
                   widget.item.name,
-                  style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                  style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 18),
+            icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 18),
             onPressed: () => Navigator.pop(context),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -381,7 +381,7 @@ class _IngredientsEditorContentState
                     _addRow();
                     setInnerState(() {});
                   },
-                  icon: const Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
+                  icon: Icon(Icons.add_circle_outline, size: 14, color: CelestialTheme.goldPrimary),
                   label: Text('Add Ingredient',
                       style: TextStyle(fontSize: 12, color: CelestialTheme.goldPrimary)),
                   style: TextButton.styleFrom(
@@ -515,21 +515,21 @@ class _IngredientsEditorContentState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
         ),
         ElevatedButton.icon(
           onPressed: _isSaving ? null : () => _save(context),
           icon: _isSaving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                 )
               : const Icon(Icons.save_rounded, size: 15),
           label: Text(_isSaving ? 'Saving…' : 'Save Ingredients'),
           style: ElevatedButton.styleFrom(
             backgroundColor: CelestialTheme.goldPrimary,
-            foregroundColor: CelestialTheme.bgDark,
+            foregroundColor: CelestialTheme.primaryBtnText,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
@@ -542,7 +542,7 @@ class _IngredientsEditorContentState
   Widget _headerLabel(String text, {bool center = false}) => Text(
         text.toUpperCase(),
         textAlign: center ? TextAlign.center : TextAlign.left,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.bold,
           color: CelestialTheme.textMuted,
@@ -557,11 +557,11 @@ class _IngredientsEditorContentState
   }) {
     return TextField(
       controller: controller,
-      style: const TextStyle(color: CelestialTheme.textLight, fontSize: 11),
+      style: TextStyle(color: CelestialTheme.textLight, fontSize: 11),
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
+        hintStyle: TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
         filled: true,
         fillColor: CelestialTheme.bgCard,
         isDense: true,
@@ -601,9 +601,9 @@ class _IngredientsEditorContentState
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
+        hintStyle: TextStyle(fontSize: 10, color: CelestialTheme.textSubtle),
         prefixText: prefix,
-        prefixStyle: const TextStyle(fontSize: 10, color: CelestialTheme.goldPrimary),
+        prefixStyle: TextStyle(fontSize: 10, color: CelestialTheme.goldPrimary),
         filled: true,
         fillColor: CelestialTheme.goldPrimary.withValues(alpha: 0.06),
         isDense: true,
@@ -640,7 +640,7 @@ class _IngredientsEditorContentState
         child: DropdownButton<String>(
           value: value,
           dropdownColor: CelestialTheme.bgCard,
-          style: const TextStyle(color: CelestialTheme.textLight, fontSize: 11),
+          style: TextStyle(color: CelestialTheme.textLight, fontSize: 11),
           isExpanded: true,
           items: kIngredientUnits
               .map((u) => DropdownMenuItem(value: u, child: Text(u)))
@@ -696,7 +696,7 @@ class _SummaryTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 9, color: CelestialTheme.textMuted, letterSpacing: 0.3),
+            style: TextStyle(fontSize: 9, color: CelestialTheme.textMuted, letterSpacing: 0.3),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 2),

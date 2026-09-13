@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
+import 'inventory_screen.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/cart_panel.dart';
 import '../widgets/customization_dialog.dart';
@@ -71,6 +72,19 @@ class PosScreen extends StatelessWidget {
   }
 
   void _openSignatureLatte(BuildContext context, PosProvider provider) {
+    if (provider.menuItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: CelestialTheme.bgCard,
+          content: Text(
+            'No menu items created yet. Add items in Menu & Stock.',
+            style: TextStyle(color: CelestialTheme.goldLight),
+          ),
+        ),
+      );
+      return;
+    }
+
     final targetId = provider.signatureBannerItemId;
     final item = provider.menuItems.firstWhere(
       (i) => i.id == targetId,
@@ -107,13 +121,13 @@ class PosScreen extends StatelessWidget {
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(
+                side: BorderSide(
                   color: CelestialTheme.borderSubtle,
                 ),
               ),
               content: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded, color: CelestialTheme.caramelAccent, size: 20),
+                  Icon(Icons.check_circle_rounded, color: CelestialTheme.caramelAccent, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -305,7 +319,7 @@ class PosScreen extends StatelessWidget {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: CelestialTheme.caramelAccent,
-                        foregroundColor: CelestialTheme.bgDark,
+                        foregroundColor: CelestialTheme.primaryBtnText,
                         elevation: 2,
                         padding: EdgeInsets.symmetric(horizontal: isDesktop ? 14 : 10, vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -348,11 +362,11 @@ class PosScreen extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.shopping_bag_rounded, size: 16, color: CelestialTheme.goldLight),
+                  Icon(Icons.shopping_bag_rounded, size: 16, color: CelestialTheme.goldLight),
                   const SizedBox(width: 6),
                   Text(
                     '${provider.cartItemCount}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: CelestialTheme.goldLight,
@@ -372,7 +386,7 @@ class PosScreen extends StatelessWidget {
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: CelestialTheme.bgDark,
+                      color: CelestialTheme.primaryBtnText,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -382,7 +396,7 @@ class PosScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: CelestialTheme.bgDark.withValues(alpha: 0.75),
+                      color: CelestialTheme.primaryBtnText.withValues(alpha: 0.85),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -395,11 +409,11 @@ class PosScreen extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: CelestialTheme.bgDark,
+                color: CelestialTheme.primaryBtnText,
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: CelestialTheme.bgDark),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: CelestialTheme.primaryBtnText),
           ],
         ),
       ),
@@ -430,15 +444,15 @@ class PosScreen extends StatelessWidget {
                 border: Border.all(color: CelestialTheme.borderSubtle),
               ),
               child: TextField(
-                style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
                 onChanged: (val) => provider.setSearchQuery(val),
                 decoration: InputDecoration(
                   hintText: 'Search coffees, milktea, bites...',
-                  hintStyle: const TextStyle(fontSize: 12, color: CelestialTheme.warmGray),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: CelestialTheme.caramelAccent),
+                  hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.warmGray),
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: CelestialTheme.caramelAccent),
                   suffixIcon: provider.searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
+                          icon: Icon(Icons.clear_rounded, size: 16, color: CelestialTheme.textMuted),
                           onPressed: () => provider.setSearchQuery(''),
                         )
                       : null,
@@ -460,7 +474,7 @@ class PosScreen extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome_rounded, size: 14, color: CelestialTheme.caramelAccent),
+                Icon(Icons.auto_awesome_rounded, size: 14, color: CelestialTheme.caramelAccent),
                 const SizedBox(width: 4),
                 Text(
                   '${provider.filteredMenuItems.length}',
@@ -493,65 +507,68 @@ class PosScreen extends StatelessWidget {
           final isSelected = provider.selectedCategoryId == tab.id ||
               (tab.id == 'all' && provider.selectedCategory == ItemCategory.all);
 
-          return InkWell(
-            onTap: () => provider.setCategoryById(tab.id),
-            borderRadius: BorderRadius.circular(14),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: isSelected ? CelestialTheme.caramelGradient : null,
-                color: isSelected ? null : CelestialTheme.bgCard,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isSelected
-                      ? CelestialTheme.caramelAccent
-                      : CelestialTheme.borderSubtle,
-                  width: isSelected ? 1.2 : 1.0,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(tab.icon, style: const TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Text(
-                    tab.label,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected
-                          ? CelestialTheme.bgDark
-                          : CelestialTheme.textLight,
-                    ),
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => provider.setCategoryById(tab.id),
+              borderRadius: BorderRadius.circular(14),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: isSelected ? CelestialTheme.caramelGradient : null,
+                  color: isSelected ? null : CelestialTheme.bgCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? CelestialTheme.caramelAccent
+                        : CelestialTheme.borderSubtle,
+                    width: isSelected ? 1.2 : 1.0,
                   ),
-                  if (tab.isCustom) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected ? CelestialTheme.bgDark : CelestialTheme.goldLight,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(tab.icon, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Text(
+                      tab.label,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected
+                            ? CelestialTheme.bgDark
+                            : CelestialTheme.textLight,
                       ),
                     ),
+                    if (tab.isCustom) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? CelestialTheme.bgDark : CelestialTheme.goldLight,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           );
@@ -593,7 +610,7 @@ class PosScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             // 1. Signature Craft Banner (Hero Barista Spotlight)
-            if (provider.searchQuery.isEmpty && provider.signatureBannerEnabled)
+            if (provider.searchQuery.isEmpty && provider.signatureBannerEnabled && provider.menuItems.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 2),
@@ -611,28 +628,85 @@ class PosScreen extends StatelessWidget {
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('🔍', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No Celestial Items Found',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: CelestialTheme.textLight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 68,
+                          height: 68,
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                          ),
+                          child: Icon(
+                            provider.menuItems.isEmpty ? Icons.restaurant_menu_rounded : Icons.search_off_rounded,
+                            size: 32,
+                            color: CelestialTheme.goldLight,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Try changing your search query or category filter.',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          color: CelestialTheme.textMuted,
+                        const SizedBox(height: 14),
+                        Text(
+                          provider.menuItems.isEmpty ? 'No Menu Items Yet' : 'No Items Found',
+                          style: GoogleFonts.outfit(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          provider.menuItems.isEmpty
+                              ? 'Your catalog is fresh and empty. Add your dishes and drinks to get started!'
+                              : 'Try changing your search query or category filter.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: CelestialTheme.textMuted,
+                          ),
+                        ),
+                        if (provider.menuItems.isEmpty) ...[
+                          const SizedBox(height: 18),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const InventoryScreen()),
+                                  );
+                                },
+                                icon: const Icon(Icons.add_circle_outline, size: 16),
+                                label: const Text('Add Items in Menu & Stock', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: CelestialTheme.goldPrimary,
+                                  foregroundColor: CelestialTheme.primaryBtnText,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  await provider.loadSampleMenu();
+                                },
+                                icon: const Icon(Icons.download_rounded, size: 16),
+                                label: const Text('Load Sample Cafe Menu', style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: CelestialTheme.goldLight,
+                                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               )

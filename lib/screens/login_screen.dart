@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../providers/pos_provider.dart';
 import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/top_notification.dart';
@@ -62,17 +63,18 @@ class _LoginScreenState extends State<LoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: CelestialTheme.bgCard,
-        content: Text(msg, style: const TextStyle(color: CelestialTheme.roseAlert)),
+        content: Text(msg, style: TextStyle(color: CelestialTheme.roseAlert)),
       ),
     );
   }
 
-  void _showFeedback(String msg, {Color color = CelestialTheme.goldLight}) {
+  void _showFeedback(String msg, {Color? color}) {
     if (!mounted) return;
+    final feedbackColor = color ?? CelestialTheme.goldLight;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: CelestialTheme.bgCard,
-        content: Text(msg, style: TextStyle(color: color)),
+        content: Text(msg, style: TextStyle(color: feedbackColor)),
         duration: const Duration(seconds: 4),
       ),
     );
@@ -140,12 +142,12 @@ class _LoginScreenState extends State<LoginScreen>
         backgroundColor: CelestialTheme.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.2),
+          side: BorderSide(color: CelestialTheme.goldPrimary, width: 1.2),
         ),
         actionsOverflowDirection: VerticalDirection.down,
         title: Row(
           children: [
-            const Icon(Icons.person_add_alt_1_rounded, color: CelestialTheme.goldPrimary, size: 22),
+            Icon(Icons.person_add_alt_1_rounded, color: CelestialTheme.goldPrimary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -178,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -215,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.goldPrimary,
-              foregroundColor: CelestialTheme.bgDark,
+              foregroundColor: CelestialTheme.primaryBtnText,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Register & Sign In', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -340,7 +342,7 @@ class _LoginScreenState extends State<LoginScreen>
                           child: Image.asset(
                             'assets/images/google_logo.png',
                             fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Icon(
+                            errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.pin_rounded,
                               color: CelestialTheme.goldLight,
                               size: 30,
@@ -383,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline_rounded, color: CelestialTheme.roseAlert, size: 16),
+                            Icon(Icons.error_outline_rounded, color: CelestialTheme.roseAlert, size: 16),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -417,14 +419,14 @@ class _LoginScreenState extends State<LoginScreen>
                         filled: true,
                         fillColor: CelestialTheme.bgSurface,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        prefixIcon: const Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
+                        prefixIcon: Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
                         suffixIcon: IconButton(
                           icon: Icon(obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: CelestialTheme.textMuted, size: 18),
                           onPressed: () => setModalState(() => obscurePin = !obscurePin),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.borderWarm)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.borderWarm)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.goldPrimary)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.goldPrimary)),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -450,14 +452,14 @@ class _LoginScreenState extends State<LoginScreen>
                         filled: true,
                         fillColor: CelestialTheme.bgSurface,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        prefixIcon: const Icon(Icons.lock_reset_rounded, color: CelestialTheme.goldLight, size: 18),
+                        prefixIcon: Icon(Icons.lock_reset_rounded, color: CelestialTheme.goldLight, size: 18),
                         suffixIcon: IconButton(
                           icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: CelestialTheme.textMuted, size: 18),
                           onPressed: () => setModalState(() => obscureConfirm = !obscureConfirm),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.borderWarm)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.borderWarm)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: CelestialTheme.goldPrimary)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.goldPrimary)),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -550,19 +552,23 @@ class _LoginScreenState extends State<LoginScreen>
                                 });
                               },
                         icon: isSubmitting
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(color: CelestialTheme.bgDark, strokeWidth: 2),
+                                child: CircularProgressIndicator(color: CelestialTheme.primaryBtnText, strokeWidth: 2),
                               )
-                            : const Icon(Icons.check_circle_rounded, size: 18),
+                            : Icon(Icons.check_circle_rounded, size: 18, color: CelestialTheme.primaryBtnText),
                         label: Text(
                           isSubmitting ? 'Registering...' : 'Register Station PIN',
-                          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.primaryBtnText,
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CelestialTheme.goldPrimary,
-                          foregroundColor: CelestialTheme.bgDark,
+                          foregroundColor: CelestialTheme.primaryBtnText,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           elevation: 0,
                         ),
@@ -715,37 +721,51 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                     child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/jc_pos_logo.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Image.asset(
-                          'assets/images/Logo.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: CelestialTheme.bgSurface,
-                            child: const Icon(Icons.point_of_sale_rounded,
-                                color: CelestialTheme.goldPrimary, size: 36),
-                          ),
-                        ),
+                      child: Builder(
+                        builder: (ctx) {
+                          final posProvider = Provider.of<PosProvider>(ctx);
+                          if (posProvider.hasCustomLogo && posProvider.customLogoBytes != null) {
+                            return Image.memory(
+                              posProvider.customLogoBytes!,
+                              fit: BoxFit.cover,
+                            );
+                          }
+                          return Image.asset(
+                            'assets/images/jc_pos_logo.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Image.asset(
+                              'assets/images/Logo.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: CelestialTheme.bgSurface,
+                                child: Icon(Icons.point_of_sale_rounded,
+                                    color: CelestialTheme.goldPrimary, size: 36),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 14),
-                  Text(
-                    'JC POS System',
-                    style: GoogleFonts.outfit(
-                      fontSize: isMobile ? 20 : 22,
-                      fontWeight: FontWeight.bold,
-                      color: CelestialTheme.textLight,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Professional POS Terminal System',
-                    style: GoogleFonts.outfit(fontSize: 12, color: CelestialTheme.textMuted),
-                    textAlign: TextAlign.center,
+                  Builder(
+                    builder: (ctx) {
+                      final pos = Provider.of<PosProvider>(ctx);
+                      final displayName = (pos.storeName.isNotEmpty && pos.storeName != 'CELESTIAL CAFE')
+                          ? pos.storeName
+                          : 'JC POS System';
+                      return Text(
+                        displayName,
+                        style: GoogleFonts.outfit(
+                          fontSize: isMobile ? 20 : 22,
+                          fontWeight: FontWeight.bold,
+                          color: CelestialTheme.textLight,
+                          letterSpacing: 0.4,
+                        ),
+                        textAlign: TextAlign.center,
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -774,7 +794,7 @@ class _LoginScreenState extends State<LoginScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 32,
                               height: 32,
                               child: CircularProgressIndicator(
@@ -808,7 +828,7 @@ class _LoginScreenState extends State<LoginScreen>
                               onPressed: () {
                                 auth.cancelGoogleSignIn();
                               },
-                              icon: const Icon(Icons.close_rounded, size: 16, color: CelestialTheme.amberBrewing),
+                              icon: Icon(Icons.close_rounded, size: 16, color: CelestialTheme.amberBrewing),
                               label: Text(
                                 'Cancel Sign-In',
                                 style: GoogleFonts.outfit(
@@ -908,7 +928,7 @@ class _LoginScreenState extends State<LoginScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.lock_outline_rounded, size: 13, color: CelestialTheme.goldLight),
+                  Icon(Icons.lock_outline_rounded, size: 13, color: CelestialTheme.goldLight),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -941,7 +961,7 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.check_circle_outline_rounded, size: 11, color: CelestialTheme.goldLight),
+                    Icon(Icons.check_circle_outline_rounded, size: 11, color: CelestialTheme.goldLight),
                     const SizedBox(width: 4),
                     Text(
                       'Ready to Sign In',
@@ -967,14 +987,18 @@ class _LoginScreenState extends State<LoginScreen>
           height: 50,
           child: ElevatedButton.icon(
             onPressed: _handlePinSignIn,
-            icon: const Icon(Icons.login_rounded, size: 18),
+            icon: Icon(Icons.login_rounded, size: 18, color: CelestialTheme.primaryBtnText),
             label: Text(
               isRegistered ? 'Sign In to Station' : 'Sign In with PIN',
-              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold),
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: CelestialTheme.primaryBtnText,
+              ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.goldPrimary,
-              foregroundColor: CelestialTheme.bgDark,
+              foregroundColor: CelestialTheme.primaryBtnText,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               elevation: 0,
             ),
@@ -984,7 +1008,7 @@ class _LoginScreenState extends State<LoginScreen>
         // Divider: OR SIGN UP WITH GOOGLE
         Row(
           children: [
-            const Expanded(child: Divider(color: CelestialTheme.borderSubtle)),
+            Expanded(child: Divider(color: CelestialTheme.borderSubtle)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text(
@@ -997,7 +1021,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
             ),
-            const Expanded(child: Divider(color: CelestialTheme.borderSubtle)),
+            Expanded(child: Divider(color: CelestialTheme.borderSubtle)),
           ],
         ),
         const SizedBox(height: 16),
@@ -1036,7 +1060,7 @@ class _LoginScreenState extends State<LoginScreen>
               foregroundColor: CelestialTheme.textLight,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: CelestialTheme.borderWarm),
+                side: BorderSide(color: CelestialTheme.borderWarm),
               ),
               elevation: 0,
             ),
@@ -1047,72 +1071,109 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildStationAccountCard(String email, bool isRegistered, AuthService auth) {
-    final displayName = auth.lastStationName ?? (auth.currentUser?.email.toLowerCase() == email.toLowerCase() ? auth.currentUser?.displayName : null);
-    final photoUrl = auth.lastStationPhoto ?? (auth.currentUser?.email.toLowerCase() == email.toLowerCase() ? auth.currentUser?.photoUrl : null);
+    final rawDisplayName = auth.lastStationName ??
+        (auth.currentUser?.email.toLowerCase() == email.toLowerCase() ? auth.currentUser?.displayName : null);
+    final displayName = (rawDisplayName != null && rawDisplayName.trim().isNotEmpty)
+        ? rawDisplayName.trim()
+        : 'Station Gmail Account';
+    final photoUrl = auth.lastStationPhoto ??
+        (auth.currentUser?.email.toLowerCase() == email.toLowerCase() ? auth.currentUser?.photoUrl : null);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          _pinController.clear();
-          _pinFocusNode.requestFocus();
-          _showFeedback('Please enter your 4-digit PIN below to continue.');
-        },
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF181512).withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isRegistered
-                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.45)
-                  : CelestialTheme.borderWarm,
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Recent Login'),
+        const SizedBox(height: 6),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              _pinController.clear();
+              _pinFocusNode.requestFocus();
+              _showFeedback('Please enter your 4-digit PIN below to continue.');
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isRegistered
+                      ? CelestialTheme.goldPrimary.withValues(alpha: 0.35)
+                      : CelestialTheme.borderWarm,
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Clean Header: Recent Login pill on the left, Switch • Remove on the right
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Row(
                 children: [
+                  // Circular User Avatar
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
-                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(16),
+                      shape: BoxShape.circle,
+                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                       border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
-                        width: 0.8,
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.45),
+                        width: 1.5,
                       ),
                     ),
-                    child: Row(
+                    child: ClipOval(
+                      child: (photoUrl != null && photoUrl.isNotEmpty)
+                          ? Image.network(
+                              photoUrl,
+                              width: 42,
+                              height: 42,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildStationAvatarFallback(displayName),
+                            )
+                          : _buildStationAvatarFallback(displayName),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Name & Email
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.history_rounded, size: 11.5, color: CelestialTheme.goldLight),
-                        const SizedBox(width: 4),
                         Text(
-                          'Recent Login',
+                          displayName,
                           style: GoogleFonts.outfit(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: CelestialTheme.goldLight,
-                            letterSpacing: 0.3,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: CelestialTheme.textLight,
+                            letterSpacing: 0.2,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          email,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: CelestialTheme.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  // Switch & Remove Action Buttons
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1126,26 +1187,39 @@ class _LoginScreenState extends State<LoginScreen>
                           });
                           auth.clearRememberedStationEmail();
                         },
-                        borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          child: Text(
-                            'Switch',
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: CelestialTheme.amberBrewing,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              width: 1,
                             ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.swap_horiz_rounded,
+                                size: 13,
+                                color: CelestialTheme.textMuted,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Switch',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: CelestialTheme.textLight,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Text(
-                          '•',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 10),
-                        ),
-                      ),
+                      const SizedBox(width: 5),
                       InkWell(
                         onTap: () {
                           setState(() {
@@ -1156,15 +1230,23 @@ class _LoginScreenState extends State<LoginScreen>
                           });
                           auth.clearRememberedStationEmail();
                         },
-                        borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              width: 1,
+                            ),
+                          ),
                           child: Text(
                             'Remove',
                             style: GoogleFonts.outfit(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: CelestialTheme.roseAlert.withValues(alpha: 0.85),
+                              color: CelestialTheme.textMuted,
                             ),
                           ),
                         ),
@@ -1173,134 +1255,34 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              // User Identity Row: Avatar / Photo + Name + Email + Subtitle + Status
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                      border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: (photoUrl != null && photoUrl.isNotEmpty)
-                          ? Image.network(
-                              photoUrl,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: Image.asset(
-                                    'assets/images/google_logo.png',
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) => const Icon(
-                                      Icons.account_circle_rounded,
-                                      color: CelestialTheme.goldLight,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: Image.asset(
-                                  'assets/images/google_logo.png',
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) => const Icon(
-                                    Icons.account_circle_rounded,
-                                    color: CelestialTheme.goldLight,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          (displayName != null && displayName.isNotEmpty)
-                              ? displayName
-                              : 'Station Gmail Account',
-                          style: GoogleFonts.outfit(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: CelestialTheme.textLight,
-                            letterSpacing: 0.2,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          email,
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: CelestialTheme.goldLight.withValues(alpha: 0.9),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (displayName != null && displayName.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Station Gmail Account',
-                            style: GoogleFonts.outfit(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: CelestialTheme.textMuted,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (isRegistered) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                      decoration: BoxDecoration(
-                        color: CelestialTheme.emeraldReady.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: CelestialTheme.emeraldReady.withValues(alpha: 0.35),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle_rounded, size: 10.5, color: CelestialTheme.emeraldReady),
-                          const SizedBox(width: 3.5),
-                          Text(
-                            'Ready',
-                            style: GoogleFonts.outfit(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: CelestialTheme.emeraldReady,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
+            ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStationAvatarFallback(String name) {
+    return Center(
+      child: SizedBox(
+        width: 22,
+        height: 22,
+        child: Image.asset(
+          'assets/images/google_logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'U';
+            return Center(
+              child: Text(
+                initial,
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: CelestialTheme.goldLight,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1355,21 +1337,21 @@ class _LoginScreenState extends State<LoginScreen>
       decoration: InputDecoration(
         hintText: 'your.email@gmail.com',
         hintStyle: GoogleFonts.outfit(color: CelestialTheme.textSubtle, fontSize: 13),
-        prefixIcon: const Icon(Icons.email_outlined, color: CelestialTheme.goldLight, size: 18),
+        prefixIcon: Icon(Icons.email_outlined, color: CelestialTheme.goldLight, size: 18),
         filled: true,
         fillColor: CelestialTheme.bgSurface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
+          borderSide: BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
         ),
       ),
     );
@@ -1413,7 +1395,7 @@ class _LoginScreenState extends State<LoginScreen>
         filled: true,
         fillColor: CelestialTheme.bgSurface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        prefixIcon: const Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
+        prefixIcon: Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
         suffixIcon: IconButton(
           icon: Icon(
             obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -1424,15 +1406,15 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
+          borderSide: BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
         ),
       ),
     );

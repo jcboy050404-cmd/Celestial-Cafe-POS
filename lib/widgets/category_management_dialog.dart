@@ -43,7 +43,7 @@ class CategoryManagementDialog {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
                           ),
-                          child: const Icon(Icons.category_rounded, color: CelestialTheme.goldLight, size: 22),
+                          child: Icon(Icons.category_rounded, color: CelestialTheme.goldLight, size: 22),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -58,7 +58,7 @@ class CategoryManagementDialog {
                                   color: CelestialTheme.goldLight,
                                 ),
                               ),
-                              const Text(
+                              Text(
                                 'Add, edit, or customize menu categories and KDS kitchen routing',
                                 style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                               ),
@@ -67,35 +67,63 @@ class CategoryManagementDialog {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(dialogCtx),
-                          icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
 
-                    // Add Category Action Button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        showCreateOrEditCategoryModal(
-                          dialogCtx,
-                          provider,
-                          onSaved: () {
-                            setDialogState(() {});
-                            onUpdated?.call();
+                    // Category Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              showCreateOrEditCategoryModal(
+                                dialogCtx,
+                                provider,
+                                onSaved: () {
+                                  setDialogState(() {});
+                                  onUpdated?.call();
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: const Text('Create Custom Category'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: CelestialTheme.goldPrimary,
+                              foregroundColor: CelestialTheme.primaryBtnText,
+                              minimumSize: const Size(0, 42),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            confirmResetCategories(
+                              dialogCtx,
+                              provider,
+                              onReset: () {
+                                setDialogState(() {});
+                                onUpdated?.call();
+                              },
+                            );
                           },
-                        );
-                      },
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('+ Create Custom Category'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.bgDark,
-                        minimumSize: const Size(double.infinity, 42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+                          icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                          label: const Text('Reset Categories', style: TextStyle(fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: CelestialTheme.goldLight,
+                            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                            minimumSize: const Size(0, 42),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    const Divider(height: 1),
+                    const SizedBox(height: 14),
+                    Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
                     const SizedBox(height: 12),
 
                     Text(
@@ -115,7 +143,7 @@ class CategoryManagementDialog {
                         children: [
                           // Section: Custom Categories
                           if (customCategories.isNotEmpty) ...[
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.only(bottom: 6, top: 4),
                               child: Text(
                                 'CUSTOM CATEGORIES',
@@ -177,13 +205,13 @@ class CategoryManagementDialog {
                                           ),
                                           Text(
                                             '$count item(s) in this category',
-                                            style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                            style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                                           ),
                                         ],
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 18, color: CelestialTheme.goldLight),
+                                      icon: Icon(Icons.edit_outlined, size: 18, color: CelestialTheme.goldLight),
                                       tooltip: 'Edit Category',
                                       onPressed: () {
                                         showCreateOrEditCategoryModal(
@@ -198,7 +226,7 @@ class CategoryManagementDialog {
                                       },
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline, size: 18, color: CelestialTheme.roseAlert),
+                                      icon: Icon(Icons.delete_outline, size: 18, color: CelestialTheme.roseAlert),
                                       tooltip: 'Delete Category',
                                       onPressed: () {
                                         confirmDeleteCategory(
@@ -220,7 +248,7 @@ class CategoryManagementDialog {
                           ],
 
                           // Section: System Built-in Categories
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(bottom: 6, top: 8),
                             child: Text(
                               'SYSTEM CATEGORIES',
@@ -249,12 +277,12 @@ class CategoryManagementDialog {
                                   Expanded(
                                     child: Text(
                                       c.label,
-                                      style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                                      style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
                                     ),
                                   ),
                                   Text(
                                     '$count items',
-                                    style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                    style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                                   ),
                                   const SizedBox(width: 10),
                                   Container(
@@ -314,18 +342,19 @@ class CategoryManagementDialog {
               ),
               content: SizedBox(
                 width: 400,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
                       controller: nameCtrl,
                       autofocus: true,
-                      style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                      style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
                       decoration: InputDecoration(
                         labelText: 'Category Name',
                         hintText: 'e.g. Desserts, Breakfast, Specials...',
-                        labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                        labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                         filled: true,
                         fillColor: CelestialTheme.bgCard,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -333,7 +362,7 @@ class CategoryManagementDialog {
                     ),
                     const SizedBox(height: 14),
 
-                    const Text(
+                    Text(
                       'Choose Category Icon / Emoji',
                       style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CelestialTheme.textMuted),
                     ),
@@ -378,7 +407,7 @@ class CategoryManagementDialog {
                         children: [
                           const Icon(Icons.soup_kitchen_rounded, color: Color(0xFFFF7043), size: 20),
                           const SizedBox(width: 10),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -397,11 +426,12 @@ class CategoryManagementDialog {
                     ),
                   ],
                 ),
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(modalCtx),
-                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -427,7 +457,7 @@ class CategoryManagementDialog {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: Text(isEditing ? 'Save Changes' : 'Create Category'),
@@ -459,12 +489,12 @@ class CategoryManagementDialog {
         ),
         content: Text(
           'Any menu items assigned to "${category.name}" will remain safe and be moved to the Coffee category.',
-          style: const TextStyle(fontSize: 12.5, color: CelestialTheme.textLight),
+          style: TextStyle(fontSize: 12.5, color: CelestialTheme.textLight),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -477,6 +507,61 @@ class CategoryManagementDialog {
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete Category'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void confirmResetCategories(
+    BuildContext context,
+    PosProvider provider, {
+    required VoidCallback onReset,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CelestialTheme.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.restart_alt_rounded, color: CelestialTheme.goldLight, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Reset Categories & Menu?',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: CelestialTheme.goldLight,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will clear all custom categories and reload the default cafe menu catalog with all original items (Coffee, Non Espresso, Milktea, Frappe, Cheesecake Series, Street Bites, Pasta, Sandwich, Dinner).\n\nActive orders will be preserved.',
+          style: TextStyle(fontSize: 12.5, color: CelestialTheme.textLight, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              await provider.resetCategoriesAndMenu();
+              if (ctx.mounted) Navigator.pop(ctx);
+              onReset();
+            },
+            icon: const Icon(Icons.check_rounded, size: 16),
+            label: const Text('Reset to Defaults'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.goldPrimary,
+              foregroundColor: CelestialTheme.primaryBtnText,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           ),
         ],
       ),

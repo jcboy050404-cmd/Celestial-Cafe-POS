@@ -145,7 +145,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.pin_rounded,
                 color: CelestialTheme.goldLight,
                 size: 30,
@@ -194,7 +194,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: CelestialTheme.roseAlert, size: 16),
+                    Icon(Icons.error_outline_rounded, color: CelestialTheme.roseAlert, size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -265,11 +265,11 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
               child: ElevatedButton.icon(
                 onPressed: _isSaving ? null : _handleSavePin,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                          color: CelestialTheme.bgDark,
+                          color: CelestialTheme.primaryBtnText,
                           strokeWidth: 2,
                         ),
                       )
@@ -282,7 +282,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: CelestialTheme.goldPrimary,
-                  foregroundColor: CelestialTheme.bgDark,
+                  foregroundColor: CelestialTheme.primaryBtnText,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
@@ -346,7 +346,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
         filled: true,
         fillColor: CelestialTheme.bgSurface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        prefixIcon: const Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
+        prefixIcon: Icon(Icons.lock_outline_rounded, color: CelestialTheme.goldLight, size: 18),
         suffixIcon: IconButton(
           icon: Icon(
             obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -357,15 +357,15 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
+          borderSide: BorderSide(color: CelestialTheme.goldPrimary, width: 1.5),
         ),
       ),
     );

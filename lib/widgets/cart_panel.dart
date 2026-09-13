@@ -129,13 +129,13 @@ class CartPanel extends StatelessWidget {
             ? const BorderRadius.vertical(top: Radius.circular(24))
             : BorderRadius.zero,
         border: isMobileModal
-            ? const Border(
+            ? Border(
                 top: BorderSide(
                   color: CelestialTheme.borderSubtle,
                   width: 1.5,
                 ),
               )
-            : const Border(
+            : Border(
                 left: BorderSide(
                   color: CelestialTheme.borderSubtle,
                   width: 1,
@@ -195,7 +195,7 @@ class CartPanel extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                const Icon(Icons.shopping_bag_outlined, color: CelestialTheme.caramelAccent, size: 20),
+                Icon(Icons.shopping_bag_outlined, color: CelestialTheme.caramelAccent, size: 20),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
@@ -219,7 +219,7 @@ class CartPanel extends StatelessWidget {
                   ),
                   child: Text(
                     '${provider.cartItemCount}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: CelestialTheme.goldLight,
@@ -235,8 +235,8 @@ class CartPanel extends StatelessWidget {
               if (provider.cart.isNotEmpty)
                 TextButton.icon(
                   onPressed: () => provider.clearCart(),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 16, color: CelestialTheme.roseAlert),
-                  label: const Text(
+                  icon: Icon(Icons.delete_outline_rounded, size: 16, color: CelestialTheme.roseAlert),
+                  label: Text(
                     'Clear',
                     style: TextStyle(color: CelestialTheme.roseAlert, fontSize: 12),
                   ),
@@ -248,7 +248,7 @@ class CartPanel extends StatelessWidget {
                 const SizedBox(width: 4),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                  icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                   splashRadius: 18,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -348,12 +348,12 @@ class CartPanel extends StatelessWidget {
                           Expanded(
                             child: Row(
                               children: [
-                                const Icon(Icons.table_restaurant_rounded, size: 16, color: CelestialTheme.goldLight),
+                                Icon(Icons.table_restaurant_rounded, size: 16, color: CelestialTheme.goldLight),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
                                     provider.tableNumber,
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 1,
                                   ),
@@ -362,7 +362,7 @@ class CartPanel extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.arrow_drop_down, color: CelestialTheme.goldPrimary, size: 18),
+                          Icon(Icons.arrow_drop_down, color: CelestialTheme.goldPrimary, size: 18),
                         ],
                       ),
                     ),
@@ -381,12 +381,12 @@ class CartPanel extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.person_outline, size: 15, color: CelestialTheme.textMuted),
+                      Icon(Icons.person_outline, size: 15, color: CelestialTheme.textMuted),
                       const SizedBox(width: 6),
                       Expanded(
                         child: TextField(
-                          style: const TextStyle(fontSize: 12, color: CelestialTheme.textLight),
-                          decoration: const InputDecoration(
+                          style: TextStyle(fontSize: 12, color: CelestialTheme.textLight),
+                          decoration: InputDecoration(
                             hintText: 'Customer Name',
                             hintStyle: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle),
                             border: InputBorder.none,
@@ -425,7 +425,7 @@ class CartPanel extends StatelessWidget {
                 color: CelestialTheme.bgCard,
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(Icons.coffee_rounded, size: 32, color: CelestialTheme.goldPrimary),
               ),
             ),
@@ -458,7 +458,7 @@ class CartPanel extends StatelessWidget {
                     builder: (ctx) => ReceiptDialog(order: lastOrder),
                   );
                 },
-                icon: const Icon(Icons.receipt_long_rounded, size: 16, color: CelestialTheme.goldPrimary),
+                icon: Icon(Icons.receipt_long_rounded, size: 16, color: CelestialTheme.goldPrimary),
                 label: Text(
                   'Print Last Receipt (${lastOrder.orderNumber})',
                   style: GoogleFonts.outfit(
@@ -581,7 +581,7 @@ class CartPanel extends StatelessWidget {
                             ),
                             child: Text(
                               c.summary,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: CelestialTheme.goldLight,
@@ -597,7 +597,7 @@ class CartPanel extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Note: "${item.notes}"',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           fontStyle: FontStyle.italic,
                           color: CelestialTheme.roseAlert,
@@ -648,7 +648,7 @@ class CartPanel extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Text(
                             '${item.quantity}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.bold,
                               color: CelestialTheme.goldLight,
@@ -676,7 +676,7 @@ class CartPanel extends StatelessWidget {
                     ),
                     child: IconButton(
                       onPressed: () => provider.removeFromCart(item.id),
-                      icon: const Icon(Icons.close_rounded, size: 15, color: CelestialTheme.roseAlert),
+                      icon: Icon(Icons.close_rounded, size: 15, color: CelestialTheme.roseAlert),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                       tooltip: 'Remove Item',
@@ -706,7 +706,7 @@ class CartPanel extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'Discount',
                     style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
                   ),
@@ -723,7 +723,7 @@ class CartPanel extends StatelessWidget {
                         provider.discountPercentage > 0
                             ? '${provider.discountPercentage.toStringAsFixed(0)}% OFF'
                             : '+ Add',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: CelestialTheme.goldLight,
@@ -804,7 +804,7 @@ class CartPanel extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.caramelAccent,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.06),
-                foregroundColor: CelestialTheme.bgDark,
+                foregroundColor: CelestialTheme.primaryBtnText,
                 elevation: 3,
                 shadowColor: Colors.black.withValues(alpha: 0.35),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -815,13 +815,14 @@ class CartPanel extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.flash_on_rounded, size: 20),
+                  Icon(Icons.flash_on_rounded, size: 20, color: CelestialTheme.primaryBtnText),
                   const SizedBox(width: 8),
                   Text(
                     'Charge • ₱${provider.cartGrandTotal.toStringAsFixed(0)}',
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
+                      color: CelestialTheme.primaryBtnText,
                     ),
                   ),
                 ],
@@ -841,11 +842,11 @@ class CartPanel extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+            style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
           ),
           Text(
             value,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CelestialTheme.textLight),
           ),
         ],
       ),

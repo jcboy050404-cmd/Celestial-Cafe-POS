@@ -84,14 +84,14 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 'Reset Order Counter',
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
               ),
-              content: const Text(
+              content: Text(
                 'This will reset the order numbering so your next order starts at #1.',
                 style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -104,7 +104,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                   ),
                   child: const Text('Reset to #1'),
                 ),
@@ -123,8 +123,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       ),
       OutlinedButton.icon(
         onPressed: () => _confirmDeleteAllHistory(context, provider),
-        icon: const Icon(Icons.delete_sweep_rounded, size: 14, color: CelestialTheme.roseAlert),
-        label: const Text('Clear History', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert)),
+        icon: Icon(Icons.delete_sweep_rounded, size: 14, color: CelestialTheme.roseAlert),
+        label: Text('Clear History', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert)),
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -142,7 +142,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           if (isMobile) ...[
             Row(
               children: [
-                const Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 20),
+                Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -173,7 +173,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           ] else ...[
             Row(
               children: [
-                const Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                Icon(Icons.receipt_long_rounded, color: CelestialTheme.goldPrimary, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -204,9 +204,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: TextField(
-              style: const TextStyle(fontSize: 12, color: CelestialTheme.textLight),
+              style: TextStyle(fontSize: 12, color: CelestialTheme.textLight),
               onChanged: (val) => setState(() => _searchQuery = val),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search order #, guest, table...',
                 hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.textSubtle),
                 prefixIcon: Icon(Icons.search_rounded, size: 16, color: CelestialTheme.goldPrimary),
@@ -344,7 +344,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(color: CelestialTheme.caramelAccent.withValues(alpha: 0.6)),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   '🛵 DELIVERY',
                                   style: TextStyle(
                                     fontSize: 9.5,
@@ -358,7 +358,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   padding: const EdgeInsets.only(top: 2),
                                   child: Text(
                                     '📍 ${order.deliveryAddress}',
-                                    style: const TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                                    style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -388,7 +388,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                             order.orderType == OrderType.dineIn
                                 ? '${order.orderType.label} • ${order.tableNumber ?? "Table"}'
                                 : order.orderType.label,
-                            style: const TextStyle(fontSize: 10, color: CelestialTheme.goldLight),
+                            style: TextStyle(fontSize: 10, color: CelestialTheme.goldLight),
                           ),
                       ],
                     ),
@@ -426,7 +426,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                             ),
                             if (s == order.status) ...[
                               const Spacer(),
-                              const Icon(Icons.check_rounded, size: 14, color: CelestialTheme.goldLight),
+                              Icon(Icons.check_rounded, size: 14, color: CelestialTheme.goldLight),
                             ],
                           ],
                         ),
@@ -480,7 +480,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.chevron_right_rounded, size: 14, color: CelestialTheme.caramelAccent),
+                      Icon(Icons.chevron_right_rounded, size: 14, color: CelestialTheme.caramelAccent),
                     ],
                   ),
                 ),
@@ -506,7 +506,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       children: [
                         Text(
                           'Total Bill',
-                          style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                          style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                         ),
                         Row(
                           children: [
@@ -522,7 +522,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   ),
                                   child: Text(
                                     '-₱${order.discountAmount.toStringAsFixed(0)}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
                                       color: CelestialTheme.emeraldReady,
@@ -558,14 +558,14 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   color: CelestialTheme.blueInfo.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Icon(Icons.payments_rounded, size: 12, color: CelestialTheme.blueInfo),
+                                child: Icon(Icons.payments_rounded, size: 12, color: CelestialTheme.blueInfo),
                               ),
                               const SizedBox(width: 5),
                               Flexible(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'RECEIVED',
                                       style: TextStyle(fontSize: 8.5, letterSpacing: 0.5, color: CelestialTheme.textSubtle),
                                       maxLines: 1,
@@ -618,7 +618,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'CHANGE DUE',
                                       style: TextStyle(fontSize: 8.5, letterSpacing: 0.5, color: CelestialTheme.textSubtle),
                                       maxLines: 1,
@@ -658,7 +658,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                               const SizedBox(width: 3),
                               Text(
                                 order.paymentMethod.label.split(' / ').first,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   color: CelestialTheme.goldLight,
@@ -686,13 +686,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                         icon: Icons.check_circle_rounded,
                       );
                     },
-                    icon: const Icon(Icons.check_circle_rounded, size: 16, color: CelestialTheme.bgDark),
+                    icon: Icon(Icons.check_circle_rounded, size: 16, color: CelestialTheme.primaryBtnText),
                     label: Text(
                       'Confirm & Complete Order (₱${order.totalAmount.toStringAsFixed(0)})',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: CelestialTheme.bgDark,
+                        color: CelestialTheme.primaryBtnText,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -715,17 +715,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   Expanded(
                     child: Text(
                       DateFormat('MMM d, hh:mm a').format(order.createdAt),
-                      style: const TextStyle(fontSize: 10.5, color: CelestialTheme.textSubtle),
+                      style: TextStyle(fontSize: 10.5, color: CelestialTheme.textSubtle),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 6),
                   OutlinedButton.icon(
                     onPressed: () => OrderDetailsDialog.show(context, order),
-                    icon: const Icon(Icons.visibility_outlined, size: 13, color: CelestialTheme.goldLight),
+                    icon: Icon(Icons.visibility_outlined, size: 13, color: CelestialTheme.goldLight),
                     label: Text(
                       isMobile ? 'Details' : 'View Details',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         color: CelestialTheme.goldLight,
@@ -747,7 +747,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                         builder: (ctx) => ReceiptDialog(order: order),
                       );
                     },
-                    icon: const Icon(Icons.receipt_rounded, color: CelestialTheme.goldPrimary, size: 18),
+                    icon: Icon(Icons.receipt_rounded, color: CelestialTheme.goldPrimary, size: 18),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                     visualDensity: VisualDensity.compact,
@@ -756,7 +756,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   const SizedBox(width: 2),
                   IconButton(
                     onPressed: () => _confirmDeleteSingleOrder(context, provider, order),
-                    icon: const Icon(Icons.delete_outline_rounded, color: CelestialTheme.roseAlert, size: 18),
+                    icon: Icon(Icons.delete_outline_rounded, color: CelestialTheme.roseAlert, size: 18),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                     visualDensity: VisualDensity.compact,
@@ -826,7 +826,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: CelestialTheme.roseAlert),
+            Icon(Icons.warning_amber_rounded, color: CelestialTheme.roseAlert),
             const SizedBox(width: 8),
             Text(
               'Delete Order ${order.orderNumber}?',
@@ -836,12 +836,12 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ),
         content: Text(
           'Are you sure you want to permanently delete Order ${order.orderNumber} (${order.customerName}, ₱${order.totalAmount.toStringAsFixed(0)})?\n\nThis record will be permanently removed from sales history.',
-          style: const TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -876,7 +876,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert),
+            Icon(Icons.delete_sweep_rounded, color: CelestialTheme.roseAlert),
             const SizedBox(width: 8),
             Text(
               'Clear Order History?',
@@ -888,12 +888,12 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           'Choose what you would like to delete:\n\n'
           '• Completed & Cancelled Only (${provider.orders.where((o) => o.status == OrderStatus.completed || o.status == OrderStatus.cancelled).length} orders):\n  Clears old history while preserving active kitchen tickets.\n\n'
           '• Wipe All Orders (${provider.orders.length} orders):\n  Clears every order and resets the order counter back to #1.',
-          style: const TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+          style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
           ),
           OutlinedButton.icon(
             onPressed: () async {
@@ -907,8 +907,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 );
               }
             },
-            icon: const Icon(Icons.history_rounded, size: 15, color: CelestialTheme.amberBrewing),
-            label: const Text('Clear Completed Only', style: TextStyle(color: CelestialTheme.amberBrewing, fontWeight: FontWeight.bold)),
+            icon: Icon(Icons.history_rounded, size: 15, color: CelestialTheme.amberBrewing),
+            label: Text('Clear Completed Only', style: TextStyle(color: CelestialTheme.amberBrewing, fontWeight: FontWeight.bold)),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
             ),

@@ -102,7 +102,7 @@ class OrderDetailsDialog extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.restaurant_menu_rounded, size: 16, color: CelestialTheme.goldPrimary),
+                            Icon(Icons.restaurant_menu_rounded, size: 16, color: CelestialTheme.goldPrimary),
                             const SizedBox(width: 6),
                             Text(
                               'ORDERED ITEMS',
@@ -123,7 +123,7 @@ class OrderDetailsDialog extends StatelessWidget {
                           ),
                           child: Text(
                             '${currentOrder.items.fold<int>(0, (sum, i) => sum + i.quantity)} items',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               color: CelestialTheme.goldLight,
@@ -233,7 +233,7 @@ class OrderDetailsDialog extends StatelessWidget {
                     else
                       Text(
                         '${order.orderType.label} • ${order.tableNumber ?? "Table"}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: CelestialTheme.goldLight,
@@ -274,7 +274,7 @@ class OrderDetailsDialog extends StatelessWidget {
           // Close Button (X)
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
+            icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 20),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             tooltip: 'Close Modal',
@@ -393,7 +393,7 @@ class OrderDetailsDialog extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.7,
@@ -444,7 +444,7 @@ class OrderDetailsDialog extends StatelessWidget {
                 ),
                 child: Text(
                   '${item.quantity}x',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     color: CelestialTheme.goldLight,
@@ -492,7 +492,7 @@ class OrderDetailsDialog extends StatelessWidget {
                     ),
                     Text(
                       '₱${item.unitPrice.toStringAsFixed(0)} each',
-                      style: const TextStyle(fontSize: 11, color: CelestialTheme.textSubtle),
+                      style: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle),
                     ),
                   ],
                 ),
@@ -527,7 +527,7 @@ class OrderDetailsDialog extends StatelessWidget {
                   ),
                   child: Text(
                     '› ${c.optionName}$extra',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
                       color: CelestialTheme.textMuted,
                       fontWeight: FontWeight.w500,
@@ -631,16 +631,16 @@ class OrderDetailsDialog extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Text('Received: ', style: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle)),
+                      Text('Received: ', style: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle)),
                       Text(
                         '₱${order.amountTendered.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: CelestialTheme.blueInfo),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: CelestialTheme.blueInfo),
                       ),
                     ],
                   ),
                   Row(
                     children: [
-                      const Text('Change: ', style: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle)),
+                      Text('Change: ', style: TextStyle(fontSize: 11, color: CelestialTheme.textSubtle)),
                       Text(
                         '₱${order.changeDue.toStringAsFixed(0)}',
                         style: TextStyle(
@@ -666,7 +666,7 @@ class OrderDetailsDialog extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted)),
+        Text(label, style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted)),
         Text(
           value,
           style: GoogleFonts.outfit(
@@ -696,8 +696,8 @@ class OrderDetailsDialog extends StatelessWidget {
                 ),
               );
             },
-            icon: const Icon(Icons.receipt_rounded, size: 16, color: CelestialTheme.goldPrimary),
-            label: const Text('Receipt', style: TextStyle(fontSize: 11.5, color: CelestialTheme.goldPrimary)),
+            icon: Icon(Icons.receipt_rounded, size: 16, color: CelestialTheme.goldPrimary),
+            label: Text('Receipt', style: TextStyle(fontSize: 11.5, color: CelestialTheme.goldPrimary)),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -712,16 +712,17 @@ class OrderDetailsDialog extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: CelestialTheme.goldPrimary,
+                foregroundColor: CelestialTheme.primaryBtnText,
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 2,
               ),
-              child: const Text(
+              child: Text(
                 'Close',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12.5,
-                  color: CelestialTheme.bgDark,
+                  color: CelestialTheme.primaryBtnText,
                 ),
               ),
             ),

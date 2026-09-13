@@ -90,7 +90,7 @@ class PriceEditorDialog {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'BASE ITEM PRICE (₱)',
                               style: TextStyle(
                                 fontSize: 11,
@@ -130,8 +130,8 @@ class PriceEditorDialog {
                         },
                         decoration: InputDecoration(
                           labelText: 'Edit Base Selling Price (₱)',
-                          labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
-                          prefixIcon: const Padding(
+                          labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                          prefixIcon: Padding(
                             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                             child: Text(
                               '₱',
@@ -184,12 +184,12 @@ class PriceEditorDialog {
                       // Section 2: Customization & Add-on Prices (Flavor & Spice, Add-ons, Rice Choice, etc.)
                       if (currentItem.customizationGroups.isNotEmpty) ...[
                         const SizedBox(height: 18),
-                        const Divider(color: Color(0xFF33261F), height: 1),
+                        Divider(color: CelestialTheme.borderWarm, height: 1),
                         const SizedBox(height: 12),
 
                         Row(
                           children: [
-                            const Icon(Icons.tune_rounded, size: 16, color: Color(0xFFD48B28)),
+                            Icon(Icons.tune_rounded, size: 16, color: CelestialTheme.goldPrimary),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
@@ -204,7 +204,7 @@ class PriceEditorDialog {
                                       color: CelestialTheme.goldLight,
                                     ),
                                   ),
-                                  const Text(
+                                  Text(
                                     'Tap any option badge to edit its additional price',
                                     style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                                   ),
@@ -219,13 +219,13 @@ class PriceEditorDialog {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF140F0D),
+                            color: CelestialTheme.bgSurface,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFF33261F)),
+                            border: Border.all(color: CelestialTheme.borderWarm),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.public_rounded, size: 14, color: Color(0xFFD48B28)),
+                              Icon(Icons.public_rounded, size: 14, color: CelestialTheme.goldPrimary),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -235,8 +235,8 @@ class PriceEditorDialog {
                               ),
                               Switch.adaptive(
                                 value: applyModifiersGlobally,
-                                activeThumbColor: const Color(0xFFD48B28),
-                                activeTrackColor: const Color(0xFF382214),
+                                activeThumbColor: CelestialTheme.goldPrimary,
+                                activeTrackColor: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
                                 onChanged: (val) => setDialogState(() => applyModifiersGlobally = val),
                               ),
                             ],
@@ -262,7 +262,7 @@ class PriceEditorDialog {
                                   style: GoogleFonts.outfit(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,
-                                    color: const Color(0xFFD48B28),
+                                    color: CelestialTheme.goldPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -304,13 +304,13 @@ class PriceEditorDialog {
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                                             decoration: BoxDecoration(
                                               color: currentExtra > 0
-                                                  ? const Color(0xFFD48B28).withValues(alpha: 0.2)
-                                                  : const Color(0xFF281F1A),
+                                                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                                  : CelestialTheme.bgCard,
                                               borderRadius: BorderRadius.circular(6),
                                               border: Border.all(
                                                 color: currentExtra > 0
-                                                    ? const Color(0xFFD48B28).withValues(alpha: 0.6)
-                                                    : const Color(0xFF4A3B32),
+                                                    ? CelestialTheme.goldPrimary.withValues(alpha: 0.6)
+                                                    : CelestialTheme.borderWarm,
                                                 width: 0.9,
                                               ),
                                             ),
@@ -325,12 +325,12 @@ class PriceEditorDialog {
                                                     fontSize: 11.5,
                                                     fontWeight: FontWeight.bold,
                                                     color: currentExtra > 0
-                                                        ? const Color(0xFFD48B28)
-                                                        : const Color(0xFFB09D90),
+                                                        ? CelestialTheme.goldPrimary
+                                                        : CelestialTheme.textMuted,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 4),
-                                                const Icon(Icons.edit, size: 10.5, color: Color(0xFFD48B28)),
+                                                Icon(Icons.edit, size: 10.5, color: CelestialTheme.goldPrimary),
                                               ],
                                             ),
                                           ),
@@ -351,7 +351,7 @@ class PriceEditorDialog {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
                   onPressed: isSavingPrice
@@ -393,13 +393,13 @@ class PriceEditorDialog {
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                   ),
                   child: isSavingPrice
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                         )
                       : const Text('Save All Prices', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
@@ -440,7 +440,7 @@ class PriceEditorDialog {
               ),
               title: Row(
                 children: [
-                  const Icon(Icons.price_change_rounded, color: Color(0xFFD48B28), size: 22),
+                  Icon(Icons.price_change_rounded, color: CelestialTheme.goldPrimary, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -479,7 +479,7 @@ class PriceEditorDialog {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'EXTRA PRICE',
                             style: TextStyle(
                               fontSize: 11,
@@ -517,8 +517,8 @@ class PriceEditorDialog {
                       },
                       decoration: InputDecoration(
                         labelText: 'Additional Price (₱)',
-                        labelStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
-                        prefixIcon: const Padding(
+                        labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                        prefixIcon: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                           child: Text(
                             '+₱',
@@ -572,13 +572,13 @@ class PriceEditorDialog {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF140F0D),
+                        color: CelestialTheme.bgSurface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF33261F)),
+                        border: Border.all(color: CelestialTheme.borderWarm),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.public_rounded, size: 14, color: Color(0xFFD48B28)),
+                          Icon(Icons.public_rounded, size: 14, color: CelestialTheme.goldPrimary),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -588,8 +588,8 @@ class PriceEditorDialog {
                           ),
                           Switch.adaptive(
                             value: applyGlobally,
-                            activeThumbColor: const Color(0xFFD48B28),
-                            activeTrackColor: const Color(0xFF382214),
+                            activeThumbColor: CelestialTheme.goldPrimary,
+                            activeTrackColor: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
                             onChanged: (val) => setDlgState(() => applyGlobally = val),
                           ),
                         ],
@@ -601,7 +601,7 @@ class PriceEditorDialog {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -622,7 +622,7 @@ class PriceEditorDialog {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                   ),
                   child: const Text('Save Price', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
@@ -692,7 +692,7 @@ class PriceEditorDialog {
                       },
                       decoration: InputDecoration(
                         labelText: 'Extra Price (₱)',
-                        prefixIcon: const Padding(
+                        prefixIcon: Padding(
                           padding: EdgeInsets.all(10),
                           child: Text('+₱', style: TextStyle(color: CelestialTheme.goldPrimary, fontWeight: FontWeight.bold)),
                         ),
@@ -736,7 +736,7 @@ class PriceEditorDialog {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                   ),
                   child: const Text('Apply'),
                 ),
@@ -800,7 +800,7 @@ class PriceEditorDialog {
               ),
               title: Row(
                 children: [
-                  const Icon(Icons.price_change_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                  Icon(Icons.price_change_rounded, color: CelestialTheme.goldPrimary, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -823,11 +823,11 @@ class PriceEditorDialog {
                     // Search Bar
                     TextField(
                       onChanged: (val) => setDlgState(() => searchQuery = val.trim()),
-                      style: const TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                      style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
                       decoration: InputDecoration(
                         hintText: activeTab == 0 ? 'Search menu items...' : 'Search add-ons, flavors, spices, rice...',
-                        hintStyle: const TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
-                        prefixIcon: const Icon(Icons.search, size: 18, color: CelestialTheme.goldPrimary),
+                        hintStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                        prefixIcon: Icon(Icons.search, size: 18, color: CelestialTheme.goldPrimary),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         filled: true,
@@ -902,10 +902,10 @@ class PriceEditorDialog {
                     if (activeTab == 0)
                       Expanded(
                         child: filteredItems.isEmpty
-                            ? const Center(child: Text('No items match search', style: TextStyle(color: CelestialTheme.textMuted)))
+                            ? Center(child: Text('No items match search', style: TextStyle(color: CelestialTheme.textMuted)))
                             : ListView.separated(
                                 itemCount: filteredItems.length,
-                                separatorBuilder: (c, i) => const Divider(height: 1, color: Color(0xFF281F1A)),
+                                separatorBuilder: (c, i) => Divider(height: 1, color: CelestialTheme.borderWarm),
                                 itemBuilder: (context, index) {
                                   final m = filteredItems[index];
                                   return ListTile(
@@ -920,11 +920,11 @@ class PriceEditorDialog {
                                     ),
                                     title: Text(
                                       m.name,
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
                                     ),
                                     subtitle: Text(
                                       '${m.categoryLabel} • ${m.customizationGroups.length} modifier groups',
-                                      style: const TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                                      style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                                     ),
                                     trailing: InkWell(
                                       onTap: () {
@@ -950,7 +950,7 @@ class PriceEditorDialog {
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-                                            const Icon(Icons.edit, size: 12, color: CelestialTheme.goldPrimary),
+                                            Icon(Icons.edit, size: 12, color: CelestialTheme.goldPrimary),
                                           ],
                                         ),
                                       ),
@@ -964,10 +964,10 @@ class PriceEditorDialog {
                     if (activeTab == 1)
                       Expanded(
                         child: modifierList.isEmpty
-                            ? const Center(child: Text('No modifiers match search', style: TextStyle(color: CelestialTheme.textMuted)))
+                            ? Center(child: Text('No modifiers match search', style: TextStyle(color: CelestialTheme.textMuted)))
                             : ListView.separated(
                                 itemCount: modifierList.length,
-                                separatorBuilder: (c, i) => const Divider(height: 1, color: Color(0xFF281F1A)),
+                                separatorBuilder: (c, i) => Divider(height: 1, color: CelestialTheme.borderWarm),
                                 itemBuilder: (context, index) {
                                   final mod = modifierList[index];
                                   return ListTile(
@@ -975,11 +975,11 @@ class PriceEditorDialog {
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                                     title: Text(
                                       mod.optionName,
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
                                     ),
                                     subtitle: Text(
                                       '${mod.groupTitle} • in ${mod.itemCount} items',
-                                      style: const TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                                      style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                                     ),
                                     trailing: InkWell(
                                       onTap: () {
@@ -998,13 +998,13 @@ class PriceEditorDialog {
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                         decoration: BoxDecoration(
                                           color: mod.extraPrice > 0
-                                              ? const Color(0xFFD48B28).withValues(alpha: 0.2)
-                                              : const Color(0xFF281F1A),
+                                              ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                              : CelestialTheme.bgCard,
                                           borderRadius: BorderRadius.circular(8),
                                           border: Border.all(
                                             color: mod.extraPrice > 0
-                                                ? const Color(0xFFD48B28).withValues(alpha: 0.5)
-                                                : const Color(0xFF4A3B32),
+                                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                                                : CelestialTheme.borderWarm,
                                           ),
                                         ),
                                         child: Row(
@@ -1015,11 +1015,11 @@ class PriceEditorDialog {
                                               style: GoogleFonts.outfit(
                                                 fontSize: 12.5,
                                                 fontWeight: FontWeight.bold,
-                                                color: mod.extraPrice > 0 ? const Color(0xFFD48B28) : const Color(0xFFB09D90),
+                                                color: mod.extraPrice > 0 ? CelestialTheme.goldPrimary : CelestialTheme.textMuted,
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-                                            const Icon(Icons.edit, size: 11, color: Color(0xFFD48B28)),
+                                            Icon(Icons.edit, size: 11, color: CelestialTheme.goldPrimary),
                                           ],
                                         ),
                                       ),
@@ -1036,7 +1036,7 @@ class PriceEditorDialog {
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.isLondon ? Colors.white : CelestialTheme.bgDark,
                   ),
                   child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),

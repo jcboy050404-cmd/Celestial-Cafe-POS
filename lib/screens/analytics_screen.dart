@@ -77,7 +77,7 @@ class AnalyticsScreen extends StatelessWidget {
       color: CelestialTheme.bgSurface,
       child: Row(
         children: [
-          const Icon(Icons.insights_rounded, color: CelestialTheme.goldPrimary, size: 22),
+          Icon(Icons.insights_rounded, color: CelestialTheme.goldPrimary, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -241,7 +241,7 @@ class AnalyticsScreen extends StatelessWidget {
                   color: CelestialTheme.textLight,
                 ),
               ),
-              const Icon(Icons.star_rounded, color: CelestialTheme.goldPrimary, size: 18),
+              Icon(Icons.star_rounded, color: CelestialTheme.goldPrimary, size: 18),
             ],
           ),
           const SizedBox(height: 12),
@@ -381,7 +381,7 @@ class AnalyticsScreen extends StatelessWidget {
                           ),
                           Text(
                             '${percent.toStringAsFixed(1)}% of total revenue',
-                            style: const TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
+                            style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted),
                           ),
                         ],
                       ),
@@ -486,7 +486,7 @@ class AnalyticsScreen extends StatelessWidget {
                   color: CelestialTheme.emeraldReady.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
+                child: Text(
                   'SHIFT ACTIVE',
                   style: TextStyle(
                     fontSize: 9,
@@ -544,16 +544,16 @@ class AnalyticsScreen extends StatelessWidget {
                               setExportState(() => isExporting = false);
                             },
                   icon: isExporting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.bgDark),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: CelestialTheme.primaryBtnText),
                         )
                       : const Icon(Icons.lock_clock_rounded, size: 15),
                   label: Text(isExporting ? 'Exporting...' : 'Export Shift Close Report', style: const TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.bgDark,
+                    foregroundColor: CelestialTheme.primaryBtnText,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
@@ -574,8 +574,8 @@ class AnalyticsScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted)),
-          Text(val, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.textLight)),
+          Text(label, style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted)),
+          Text(val, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CelestialTheme.textLight)),
         ],
       ),
     );

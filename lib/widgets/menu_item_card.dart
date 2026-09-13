@@ -81,14 +81,14 @@ class _MenuItemCardState extends State<MenuItemCard> {
                             ),
                             Text(
                               '${currentItem.category.label} • ₱${currentItem.price.toStringAsFixed(0)}',
-                              style: const TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                              style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
+                        icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted),
                       ),
                     ],
                   ),
@@ -241,7 +241,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                         onPressed: () => Navigator.pop(ctx),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CelestialTheme.goldPrimary,
-                          foregroundColor: CelestialTheme.bgDark,
+                          foregroundColor: CelestialTheme.primaryBtnText,
                         ),
                         child: const Text('Done'),
                       ),
@@ -391,7 +391,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                     ),
                                     child: Text(
                                       '⚠️ ${item.unavailableOptionsCount} 86\'d',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 8,
                                         fontWeight: FontWeight.bold,
                                         color: CelestialTheme.amberBrewing,
@@ -490,7 +490,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                   border: Border.all(color: CelestialTheme.roseAlert),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'SOLD OUT',
                                   style: TextStyle(
                                     color: CelestialTheme.roseAlert,
