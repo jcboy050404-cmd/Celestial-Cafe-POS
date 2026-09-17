@@ -1313,6 +1313,7 @@ class PosProvider extends ChangeNotifier {
   int get pendingOnlineOrdersCount =>
       _incomingOnlineOrders.where((o) => o.status == OrderStatus.pending).length;
   OnlineStoreProfile? get onlineStoreProfile => _onlineStoreProfile;
+  String? get customSlug => _onlineStoreProfile?.customSlug;
 
   String get effectiveStoreId {
     final email = (_currentUser?.isCashier == true &&
@@ -1321,6 +1322,63 @@ class PosProvider extends ChangeNotifier {
         ? _currentUser!.ownerEmail!
         : (_currentUserEmail ?? 'default_store');
     return OnlineOrderService.getStoreId(email);
+  }
+
+  String get effectiveOrderingSlug {
+    if (_onlineStoreProfile?.customSlug != null && _onlineStoreProfile!.customSlug!.isNotEmpty) {
+      return _onlineStoreProfile!.customSlug!;
+    }
+    return effectiveStoreId;
+  }
+
+  Future<({bool success, String message})> setCustomSlug(String rawSlug) async {
+    final clean = OnlineOrderService.slugify(rawSlug);
+    final ownerEmail = _currentUserEmail ?? '';
+    final storeId = effectiveStoreId;
+
+    if (clean.isEmpty) {
+      final oldSlug = _onlineStoreProfile?.customSlug;
+      if (oldSlug != null && oldSlug.isNotEmpty) {
+        await OnlineOrderService().releaseCustomSlug(oldSlug);
+      }
+      if (_onlineStoreProfile != null) {
+        _onlineStoreProfile!.customSlug = null;
+        await OnlineOrderService().saveLocalProfile(_onlineStoreProfile!);
+        notifyListeners();
+      }
+      return (success: true, message: 'Custom link reset to default Store ID.');
+    }
+
+    final check = await OnlineOrderService().checkSlugAvailability(
+      slug: clean,
+      ownerEmail: ownerEmail,
+    );
+    if (!check.available) {
+      return (success: false, message: check.message);
+    }
+
+    final oldSlug = _onlineStoreProfile?.customSlug;
+    if (oldSlug != null && oldSlug.isNotEmpty && oldSlug != clean) {
+      await OnlineOrderService().releaseCustomSlug(oldSlug);
+    }
+
+    _onlineStoreProfile ??= OnlineStoreProfile(
+      storeId: storeId,
+      ownerEmail: ownerEmail,
+      storeName: _storeName,
+      storeAddress: _storeAddress,
+    );
+    _onlineStoreProfile!.customSlug = clean;
+
+    await OnlineOrderService().saveLocalProfile(_onlineStoreProfile!);
+    await OnlineOrderService().claimCustomSlug(
+      slug: clean,
+      storeId: storeId,
+      ownerEmail: ownerEmail,
+    );
+
+    notifyListeners();
+    return (success: true, message: 'Custom link "$clean" is now active!');
   }
 
   Future<void> initOnlineOrdering({String? storeOwnerEmail}) async {

@@ -11,6 +11,7 @@ import '../models/order.dart';
 class OnlineStoreProfile {
   final String storeId;
   final String ownerEmail;
+  String? customSlug;
   String storeName;
   String storeTagline;
   String storeAddress;
@@ -26,6 +27,7 @@ class OnlineStoreProfile {
   OnlineStoreProfile({
     required this.storeId,
     required this.ownerEmail,
+    this.customSlug,
     this.storeName = 'Celestial Cafe',
     this.storeTagline = 'Handcrafted Coffee & Treats',
     this.storeAddress = '',
@@ -42,6 +44,7 @@ class OnlineStoreProfile {
   Map<String, dynamic> toJson() => {
         'storeId': storeId,
         'ownerEmail': ownerEmail,
+        'customSlug': customSlug,
         'storeName': storeName,
         'storeTagline': storeTagline,
         'storeAddress': storeAddress,
@@ -60,6 +63,7 @@ class OnlineStoreProfile {
     return OnlineStoreProfile(
       storeId: json['storeId'] as String? ?? '',
       ownerEmail: json['ownerEmail'] as String? ?? '',
+      customSlug: json['customSlug'] as String?,
       storeName: json['storeName'] as String? ?? 'Celestial Cafe',
       storeTagline: json['storeTagline'] as String? ?? 'Handcrafted Coffee & Treats',
       storeAddress: json['storeAddress'] as String? ?? '',
@@ -91,6 +95,8 @@ class OnlineOrderService {
   final Map<String, OnlineStoreProfile> _localProfiles = {};
   final Map<String, List<MenuItem>> _mockStoreMenus = {};
   final Map<String, List<Order>> _mockStoreOrders = {};
+  final Map<String, String> _mockStoreSlugs = {};
+  final Map<String, String> _slugToStoreIdCache = {};
 
   bool? mockModeOverride;
 
@@ -112,6 +118,178 @@ class OnlineOrderService {
     return clean.replaceAll('@', '_at_').replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
   }
 
+  /// Cleans and formats a string into a URL-safe custom slug (e.g. "Neil's Cafe" -> "neils-cafe").
+  static String slugify(String input) {
+    var s = input.trim().toLowerCase();
+    s = s.replaceAll(RegExp(r"['’]"), '');
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    s = s.replaceAll(RegExp(r'^-+|-+$'), '');
+    return s;
+  }
+
+  /// Validates syntax of custom slug. Returns error message if invalid, or null if valid.
+  static String? validateCustomSlug(String slug) {
+    final clean = slugify(slug);
+    if (clean.length < 3) {
+      return 'Custom link must be at least 3 characters.';
+    }
+    if (clean.length > 40) {
+      return 'Custom link cannot exceed 40 characters.';
+    }
+    const reserved = {'order', 'orders', 'api', 'admin', 'login', 'pos', 'default_store', 'null', 'undefined', 'app'};
+    if (reserved.contains(clean)) {
+      return '"$clean" is a reserved word. Please choose another link.';
+    }
+    return null;
+  }
+
+  /// Checks whether a custom slug is available for this owner.
+  Future<({bool available, String message})> checkSlugAvailability({
+    required String slug,
+    required String ownerEmail,
+  }) async {
+    final clean = slugify(slug);
+    final syntaxErr = validateCustomSlug(clean);
+    if (syntaxErr != null) {
+      return (available: false, message: syntaxErr);
+    }
+
+    final myStoreId = getStoreId(ownerEmail);
+
+    if (_isFlutterTest) {
+      if (_mockStoreSlugs.containsKey(clean)) {
+        final existingStoreId = _mockStoreSlugs[clean];
+        if (existingStoreId == myStoreId) {
+          return (available: true, message: 'This is your current custom link.');
+        } else {
+          return (available: false, message: 'Link "$clean" is already taken by another store.');
+        }
+      }
+      return (available: true, message: 'Link is available!');
+    }
+
+    try {
+      final uri = Uri.parse('$_rtdbUrl/store_slugs/$clean.json');
+      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200 && res.body != 'null') {
+        final dynamic data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) {
+          final claimedEmail = data['ownerEmail'] as String? ?? '';
+          final claimedStoreId = data['storeId'] as String? ?? '';
+          if (claimedEmail.toLowerCase() == ownerEmail.trim().toLowerCase() || claimedStoreId == myStoreId) {
+            return (available: true, message: 'This is your current custom link.');
+          }
+        }
+        return (available: false, message: 'Link "$clean" is already taken by another store.');
+      }
+      return (available: true, message: 'Link is available!');
+    } catch (e) {
+      return (available: true, message: 'Link format is valid.');
+    }
+  }
+
+  /// Registers a custom slug mapping to a store in Firebase RTDB.
+  Future<bool> claimCustomSlug({
+    required String slug,
+    required String storeId,
+    required String ownerEmail,
+  }) async {
+    final clean = slugify(slug);
+    if (clean.isEmpty) return false;
+
+    _slugToStoreIdCache[clean] = storeId;
+    if (_isFlutterTest) {
+      _mockStoreSlugs[clean] = storeId;
+      return true;
+    }
+
+    try {
+      final uri = Uri.parse('$_rtdbUrl/store_slugs/$clean.json');
+      final body = jsonEncode({
+        'storeId': storeId,
+        'ownerEmail': ownerEmail,
+        'customSlug': clean,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      final res = await http.put(uri, body: body).timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      if (kDebugMode) print('claimCustomSlug error: $e');
+      return false;
+    }
+  }
+
+  /// Releases a custom slug if an owner changes or removes it.
+  Future<void> releaseCustomSlug(String oldSlug) async {
+    final clean = slugify(oldSlug);
+    if (clean.isEmpty) return;
+    _slugToStoreIdCache.remove(clean);
+    if (_isFlutterTest) {
+      _mockStoreSlugs.remove(clean);
+      return;
+    }
+    try {
+      final uri = Uri.parse('$_rtdbUrl/store_slugs/$clean.json');
+      await http.delete(uri).timeout(const Duration(seconds: 5));
+    } catch (_) {}
+  }
+
+  /// Resolves any custom slug (or storeId) to the primary storeId for backend queries.
+  Future<String> resolveStoreId(String inputKey) async {
+    final rawKey = inputKey.trim();
+    if (rawKey.isEmpty || rawKey == 'default_store') return 'default_store';
+
+    // 1. In-memory cache
+    if (_slugToStoreIdCache.containsKey(rawKey)) {
+      return _slugToStoreIdCache[rawKey]!;
+    }
+    final cleanKey = slugify(rawKey);
+    if (_slugToStoreIdCache.containsKey(cleanKey)) {
+      return _slugToStoreIdCache[cleanKey]!;
+    }
+
+    // 2. Check local profiles
+    for (final profile in _localProfiles.values) {
+      if (profile.customSlug != null && (profile.customSlug == rawKey || slugify(profile.customSlug!) == cleanKey)) {
+        _slugToStoreIdCache[rawKey] = profile.storeId;
+        _slugToStoreIdCache[cleanKey] = profile.storeId;
+        return profile.storeId;
+      }
+    }
+
+    // 3. Mock test registry
+    if (_isFlutterTest) {
+      if (_mockStoreSlugs.containsKey(rawKey)) {
+        return _mockStoreSlugs[rawKey]!;
+      }
+      if (_mockStoreSlugs.containsKey(cleanKey)) {
+        return _mockStoreSlugs[cleanKey]!;
+      }
+      return rawKey;
+    }
+
+    // 4. Query Firebase RTDB /store_slugs/{cleanKey}.json
+    try {
+      final uri = Uri.parse('$_rtdbUrl/store_slugs/$cleanKey.json');
+      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200 && res.body != 'null') {
+        final dynamic data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) {
+          final targetStoreId = data['storeId'] as String?;
+          if (targetStoreId != null && targetStoreId.isNotEmpty) {
+            _slugToStoreIdCache[rawKey] = targetStoreId;
+            _slugToStoreIdCache[cleanKey] = targetStoreId;
+            return targetStoreId;
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('resolveStoreId error: $e');
+    }
+
+    return rawKey;
+  }
+
   /// Public base URL for customer web ordering.
   /// Dynamically detects current web host if running in a web browser,
   /// or defaults to the live deployed Firebase Hosting site: https://jc-pos-system.web.app
@@ -130,13 +308,17 @@ class OnlineOrderService {
   /// Constructs the public customer web ordering URL for a given store.
   static String getOrderingUrl({
     required String storeId,
+    String? customSlug,
     String? tableNumber,
     String? baseUrl,
   }) {
     final domain = (baseUrl != null && baseUrl.trim().isNotEmpty)
         ? baseUrl.trim().replaceAll(RegExp(r'/+$'), '')
         : defaultBaseUrl;
-    final buffer = StringBuffer('$domain/#/order?store=$storeId');
+    final identifier = (customSlug != null && customSlug.trim().isNotEmpty)
+        ? slugify(customSlug)
+        : storeId;
+    final buffer = StringBuffer('$domain/#/order?store=$identifier');
     if (tableNumber != null && tableNumber.trim().isNotEmpty) {
       buffer.write('&table=${Uri.encodeComponent(tableNumber.trim())}');
     }
@@ -151,8 +333,19 @@ class OnlineOrderService {
     _localProfiles[profile.storeId] = profile;
     await saveLocalProfile(profile);
 
+    if (profile.customSlug != null && profile.customSlug!.isNotEmpty) {
+      await claimCustomSlug(
+        slug: profile.customSlug!,
+        storeId: profile.storeId,
+        ownerEmail: profile.ownerEmail,
+      );
+    }
+
     if (_isFlutterTest) {
       _mockStoreMenus[profile.storeId] = List.from(menuItems);
+      if (profile.customSlug != null && profile.customSlug!.isNotEmpty) {
+        _mockStoreSlugs[slugify(profile.customSlug!)] = profile.storeId;
+      }
       return true;
     }
 
@@ -177,7 +370,9 @@ class OnlineOrderService {
   }
 
   /// Fetches the store profile & menu for the customer-facing screen.
-  Future<Map<String, dynamic>?> fetchStoreCatalog(String storeId) async {
+  Future<Map<String, dynamic>?> fetchStoreCatalog(String inputStoreKey) async {
+    final storeId = await resolveStoreId(inputStoreKey);
+
     if (_isFlutterTest) {
       final profile = _localProfiles[storeId] ??
           OnlineStoreProfile(storeId: storeId, ownerEmail: '$storeId@store.com');
@@ -236,26 +431,30 @@ class OnlineOrderService {
     required String storeId,
     required Order order,
   }) async {
+    final actualStoreId = await resolveStoreId(storeId);
+
     if (_isFlutterTest) {
-      _mockStoreOrders.putIfAbsent(storeId, () => []).insert(0, order);
+      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, order);
       return true;
     }
 
     try {
-      final uri = Uri.parse('$_rtdbUrl/online_stores/$storeId/incoming_orders/${order.id}.json');
+      final uri = Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders/${order.id}.json');
       final body = jsonEncode(order.toJson());
       final res = await http.put(uri, body: body).timeout(const Duration(seconds: 10));
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       if (kDebugMode) print('OnlineOrderService.submitCustomerOrder error: $e');
       // Save in mock list as fallback
-      _mockStoreOrders.putIfAbsent(storeId, () => []).insert(0, order);
+      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, order);
       return false;
     }
   }
 
   /// Polls the store's incoming online orders from Firebase for the POS terminal.
-  Future<List<Order>> fetchIncomingOrders(String storeId) async {
+  Future<List<Order>> fetchIncomingOrders(String inputStoreKey) async {
+    final storeId = await resolveStoreId(inputStoreKey);
+
     if (_isFlutterTest) {
       return _mockStoreOrders[storeId] ?? [];
     }
@@ -303,12 +502,14 @@ class OnlineOrderService {
     required OrderStatus newStatus,
     String? cashierName,
   }) async {
-    if (_mockStoreOrders.containsKey(storeId)) {
-      final idx = _mockStoreOrders[storeId]!.indexWhere((o) => o.id == orderId);
+    final actualStoreId = await resolveStoreId(storeId);
+
+    if (_mockStoreOrders.containsKey(actualStoreId)) {
+      final idx = _mockStoreOrders[actualStoreId]!.indexWhere((o) => o.id == orderId);
       if (idx >= 0) {
-        _mockStoreOrders[storeId]![idx].status = newStatus;
+        _mockStoreOrders[actualStoreId]![idx].status = newStatus;
         if (cashierName != null && cashierName.isNotEmpty) {
-          _mockStoreOrders[storeId]![idx].cashierName = cashierName;
+          _mockStoreOrders[actualStoreId]![idx].cashierName = cashierName;
         }
       }
     }
@@ -316,10 +517,10 @@ class OnlineOrderService {
     if (_isFlutterTest) return true;
 
     try {
-      final uri = Uri.parse('$_rtdbUrl/online_stores/$storeId/incoming_orders/$orderId/status.json');
+      final uri = Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders/$orderId/status.json');
       await http.put(uri, body: jsonEncode(newStatus.name)).timeout(const Duration(seconds: 6));
       if (cashierName != null && cashierName.isNotEmpty) {
-        final cashierUri = Uri.parse('$_rtdbUrl/online_stores/$storeId/incoming_orders/$orderId/cashierName.json');
+        final cashierUri = Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders/$orderId/cashierName.json');
         await http.put(cashierUri, body: jsonEncode(cashierName)).timeout(const Duration(seconds: 6));
       }
       return true;
@@ -348,6 +549,10 @@ class OnlineOrderService {
         final map = jsonDecode(jsonStr) as Map<String, dynamic>;
         final profile = OnlineStoreProfile.fromJson(map);
         _localProfiles[storeId] = profile;
+        if (profile.customSlug != null && profile.customSlug!.isNotEmpty) {
+          _slugToStoreIdCache[slugify(profile.customSlug!)] = profile.storeId;
+          _slugToStoreIdCache[profile.customSlug!] = profile.storeId;
+        }
         return profile;
       }
     } catch (e) {
@@ -367,6 +572,10 @@ class OnlineOrderService {
   /// Saves local store profile to SharedPreferences.
   Future<void> saveLocalProfile(OnlineStoreProfile profile) async {
     _localProfiles[profile.storeId] = profile;
+    if (profile.customSlug != null && profile.customSlug!.isNotEmpty) {
+      _slugToStoreIdCache[slugify(profile.customSlug!)] = profile.storeId;
+      _slugToStoreIdCache[profile.customSlug!] = profile.storeId;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = 'online_store_profile_${profile.storeId}';

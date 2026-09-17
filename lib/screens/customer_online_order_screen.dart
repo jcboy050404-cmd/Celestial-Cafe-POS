@@ -39,6 +39,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
   // Active Submitted Order (for Live Tracking)
   Order? _submittedOrder;
   Timer? _statusTrackerTimer;
+  String? _resolvedStoreId;
 
   @override
   void initState() {
@@ -54,7 +55,9 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
 
   Future<void> _loadStoreData() async {
     setState(() => _isLoading = true);
-    final data = await OnlineOrderService().fetchStoreCatalog(widget.storeId);
+    final resolved = await OnlineOrderService().resolveStoreId(widget.storeId);
+    _resolvedStoreId = resolved;
+    final data = await OnlineOrderService().fetchStoreCatalog(resolved);
     if (!mounted) return;
 
     if (data != null) {
@@ -67,8 +70,9 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
   void _startOrderTracking(Order order) {
     _submittedOrder = order;
     _statusTrackerTimer?.cancel();
+    final targetStore = _resolvedStoreId ?? widget.storeId;
     _statusTrackerTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
-      final orders = await OnlineOrderService().fetchIncomingOrders(widget.storeId);
+      final orders = await OnlineOrderService().fetchIncomingOrders(targetStore);
       final updated = orders.firstWhere(
         (o) => o.id == _submittedOrder!.id,
         orElse: () => _submittedOrder!,
@@ -392,8 +396,8 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                                 orderNotes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
                               );
 
-                              final success = await OnlineOrderService().submitCustomerOrder(
-                                storeId: widget.storeId,
+                               final success = await OnlineOrderService().submitCustomerOrder(
+                                storeId: _resolvedStoreId ?? widget.storeId,
                                 order: newOrder,
                               );
 

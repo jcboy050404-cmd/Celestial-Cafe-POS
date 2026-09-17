@@ -332,4 +332,147 @@ void main() {
       posProvider.dispose();
     });
   });
+
+  group('Custom Online Order Link & Slug Resolution', () {
+    test('slugify and validateCustomSlug correctly format and validate custom links', () {
+      expect(OnlineOrderService.slugify("Neil's Special Coffee & Cafe"), 'neils-special-coffee-cafe');
+      expect(OnlineOrderService.slugify("  Celestial--Cafe 2026! "), 'celestial-cafe-2026');
+      expect(OnlineOrderService.slugify("My_Cafe_Branch"), 'my-cafe-branch');
+
+      // Validation
+      expect(OnlineOrderService.validateCustomSlug('hi'), isNotNull); // Too short
+      expect(OnlineOrderService.validateCustomSlug('order'), isNotNull); // Reserved
+      expect(OnlineOrderService.validateCustomSlug('my-cool-cafe'), isNull); // Valid
+    });
+
+    test('getOrderingUrl uses customSlug when provided', () {
+      final customUrl = OnlineOrderService.getOrderingUrl(
+        storeId: 'owner_at_cafe_com',
+        customSlug: 'my-custom-cafe',
+        tableNumber: 'Table 1',
+      );
+      expect(customUrl, 'https://jc-pos-system.web.app/#/order?store=my-custom-cafe&table=Table%201');
+    });
+
+    test('Owner can set custom link, resolve slug, and customers can order via custom slug', () async {
+      final service = OnlineOrderService();
+      final ownerEmail = 'customowner@cafe.com';
+      final storeId = OnlineOrderService.getStoreId(ownerEmail);
+      final customSlug = 'celestial-downtown';
+
+      // 1. Check availability
+      final avail = await service.checkSlugAvailability(slug: customSlug, ownerEmail: ownerEmail);
+      expect(avail.available, isTrue);
+
+      // 2. Publish catalog with customSlug
+      final profile = OnlineStoreProfile(
+        storeId: storeId,
+        ownerEmail: ownerEmail,
+        storeName: 'Downtown Branch',
+        customSlug: customSlug,
+      );
+      final menu = [
+        MenuItem(
+          id: 'custom_m1',
+          name: 'Downtown Cold Brew',
+          description: 'Steeped for 18 hours',
+          icon: '☕',
+          price: 130.0,
+          category: ItemCategory.coffee,
+        ),
+      ];
+      await service.publishStoreCatalog(profile: profile, menuItems: menu);
+
+      // 3. Resolve slug to actual storeId
+      final resolved = await service.resolveStoreId(customSlug);
+      expect(resolved, storeId);
+
+      // 4. Fetch catalog using customSlug
+      final fetched = await service.fetchStoreCatalog(customSlug);
+      expect(fetched, isNotNull);
+      final fetchedProfile = fetched!['profile'] as OnlineStoreProfile;
+      expect(fetchedProfile.storeName, 'Downtown Branch');
+      expect(fetchedProfile.customSlug, customSlug);
+
+      // 5. Submit customer order using customSlug
+      final testOrder = Order(
+        id: 'order_custom_slug_1',
+        orderNumber: '#ON-SLUG-1',
+        orderType: OrderType.takeaway,
+        customerName: 'Slug Customer',
+        customerPhone: '09123456789',
+        items: [OrderItem(id: 'ci1', menuItem: menu.first, quantity: 1)],
+        subtotal: 130.0,
+        taxAmount: 0.0,
+        taxRate: 0.0,
+        totalAmount: 130.0,
+        paymentMethod: PaymentMethod.cash,
+        amountTendered: 130.0,
+        status: OrderStatus.pending,
+        createdAt: DateTime.now(),
+        cashierName: 'Online Web Order',
+      );
+      final submitted = await service.submitCustomerOrder(storeId: customSlug, order: testOrder);
+      expect(submitted, isTrue);
+
+      // 6. POS fetching by real storeId receives the order placed via custom slug
+      final orders = await service.fetchIncomingOrders(storeId);
+      expect(orders.any((o) => o.id == 'order_custom_slug_1'), isTrue);
+    });
+
+    testWidgets('Owner can input custom link in dialog and save it', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 950);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final auth = AuthService(
+        initialUser: AppUser(
+          uid: 'owner_uid_2',
+          email: 'customowner2@cafe.com',
+          displayName: 'Cafe Boss',
+          role: UserRole.owner,
+          trialStartDate: DateTime.now(),
+        ),
+      );
+
+      final posProvider = PosProvider();
+      await posProvider.loadForUser('customowner2@cafe.com');
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthService>.value(value: auth),
+            ChangeNotifierProvider<PosProvider>.value(value: posProvider),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: OnlineOrderingDialog(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify custom link section is rendered
+      expect(find.text('Custom Ordering Link'), findsOneWidget);
+      expect(find.text('Save Link'), findsOneWidget);
+
+      // Input custom link name
+      final slugField = find.widgetWithText(TextField, 'your-custom-link');
+      expect(slugField, findsOneWidget);
+      await tester.enterText(slugField, 'my-super-cafe');
+      await tester.pumpAndSettle();
+
+      // Tap Save Link
+      await tester.tap(find.text('Save Link'));
+      await tester.pumpAndSettle();
+
+      // Verify custom link is now active in provider and shown in dialog
+      expect(posProvider.customSlug, 'my-super-cafe');
+      expect(find.text('Custom Active'), findsOneWidget);
+
+      posProvider.dispose();
+    });
+  });
 }
+

@@ -31,7 +31,11 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
   late TabController _tabController;
   final _tableController = TextEditingController();
   final _noticeController = TextEditingController();
+  final _customSlugController = TextEditingController();
   bool _isPublishing = false;
+  bool _isSavingSlug = false;
+  String? _slugStatusMessage;
+  bool _slugStatusIsError = false;
 
   @override
   void initState() {
@@ -41,6 +45,7 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
     final profile = pos.onlineStoreProfile;
     if (profile != null) {
       _noticeController.text = profile.customNotice ?? '';
+      _customSlugController.text = profile.customSlug ?? '';
     }
   }
 
@@ -49,15 +54,68 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
     _tabController.dispose();
     _tableController.dispose();
     _noticeController.dispose();
+    _customSlugController.dispose();
     super.dispose();
   }
 
   String _buildOrderUrl(PosProvider pos) {
     final storeId = pos.effectiveStoreId;
     final table = _tableController.text.trim();
+    final slug = _customSlugController.text.trim().isNotEmpty
+        ? OnlineOrderService.slugify(_customSlugController.text.trim())
+        : pos.onlineStoreProfile?.customSlug;
     return OnlineOrderService.getOrderingUrl(
       storeId: storeId,
+      customSlug: slug,
       tableNumber: table.isNotEmpty ? table : null,
+    );
+  }
+
+  Future<void> _saveCustomSlug(PosProvider pos) async {
+    final raw = _customSlugController.text.trim();
+    if (raw.isEmpty) {
+      setState(() {
+        _slugStatusMessage = 'Please enter a custom link name.';
+        _slugStatusIsError = true;
+      });
+      return;
+    }
+
+    setState(() => _isSavingSlug = true);
+    final res = await pos.setCustomSlug(raw);
+    if (!mounted) return;
+    setState(() {
+      _isSavingSlug = false;
+      _slugStatusMessage = res.message;
+      _slugStatusIsError = !res.success;
+      if (res.success) {
+        _customSlugController.text = pos.onlineStoreProfile?.customSlug ?? '';
+      }
+    });
+
+    if (res.success) {
+      TopNotification.show(
+        context,
+        message: 'Custom link activated! Customers can now order with this link.',
+        type: TopNotificationType.success,
+      );
+    }
+  }
+
+  Future<void> _resetToDefaultSlug(PosProvider pos) async {
+    setState(() => _isSavingSlug = true);
+    final res = await pos.setCustomSlug('');
+    if (!mounted) return;
+    setState(() {
+      _isSavingSlug = false;
+      _customSlugController.clear();
+      _slugStatusMessage = res.message;
+      _slugStatusIsError = false;
+    });
+    TopNotification.show(
+      context,
+      message: 'Reset back to default Store ID.',
+      type: TopNotificationType.info,
     );
   }
 
@@ -174,7 +232,10 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
                           ),
                         ),
                         Text(
-                          'Store ID: ${pos.effectiveStoreId}',
+                          pos.onlineStoreProfile?.customSlug != null &&
+                                  pos.onlineStoreProfile!.customSlug!.isNotEmpty
+                              ? 'Custom Link: ${pos.onlineStoreProfile!.customSlug}'
+                              : 'Store ID: ${pos.effectiveStoreId}',
                           style: GoogleFonts.outfit(
                             fontSize: 11.5,
                             color: CelestialTheme.goldLight,
@@ -231,7 +292,7 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
                           context,
                           MaterialPageRoute(
                             builder: (_) => CustomerOnlineOrderScreen(
-                              storeId: pos.effectiveStoreId,
+                              storeId: pos.effectiveOrderingSlug,
                               previewMode: true,
                             ),
                           ),
@@ -334,6 +395,173 @@ class _OnlineOrderingDialogState extends State<OnlineOrderingDialog>
             ),
           ),
           const SizedBox(height: 18),
+
+          // Custom Ordering Link Input & Management Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: CelestialTheme.bgCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _slugStatusIsError
+                    ? CelestialTheme.roseAlert.withValues(alpha: 0.6)
+                    : CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                width: 1.2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.add_link_rounded, color: CelestialTheme.goldPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Custom Ordering Link',
+                        style: GoogleFonts.outfit(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: CelestialTheme.textLight,
+                        ),
+                      ),
+                    ),
+                    if (pos.onlineStoreProfile?.customSlug != null &&
+                        pos.onlineStoreProfile!.customSlug!.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: CelestialTheme.emeraldReady.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: CelestialTheme.emeraldReady.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          'Custom Active',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.emeraldReady,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Set your own branded link name (e.g. celestial-cafe, neil-coffee):',
+                  style: GoogleFonts.outfit(fontSize: 11.5, color: CelestialTheme.textMuted),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _customSlugController,
+                        onChanged: (val) {
+                          setState(() {
+                            _slugStatusMessage = null;
+                            _slugStatusIsError = false;
+                          });
+                        },
+                        style: GoogleFonts.outfit(
+                          color: CelestialTheme.textLight,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          prefixText: 'order?store=',
+                          prefixStyle: TextStyle(
+                            color: CelestialTheme.goldLight,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          hintText: 'your-custom-link',
+                          hintStyle: TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
+                          filled: true,
+                          fillColor: CelestialTheme.bgSurface,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: CelestialTheme.borderWarm),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: CelestialTheme.borderWarm),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: CelestialTheme.goldPrimary),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _isSavingSlug ? null : () => _saveCustomSlug(pos),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: CelestialTheme.goldPrimary,
+                        foregroundColor: CelestialTheme.primaryBtnText,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: _isSavingSlug
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            )
+                          : const Text('Save Link', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
+                ),
+                if (_slugStatusMessage != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        _slugStatusIsError ? Icons.error_outline : Icons.check_circle_outline,
+                        size: 14,
+                        color: _slugStatusIsError ? CelestialTheme.roseAlert : CelestialTheme.emeraldReady,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _slugStatusMessage!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _slugStatusIsError ? CelestialTheme.roseAlert : CelestialTheme.emeraldReady,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (pos.onlineStoreProfile?.customSlug != null &&
+                    pos.onlineStoreProfile!.customSlug!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: InkWell(
+                      onTap: () => _resetToDefaultSlug(pos),
+                      child: Text(
+                        'Reset to default Store ID (${pos.effectiveStoreId})',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: CelestialTheme.textMuted,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
 
           // Optional Table Number
           TextField(
