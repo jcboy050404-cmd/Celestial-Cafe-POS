@@ -20,6 +20,7 @@ class OrdersHistoryScreen extends StatefulWidget {
 class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   String _searchQuery = '';
   OrderStatus? _statusFilter;
+  bool _onlineOnlyFilter = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +41,10 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           order.items.any((i) => i.menuItem.name.toLowerCase().contains(q));
 
       final matchesStatus = _statusFilter == null || order.status == _statusFilter;
+      final isOnline = order.id.startsWith('online_') || order.cashierName.toLowerCase().contains('online');
+      final matchesOnline = !_onlineOnlyFilter || isOnline;
 
-      return matchesQuery && matchesStatus;
+      return matchesQuery && matchesStatus && matchesOnline;
     }).toList();
 
     return Scaffold(
@@ -222,6 +225,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               children: [
                 _buildFilterChip('All', null, provider.orders.length),
                 const SizedBox(width: 6),
+                _buildOnlineFilterChip(provider),
+                const SizedBox(width: 6),
                 _buildFilterChip('Completed', OrderStatus.completed, provider.completedOrders.length, CelestialTheme.emeraldReady),
                 const SizedBox(width: 6),
                 _buildFilterChip('Ready', OrderStatus.ready, provider.readyOrders.length, CelestialTheme.emeraldReady),
@@ -237,8 +242,55 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     );
   }
 
+  Widget _buildOnlineFilterChip(PosProvider provider) {
+    final onlineCount = provider.orders.where((o) => o.id.startsWith('online_') || o.cashierName.toLowerCase().contains('online')).length;
+    final isSelected = _onlineOnlyFilter;
+    final activeColor = CelestialTheme.goldLight;
+
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🌐 Online'),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: isSelected ? activeColor : CelestialTheme.bgSurface,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '$onlineCount',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
+              ),
+            ),
+          ),
+        ],
+      ),
+      selected: isSelected,
+      selectedColor: activeColor.withValues(alpha: 0.25),
+      backgroundColor: CelestialTheme.bgCard,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      side: BorderSide(
+        color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.06),
+      ),
+      labelStyle: TextStyle(
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        color: isSelected ? CelestialTheme.textLight : CelestialTheme.textMuted,
+      ),
+      onSelected: (sel) => setState(() {
+        _onlineOnlyFilter = sel;
+        if (sel) _statusFilter = null;
+      }),
+    );
+  }
+
   Widget _buildFilterChip(String label, OrderStatus? status, int count, [Color? color]) {
-    final isSelected = _statusFilter == status;
+    final isSelected = !_onlineOnlyFilter && _statusFilter == status;
     final activeColor = color ?? CelestialTheme.goldPrimary;
 
     return ChoiceChip(

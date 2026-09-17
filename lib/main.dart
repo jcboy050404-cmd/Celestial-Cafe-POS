@@ -9,7 +9,9 @@ import 'screens/inventory_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/orders_history_screen.dart';
 import 'screens/pos_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'screens/customer_online_order_screen.dart';
 import 'services/auth_service.dart';
 import 'services/cloud_backup_service.dart';
 import 'theme/celestial_theme.dart';
@@ -52,20 +54,24 @@ class JcPosApp extends StatelessWidget {
       child: Consumer2<AuthService, PosProvider>(
         builder: (context, authService, posProvider, _) {
           // Whenever the signed-in user changes, reload POS data for that account.
-          // This runs synchronously on the next frame to avoid calling setState during build.
+          // Guard against infinite callback loops by checking if already loaded.
           final user = authService.currentUser;
           final storeEmail = (user != null && user.isCashier && user.ownerEmail != null && user.ownerEmail!.isNotEmpty)
               ? user.ownerEmail!
               : (user?.email ?? '');
           if (authService.isLoggedIn && storeEmail.isNotEmpty) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              posProvider.loadForUser(storeEmail);
-              posProvider.updateCurrentUser(authService.currentUser);
-            });
+            if (posProvider.currentUserEmail != storeEmail) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                posProvider.loadForUser(storeEmail);
+                posProvider.updateCurrentUser(authService.currentUser);
+              });
+            }
           } else if (!authService.isLoggedIn) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              posProvider.clearUserSession();
-            });
+            if (posProvider.currentUserEmail != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                posProvider.clearUserSession();
+              });
+            }
           }
 
           return MaterialApp(
@@ -81,13 +87,47 @@ class JcPosApp extends StatelessWidget {
                 child: child!,
               );
             },
-            home: authService.isLoggedIn
-                ? const MainWorkstationScaffold()
-                : const LoginScreen(),
+            onGenerateRoute: (settings) {
+              final name = settings.name ?? '';
+              final uri = Uri.tryParse(name) ?? Uri();
+              if (uri.path == '/order' || name.startsWith('/order') || name.startsWith('#/order')) {
+                final storeId = uri.queryParameters['store'] ?? 'default_store';
+                final table = uri.queryParameters['table'];
+                return MaterialPageRoute(
+                  builder: (_) => CustomerOnlineOrderScreen(
+                    storeId: storeId,
+                    initialTable: table,
+                  ),
+                );
+              }
+              return null;
+            },
+            home: _resolveInitialScreen(authService),
           );
         },
       ),
     );
+  }
+
+  Widget _resolveInitialScreen(AuthService authService) {
+    if (kIsWeb) {
+      final base = Uri.base;
+      final fragment = base.fragment;
+      if (base.path == '/order' || fragment.startsWith('/order')) {
+        final params = fragment.contains('?')
+            ? Uri.splitQueryString(fragment.split('?').last)
+            : base.queryParameters;
+        final storeId = params['store'] ?? 'default_store';
+        final table = params['table'];
+        return CustomerOnlineOrderScreen(
+          storeId: storeId,
+          initialTable: table,
+        );
+      }
+    }
+    return authService.isLoggedIn
+        ? const MainWorkstationScaffold()
+        : const LoginScreen();
   }
 }
 

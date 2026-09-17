@@ -12,6 +12,7 @@ import 'cart_panel.dart';
 import 'settings_dialog.dart';
 import 'admin_management_dialog.dart';
 import 'cashier_management_dialog.dart';
+import 'online_ordering_dialog.dart';
 
 class HeaderBar extends StatefulWidget {
   final bool isScrolled;
@@ -330,6 +331,9 @@ class _HeaderBarState extends State<HeaderBar> {
                       index: 1,
                       icon: Icons.receipt_long_rounded,
                       label: 'Order History',
+                      badgeCount: posProvider.pendingOnlineOrdersCount > 0
+                          ? posProvider.pendingOnlineOrdersCount
+                          : null,
                     ),
                   ],
                   if (auth.isFeatureEnabled(AppFeature.inventory)) ...[
@@ -377,6 +381,16 @@ class _HeaderBarState extends State<HeaderBar> {
           const SizedBox(width: 10),
           // User Account & Trial/Pro Status Chip (Contains Profile, License, Station Info, and Sign Out)
           _buildAccountChip(context),
+          // Online Ordering Link & QR shortcut for store owners
+          if (auth.isOwner) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: () => OnlineOrderingDialog.show(context),
+              icon: Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 22),
+              tooltip: 'Customer Online Ordering & QR Code',
+              splashRadius: 20,
+            ),
+          ],
           // Store Settings (Contains Theme Switcher, Text Scaling, Logo, Store Info, Hardware, & Admin)
           if (auth.isFeatureEnabled(AppFeature.storeSettings)) ...[
             const SizedBox(width: 6),
@@ -569,7 +583,7 @@ class _HeaderBarState extends State<HeaderBar> {
                 const SizedBox(height: 14),
 
                 // Action Options
-                if (auth.isOwner)
+                if (auth.isOwner) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: SizedBox(
@@ -590,6 +604,26 @@ class _HeaderBarState extends State<HeaderBar> {
                       ),
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          OnlineOrderingDialog.show(context);
+                        },
+                        icon: Icon(Icons.qr_code_2_rounded, size: 16, color: CelestialTheme.goldLight),
+                        label: Text('Customer Online Ordering & QR', style: TextStyle(color: CelestialTheme.goldLight, fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
 
                 if (isAdmin)
                   Padding(
