@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/menu_item.dart';
 import '../theme/celestial_theme.dart';
@@ -90,7 +91,15 @@ class ItemThumbnail extends StatelessWidget {
           height: height,
           errorBuilder: (context, error, stackTrace) => _buildFallback(context, resolvedIconSize),
         );
-      } else {
+      } else if (path.startsWith('http://') || path.startsWith('https://')) {
+        mediaChild = Image.network(
+          path,
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: (context, error, stackTrace) => _buildFallback(context, resolvedIconSize),
+        );
+      } else if (!kIsWeb) {
         mediaChild = Image.file(
           File(path),
           fit: fit,

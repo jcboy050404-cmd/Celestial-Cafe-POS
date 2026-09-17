@@ -5,6 +5,7 @@ import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../services/online_order_service.dart';
 import '../theme/celestial_theme.dart';
+import '../widgets/client_menu_item_card.dart';
 import '../widgets/top_notification.dart';
 
 /// Public customer-facing web & mobile screen allowing customers anywhere to browse a store's menu and order online.
@@ -79,12 +80,31 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
     });
   }
 
-  List<String> get _categories {
-    final set = <String>{'all'};
+  List<({String key, String label, String icon})> get _categoryTabs {
+    final tabs = <({String key, String label, String icon})>[
+      (key: 'all', label: 'All Items', icon: '✨'),
+    ];
+    final seen = <String>{};
     for (var item in _menuItems) {
-      set.add(item.customCategory ?? item.category.name);
+      final key = item.customCategory ?? item.category.name;
+      if (!seen.contains(key)) {
+        seen.add(key);
+        final label = item.customCategory ?? item.category.label;
+        final icon = item.customCategory != null ? '🏷️' : item.category.icon;
+        tabs.add((key: key, label: label, icon: icon));
+      }
     }
-    return set.toList();
+    return tabs;
+  }
+
+  int _getItemCartCount(String itemId) {
+    int count = 0;
+    for (final item in _cart) {
+      if (item.menuItem.id == itemId) {
+        count += item.quantity;
+      }
+    }
+    return count;
   }
 
   List<MenuItem> get _filteredItems {
@@ -661,107 +681,164 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
               ),
             ),
 
-            // Category Chips Bar
+            // Category Tabs Bar (matching cashier POS style)
             Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              height: 48,
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _categories.length,
-                separatorBuilder: (_, index) => const SizedBox(width: 8),
+                itemCount: _categoryTabs.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (_, idx) {
-                  final cat = _categories[idx];
-                  final isSel = _selectedCategory == cat;
-                  return ChoiceChip(
-                    label: Text(
-                      cat == 'all' ? 'All' : cat,
-                      style: GoogleFonts.outfit(
-                        fontSize: 11.5,
-                        color: isSel ? CelestialTheme.primaryBtnText : CelestialTheme.textLight,
-                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                  final tab = _categoryTabs[idx];
+                  final isSelected = _selectedCategory == tab.key;
+                  return InkWell(
+                    onTap: () => setState(() => _selectedCategory = tab.key),
+                    borderRadius: BorderRadius.circular(14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? CelestialTheme.caramelGradient : null,
+                        color: isSelected ? null : CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? CelestialTheme.caramelAccent
+                              : CelestialTheme.borderSubtle,
+                          width: isSelected ? 1.2 : 1.0,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (tab.icon.isNotEmpty) ...[
+                            Text(tab.icon, style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            tab.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              color: isSelected
+                                  ? CelestialTheme.bgDark
+                                  : CelestialTheme.textLight,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    selected: isSel,
-                    selectedColor: CelestialTheme.goldPrimary,
-                    backgroundColor: CelestialTheme.bgCard,
-                    onSelected: (_) => setState(() => _selectedCategory = cat),
                   );
                 },
               ),
             ),
 
-            // Menu Items Grid/List
+            // Menu Items Grid (matching cashier POS item layout)
             Expanded(
               child: _isLoading
                   ? Center(child: CircularProgressIndicator(color: CelestialTheme.goldPrimary))
                   : _filteredItems.isEmpty
                       ? Center(
-                          child: Text(
-                            'No menu items found',
-                            style: TextStyle(color: CelestialTheme.textMuted),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Icon(
+                                    _menuItems.isEmpty ? Icons.restaurant_menu_rounded : Icons.search_off_rounded,
+                                    size: 30,
+                                    color: CelestialTheme.goldLight,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  _menuItems.isEmpty ? 'No Menu Items Available' : 'No Items Found',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: CelestialTheme.textLight,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _menuItems.isEmpty
+                                      ? 'This cafe has not published items yet.'
+                                      : 'Try searching for something else or pick a different category.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12),
+                                ),
+                              ],
+                            ),
                           ),
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _filteredItems.length,
-                          separatorBuilder: (_, index) => const SizedBox(height: 12),
-                          itemBuilder: (_, idx) {
-                            final item = _filteredItems[idx];
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: CelestialTheme.bgCard,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: CelestialTheme.borderWarm),
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            int crossAxisCount = 2;
+                            double childAspectRatio = 0.74;
+
+                            if (constraints.maxWidth >= 1100) {
+                              crossAxisCount = 5;
+                              childAspectRatio = 0.78;
+                            } else if (constraints.maxWidth >= 850) {
+                              crossAxisCount = 4;
+                              childAspectRatio = 0.78;
+                            } else if (constraints.maxWidth >= 520) {
+                              crossAxisCount = 3;
+                              childAspectRatio = 0.76;
+                            } else {
+                              crossAxisCount = 2;
+                              childAspectRatio = 0.74;
+                            }
+
+                            return GridView.builder(
+                              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                              padding: EdgeInsets.fromLTRB(
+                                12,
+                                8,
+                                12,
+                                _cart.isNotEmpty ? 90 : 24,
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 54,
-                                    height: 54,
-                                    decoration: BoxDecoration(
-                                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(Icons.coffee_rounded, color: CelestialTheme.goldLight, size: 24),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
-                                        ),
-                                        if (item.description.isNotEmpty)
-                                          Text(
-                                            item.description,
-                                            style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '₱${item.price.toStringAsFixed(2)}',
-                                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: !isOpen ? null : () => _openCustomizationSheet(item),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: CelestialTheme.goldPrimary,
-                                      foregroundColor: CelestialTheme.primaryBtnText,
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                    child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                  ),
-                                ],
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: childAspectRatio,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
                               ),
+                              itemCount: _filteredItems.length,
+                              itemBuilder: (context, idx) {
+                                final item = _filteredItems[idx];
+                                return ClientMenuItemCard(
+                                  item: item,
+                                  inCartCount: _getItemCartCount(item.id),
+                                  isStoreOpen: isOpen,
+                                  onTap: () => _openCustomizationSheet(item),
+                                );
+                              },
                             );
                           },
                         ),
