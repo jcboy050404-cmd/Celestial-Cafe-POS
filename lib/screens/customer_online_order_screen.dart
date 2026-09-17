@@ -127,6 +127,13 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
   double get _cartTotal => _cart.fold(0.0, (sum, i) => sum + i.totalPrice);
   int get _cartItemCount => _cart.fold(0, (sum, i) => sum + i.quantity);
 
+  String _formatPrice(double amount) {
+    if (amount % 1 == 0) {
+      return amount.toInt().toString();
+    }
+    return amount.toStringAsFixed(2);
+  }
+
   MenuItem? get _bestSellerItem {
     if (_menuItems.isEmpty) return null;
     final inStockItems = _menuItems.where((m) => m.inStock).toList();
@@ -156,7 +163,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
 
   Widget _buildBestSellerBanner(MenuItem item, bool isOpen) {
     final isAvailable = item.inStock && isOpen;
-    final priceStr = item.price % 1 == 0 ? item.price.toInt().toString() : item.price.toStringAsFixed(2);
+    final priceStr = _formatPrice(item.price);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -427,238 +434,579 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: CelestialTheme.bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (sheetCtx, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          final isDelivery = selectedType == OrderType.delivery;
+          final isDineIn = selectedType == OrderType.dineIn;
+
+          return Container(
+            decoration: BoxDecoration(
+              color: CelestialTheme.bgSurface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border(
+                top: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35), width: 1.5),
+                left: BorderSide(color: CelestialTheme.borderWarm, width: 1),
+                right: BorderSide(color: CelestialTheme.borderWarm, width: 1),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  blurRadius: 24,
+                  offset: const Offset(0, -6),
+                ),
+              ],
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(color: CelestialTheme.borderWarm, borderRadius: BorderRadius.circular(2)),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: CelestialTheme.borderWarm,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Complete Your Order', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: CelestialTheme.textLight)),
-                  Text('$_cartItemCount items • Total: ₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}', style: TextStyle(color: CelestialTheme.goldLight, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Order Type Selector
-                  Text('ORDER TYPE', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (_profile?.allowTakeaway ?? true)
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('🛍️ Pickup')),
-                            selected: selectedType == OrderType.takeaway,
-                            selectedColor: CelestialTheme.goldPrimary,
-                            onSelected: (_) => setSheetState(() => selectedType = OrderType.takeaway),
+                    // Sheet Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.caramelAccent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            color: CelestialTheme.goldLight,
+                            size: 22,
                           ),
                         ),
-                      if ((_profile?.allowTakeaway ?? true) && (_profile?.allowDineIn ?? true)) const SizedBox(width: 8),
-                      if (_profile?.allowDineIn ?? true)
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('🍽️ Dine-In')),
-                            selected: selectedType == OrderType.dineIn,
-                            selectedColor: CelestialTheme.goldPrimary,
-                            onSelected: (_) => setSheetState(() => selectedType = OrderType.dineIn),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Complete Your Order',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.textLight,
+                                ),
+                              ),
+                              Text(
+                                '$_cartItemCount items • Total: ₱${_formatPrice(_cartTotal)}',
+                                style: GoogleFonts.outfit(
+                                  color: CelestialTheme.goldLight,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      if ((_profile?.allowDineIn ?? true) && (_profile?.allowDelivery ?? true)) const SizedBox(width: 8),
-                      if (_profile?.allowDelivery ?? true)
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('🛵 Delivery')),
-                            selected: selectedType == OrderType.delivery,
-                            selectedColor: CelestialTheme.goldPrimary,
-                            onSelected: (_) => setSheetState(() => selectedType = OrderType.delivery),
-                          ),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: CelestialTheme.textMuted, size: 22),
+                          onPressed: () => Navigator.pop(sheetCtx),
+                          tooltip: 'Close',
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Order Summary Mini Items Card
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: CelestialTheme.borderSubtle),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.receipt_long_rounded, size: 14, color: CelestialTheme.goldLight),
+                              const SizedBox(width: 6),
+                              Text(
+                                'ORDER SUMMARY',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.goldLight,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$_cartItemCount item${_cartItemCount > 1 ? 's' : ''}',
+                                style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 120),
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: _cart.length,
+                              separatorBuilder: (_, _) => Divider(
+                                color: CelestialTheme.borderSubtle.withValues(alpha: 0.5),
+                                height: 10,
+                              ),
+                              itemBuilder: (_, idx) {
+                                final it = _cart[idx];
+                                final customText = it.customizations.map((c) => c.optionName).join(', ');
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '${it.quantity}×',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: CelestialTheme.goldLight,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            it.menuItem.name,
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: CelestialTheme.textLight,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (customText.isNotEmpty)
+                                            Text(
+                                              customText,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                color: CelestialTheme.textMuted,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '₱${_formatPrice(it.totalPrice)}',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.goldLight,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Order Type Selector Header
+                    Text(
+                      'ORDER TYPE',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.goldLight,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Custom Segmented Order Type Pills
+                    Row(
+                      children: [
+                        if (_profile?.allowTakeaway ?? true)
+                          Expanded(
+                            child: _buildOrderTypePill(
+                              label: 'Pickup',
+                              icon: '🛍️',
+                              isSelected: selectedType == OrderType.takeaway,
+                              onTap: () => setSheetState(() => selectedType = OrderType.takeaway),
+                            ),
+                          ),
+                        if ((_profile?.allowTakeaway ?? true) && (_profile?.allowDineIn ?? true))
+                          const SizedBox(width: 8),
+                        if (_profile?.allowDineIn ?? true)
+                          Expanded(
+                            child: _buildOrderTypePill(
+                              label: 'Dine-In',
+                              icon: '🍽️',
+                              isSelected: selectedType == OrderType.dineIn,
+                              onTap: () => setSheetState(() => selectedType = OrderType.dineIn),
+                            ),
+                          ),
+                        if (((_profile?.allowTakeaway ?? true) || (_profile?.allowDineIn ?? true)) &&
+                            (_profile?.allowDelivery ?? true))
+                          const SizedBox(width: 8),
+                        if (_profile?.allowDelivery ?? true)
+                          Expanded(
+                            child: _buildOrderTypePill(
+                              label: 'Delivery',
+                              icon: '🛵',
+                              isSelected: selectedType == OrderType.delivery,
+                              onTap: () => setSheetState(() => selectedType = OrderType.delivery),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Polished Form Inputs
+                    _buildInputField(
+                      controller: nameCtrl,
+                      hint: 'Your Name *',
+                      icon: Icons.person_outline_rounded,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildInputField(
+                      controller: phoneCtrl,
+                      hint: 'Mobile Phone Number *',
+                      icon: Icons.phone_iphone_rounded,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 10),
+
+                    if (isDineIn) ...[
+                      _buildInputField(
+                        controller: tableCtrl,
+                        hint: 'Table Number (e.g. Table 04)',
+                        icon: Icons.table_restaurant_outlined,
+                      ),
+                      const SizedBox(height: 10),
+                    ] else if (isDelivery) ...[
+                      _buildInputField(
+                        controller: addressCtrl,
+                        hint: 'Complete Delivery Address & Landmark *',
+                        icon: Icons.location_on_outlined,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 10),
                     ],
-                  ),
-                  const SizedBox(height: 14),
 
-                  // Inputs
-                  TextField(
-                    controller: nameCtrl,
-                    style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Your Name *',
-                      filled: true,
-                      fillColor: CelestialTheme.bgCard,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                    _buildInputField(
+                      controller: notesCtrl,
+                      hint: 'Order notes / cutlery request (Optional)',
+                      icon: Icons.edit_note_rounded,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Mobile Phone Number *',
-                      filled: true,
-                      fillColor: CelestialTheme.bgCard,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 16),
 
-                  if (selectedType == OrderType.dineIn) ...[
-                    TextField(
-                      controller: tableCtrl,
-                      style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Table Number (e.g. Table 04)',
-                        filled: true,
-                        fillColor: CelestialTheme.bgCard,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                    // Payment Method Section
+                    Text(
+                      'PAYMENT METHOD',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.goldLight,
+                        letterSpacing: 0.6,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                  ] else if (selectedType == OrderType.delivery) ...[
-                    TextField(
-                      controller: addressCtrl,
-                      maxLines: 2,
-                      style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Complete Delivery Address & Landmark *',
-                        filled: true,
-                        fillColor: CelestialTheme.bgCard,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildPaymentPill(
+                          label: 'Cash on Counter/Pickup',
+                          icon: '💵',
+                          isSelected: selectedPayment == PaymentMethod.cash,
+                          onTap: () => setSheetState(() => selectedPayment = PaymentMethod.cash),
+                        ),
+                        _buildPaymentPill(
+                          label: 'GCash',
+                          icon: '📱',
+                          isSelected: selectedPayment == PaymentMethod.mobilePay,
+                          onTap: () => setSheetState(() => selectedPayment = PaymentMethod.mobilePay),
+                        ),
+                        if (isDelivery)
+                          _buildPaymentPill(
+                            label: 'Cash on Delivery (COD)',
+                            icon: '🛵',
+                            isSelected: selectedPayment == PaymentMethod.cod,
+                            onTap: () => setSheetState(() => selectedPayment = PaymentMethod.cod),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Place Order CTA Button
+                    Container(
+                      width: double.infinity,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: CelestialTheme.caramelGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: CelestialTheme.caramelAccent.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final name = nameCtrl.text.trim();
+                                final phone = phoneCtrl.text.trim();
+                                if (name.isEmpty) {
+                                  TopNotification.show(ctx, message: 'Please enter your name', type: TopNotificationType.error);
+                                  return;
+                                }
+                                if (phone.isEmpty) {
+                                  TopNotification.show(ctx, message: 'Please enter your phone number', type: TopNotificationType.error);
+                                  return;
+                                }
+                                if (isDelivery && addressCtrl.text.trim().isEmpty) {
+                                  TopNotification.show(ctx, message: 'Please enter delivery address', type: TopNotificationType.error);
+                                  return;
+                                }
+
+                                setSheetState(() => isSubmitting = true);
+
+                                final seq = DateTime.now().millisecondsSinceEpoch % 10000;
+                                final newOrder = Order(
+                                  id: 'online_${DateTime.now().millisecondsSinceEpoch}',
+                                  orderNumber: '#ON-$seq',
+                                  orderType: selectedType,
+                                  tableNumber: selectedType == OrderType.dineIn ? tableCtrl.text.trim() : null,
+                                  customerName: name,
+                                  customerPhone: phone,
+                                  deliveryAddress: selectedType == OrderType.delivery ? addressCtrl.text.trim() : null,
+                                  items: List.from(_cart),
+                                  subtotal: _cartTotal,
+                                  taxAmount: 0.0,
+                                  taxRate: 0.0,
+                                  totalAmount: _cartTotal,
+                                  paymentMethod: selectedPayment,
+                                  amountTendered: _cartTotal,
+                                  status: OrderStatus.pending,
+                                  createdAt: DateTime.now(),
+                                  cashierName: 'Online Web Order',
+                                  orderNotes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
+                                );
+
+                                final success = await OnlineOrderService().submitCustomerOrder(
+                                  storeId: _resolvedStoreId ?? widget.storeId,
+                                  order: newOrder,
+                                );
+
+                                if (!sheetCtx.mounted) return;
+                                Navigator.pop(sheetCtx);
+                                if (!mounted) return;
+                                _cart.clear();
+                                _startOrderTracking(newOrder);
+                                setState(() {});
+
+                                if (success) {
+                                  TopNotification.show(context, message: 'Order sent! Store is confirming your order.', type: TopNotificationType.success);
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Place Order • ₱${_formatPrice(_cartTotal)}',
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                                ],
+                              ),
                       ),
                     ),
-                    const SizedBox(height: 10),
                   ],
-
-                  TextField(
-                    controller: notesCtrl,
-                    style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Order notes / cutlery request (Optional)',
-                      filled: true,
-                      fillColor: CelestialTheme.bgCard,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Payment Method
-                  Text('PAYMENT METHOD', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('💵 Cash on Counter/Pickup'),
-                        selected: selectedPayment == PaymentMethod.cash,
-                        selectedColor: CelestialTheme.goldPrimary,
-                        onSelected: (_) => setSheetState(() => selectedPayment = PaymentMethod.cash),
-                      ),
-                      ChoiceChip(
-                        label: const Text('📱 GCash'),
-                        selected: selectedPayment == PaymentMethod.mobilePay,
-                        selectedColor: CelestialTheme.goldPrimary,
-                        onSelected: (_) => setSheetState(() => selectedPayment = PaymentMethod.mobilePay),
-                      ),
-                      if (selectedType == OrderType.delivery)
-                        ChoiceChip(
-                          label: const Text('🛵 Cash on Delivery (COD)'),
-                          selected: selectedPayment == PaymentMethod.cod,
-                          selectedColor: CelestialTheme.goldPrimary,
-                          onSelected: (_) => setSheetState(() => selectedPayment = PaymentMethod.cod),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: isSubmitting
-                          ? null
-                          : () async {
-                              final name = nameCtrl.text.trim();
-                              final phone = phoneCtrl.text.trim();
-                              if (name.isEmpty) {
-                                TopNotification.show(ctx, message: 'Please enter your name', type: TopNotificationType.error);
-                                return;
-                              }
-                              if (phone.isEmpty) {
-                                TopNotification.show(ctx, message: 'Please enter your phone number', type: TopNotificationType.error);
-                                return;
-                              }
-
-                              setSheetState(() => isSubmitting = true);
-
-                              final seq = DateTime.now().millisecondsSinceEpoch % 10000;
-                              final newOrder = Order(
-                                id: 'online_${DateTime.now().millisecondsSinceEpoch}',
-                                orderNumber: '#ON-$seq',
-                                orderType: selectedType,
-                                tableNumber: selectedType == OrderType.dineIn ? tableCtrl.text.trim() : null,
-                                customerName: name,
-                                customerPhone: phone,
-                                deliveryAddress: selectedType == OrderType.delivery ? addressCtrl.text.trim() : null,
-                                items: List.from(_cart),
-                                subtotal: _cartTotal,
-                                taxAmount: 0.0,
-                                taxRate: 0.0,
-                                totalAmount: _cartTotal,
-                                paymentMethod: selectedPayment,
-                                amountTendered: _cartTotal,
-                                status: OrderStatus.pending,
-                                createdAt: DateTime.now(),
-                                cashierName: 'Online Web Order',
-                                orderNotes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
-                              );
-
-                               final success = await OnlineOrderService().submitCustomerOrder(
-                                storeId: _resolvedStoreId ?? widget.storeId,
-                                order: newOrder,
-                              );
-
-                              if (!sheetCtx.mounted) return;
-                              Navigator.pop(sheetCtx);
-                              if (!mounted) return;
-                              _cart.clear();
-                              _startOrderTracking(newOrder);
-                              setState(() {});
-
-                              if (success) {
-                                TopNotification.show(context, message: 'Order sent! Store is confirming your order.', type: TopNotificationType.success);
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.primaryBtnText,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: isSubmitting
-                          ? const CircularProgressIndicator(color: Colors.black)
-                          : Text('Place Order • ₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildOrderTypePill({
+    required String label,
+    required String icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected ? CelestialTheme.caramelGradient : null,
+          color: isSelected ? null : CelestialTheme.bgCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? CelestialTheme.caramelAccent : CelestialTheme.borderWarm,
+            width: isSelected ? 1.4 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: CelestialTheme.caramelAccent.withValues(alpha: 0.28),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected ? Colors.white : CelestialTheme.textLight,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentPill({
+    required String label,
+    required String icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? CelestialTheme.goldPrimary.withValues(alpha: 0.15)
+              : CelestialTheme.bgCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? CelestialTheme.goldPrimary : CelestialTheme.borderWarm,
+            width: isSelected ? 1.4 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? CelestialTheme.goldLight : CelestialTheme.textLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: CelestialTheme.textMuted.withValues(alpha: 0.7),
+          fontSize: 12.5,
+        ),
+        prefixIcon: Icon(icon, color: CelestialTheme.goldLight.withValues(alpha: 0.75), size: 18),
+        filled: true,
+        fillColor: CelestialTheme.bgCard,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: CelestialTheme.borderWarm),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: CelestialTheme.goldPrimary, width: 1.4),
+        ),
       ),
     );
   }
@@ -1014,7 +1362,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                           style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                         ),
                         Text(
-                          '₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}',
+                          '₱${_formatPrice(_cartTotal)}',
                           style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
                         ),
                       ],
@@ -1047,15 +1395,18 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
     IconData statusIcon;
     Color statusColor;
 
+    // Timeline step index: 0 = Sent, 1 = Confirmed, 2 = Preparing, 3 = Ready/Completed
+    int currentStep = 0;
+
     switch (status) {
       case OrderStatus.pending:
         statusTitle = 'Order Sent • Waiting for Cashier Confirmation';
         statusSubtitle = 'The café has received your order. The cashier will review and confirm shortly.';
         statusIcon = Icons.hourglass_top_rounded;
         statusColor = CelestialTheme.amberBrewing;
+        currentStep = 0;
         break;
       case OrderStatus.confirmed:
-      case OrderStatus.preparing:
         final hasCashier = order.cashierName.isNotEmpty &&
             !order.cashierName.toLowerCase().contains('online') &&
             !order.cashierName.toLowerCase().contains('web');
@@ -1063,8 +1414,16 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
         statusSubtitle = hasCashier
             ? 'Confirmed by cashier ${order.cashierName}. Kitchen is preparing your items (~${_profile?.estimatedPrepMinutes ?? 15} mins).'
             : 'Confirmed by cashier! Kitchen is preparing your items (~${_profile?.estimatedPrepMinutes ?? 15} mins).';
+        statusIcon = Icons.thumb_up_alt_rounded;
+        statusColor = CelestialTheme.goldPrimary;
+        currentStep = 1;
+        break;
+      case OrderStatus.preparing:
+        statusTitle = 'Kitchen is Preparing Your Order';
+        statusSubtitle = 'Fresh ingredients are being crafted into your favorites (~${_profile?.estimatedPrepMinutes ?? 15} mins).';
         statusIcon = Icons.local_fire_department_rounded;
         statusColor = CelestialTheme.goldPrimary;
+        currentStep = 2;
         break;
       case OrderStatus.ready:
         statusTitle = 'Your Order is Ready!';
@@ -1073,125 +1432,592 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
             : 'Please pick up your order at the counter.';
         statusIcon = Icons.check_circle_rounded;
         statusColor = CelestialTheme.emeraldReady;
+        currentStep = 3;
         break;
       case OrderStatus.outForDelivery:
         statusTitle = 'Out for Delivery!';
         statusSubtitle = 'Your rider is on the way to ${order.deliveryAddress ?? 'your address'}.';
         statusIcon = Icons.delivery_dining_rounded;
         statusColor = Colors.cyanAccent;
+        currentStep = 3;
         break;
       case OrderStatus.completed:
         statusTitle = 'Order Completed!';
         statusSubtitle = 'Thank you for ordering with us!';
         statusIcon = Icons.verified_rounded;
         statusColor = CelestialTheme.emeraldReady;
+        currentStep = 3;
         break;
       case OrderStatus.cancelled:
         statusTitle = 'Order Cancelled';
         statusSubtitle = 'This order was cancelled by the store.';
         statusIcon = Icons.cancel_outlined;
         statusColor = CelestialTheme.roseAlert;
+        currentStep = 0;
         break;
     }
+
+    final storeName = _profile?.storeName ?? 'Celestial Cafe';
 
     return Scaffold(
       backgroundColor: CelestialTheme.bgSurface,
       body: SafeArea(
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          children: [
+            // Top Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: CelestialTheme.bgCard,
+                border: Border(bottom: BorderSide(color: CelestialTheme.borderWarm)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                    ),
+                    child: Icon(Icons.coffee_rounded, color: CelestialTheme.goldLight, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          storeName,
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Live Order Tracking',
+                          style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Live Pulse Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: status == OrderStatus.cancelled
+                          ? CelestialTheme.roseAlert.withValues(alpha: 0.15)
+                          : CelestialTheme.emeraldReady.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: status == OrderStatus.cancelled
+                            ? CelestialTheme.roseAlert.withValues(alpha: 0.5)
+                            : CelestialTheme.emeraldReady.withValues(alpha: 0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: status == OrderStatus.cancelled
+                                ? CelestialTheme.roseAlert
+                                : CelestialTheme.emeraldReady,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          status == OrderStatus.cancelled ? 'CANCELLED' : 'LIVE TRACKER',
+                          style: GoogleFonts.outfit(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: status == OrderStatus.cancelled
+                                ? CelestialTheme.roseAlert
+                                : CelestialTheme.emeraldReady,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 540),
+                    child: Column(
+                      children: [
+                        // Hero Status Circle with double glow rings
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: statusColor.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: statusColor.withValues(alpha: 0.18),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.5),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(statusIcon, color: statusColor, size: 40),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Order Number Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Text(
+                            order.orderNumber,
+                            style: GoogleFonts.outfit(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: CelestialTheme.goldLight,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Status Title
+                        Text(
+                          statusTitle,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // Status Subtitle
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            statusSubtitle,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted, height: 1.4),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Timeline Progress Stepper (Except for cancelled orders)
+                        if (status != OrderStatus.cancelled) ...[
+                          _buildTimelineStepper(currentStep, order.orderType),
+                          const SizedBox(height: 22),
+                        ],
+
+                        // Order Summary & Receipt Details Card
+                        Container(
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.bgCard,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: CelestialTheme.borderWarm, width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Card Header
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.receipt_rounded, size: 16, color: CelestialTheme.goldLight),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Order Breakdown',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: CelestialTheme.textLight,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: CelestialTheme.caramelAccent.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        order.orderType.label,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: CelestialTheme.goldLight,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Divider(color: CelestialTheme.borderWarm, height: 1),
+
+                              // Items List
+                              Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
+                                    for (int i = 0; i < order.items.length; i++) ...[
+                                      if (i > 0)
+                                        Divider(
+                                          color: CelestialTheme.borderSubtle.withValues(alpha: 0.5),
+                                          height: 14,
+                                        ),
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              '${order.items[i].quantity}×',
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: CelestialTheme.goldLight,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  order.items[i].menuItem.name,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: CelestialTheme.textLight,
+                                                  ),
+                                                ),
+                                                if (order.items[i].customizations.isNotEmpty)
+                                                  Text(
+                                                    order.items[i].customizations.map((c) => c.optionName).join(', '),
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: CelestialTheme.textMuted,
+                                                    ),
+                                                  ),
+                                                if (order.items[i].notes != null && order.items[i].notes!.isNotEmpty)
+                                                  Text(
+                                                    'Note: ${order.items[i].notes}',
+                                                    style: TextStyle(
+                                                      fontSize: 10.5,
+                                                      fontStyle: FontStyle.italic,
+                                                      color: CelestialTheme.creamSoft,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(
+                                            '₱${_formatPrice(order.items[i].totalPrice)}',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: CelestialTheme.goldLight,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Divider(color: CelestialTheme.borderWarm, height: 1),
+
+                              // Customer & Fulfillment details
+                              Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
+                                    _buildReceiptInfoRow('Customer', '${order.customerName} • ${order.customerPhone}'),
+                                    if (order.tableNumber != null && order.tableNumber!.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      _buildReceiptInfoRow('Table Number', order.tableNumber!),
+                                    ],
+                                    if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      _buildReceiptInfoRow('Delivery To', order.deliveryAddress!),
+                                    ],
+                                    const SizedBox(height: 8),
+                                    _buildReceiptInfoRow('Payment Method', order.paymentMethod.label),
+                                    if (order.orderNotes != null && order.orderNotes!.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      _buildReceiptInfoRow('Special Notes', order.orderNotes!),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    Divider(color: CelestialTheme.borderWarm, height: 1),
+                                    const SizedBox(height: 12),
+
+                                    // Total Row (Strictly No .00!)
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Total Amount:',
+                                          style: GoogleFonts.outfit(
+                                            color: CelestialTheme.textLight,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          '₱${_formatPrice(order.totalAmount)}',
+                                          style: GoogleFonts.outfit(
+                                            color: CelestialTheme.goldLight,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Real-Time Helper Note
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.bgCard.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: CelestialTheme.borderSubtle),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sync_rounded, size: 16, color: CelestialTheme.goldLight),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Live updating automatically as the cashier confirms your order.',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: CelestialTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () async {
+                                  final targetStore = _resolvedStoreId ?? widget.storeId;
+                                  final orders = await OnlineOrderService().fetchIncomingOrders(targetStore);
+                                  final updated = orders.firstWhere(
+                                    (o) => o.id == _submittedOrder!.id,
+                                    orElse: () => _submittedOrder!,
+                                  );
+                                  if (mounted) {
+                                    setState(() => _submittedOrder = updated);
+                                    TopNotification.showSuccess(context, 'Status refreshed');
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(6),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                  child: Text(
+                                    'Refresh',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: CelestialTheme.goldLight,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Back to Menu Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _submittedOrder = null;
+                                _statusTrackerTimer?.cancel();
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.8), width: 1.2),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              backgroundColor: CelestialTheme.bgCard,
+                            ),
+                            icon: Icon(Icons.arrow_back_rounded, size: 16, color: CelestialTheme.goldLight),
+                            label: Text(
+                              'Back to Menu / Order Again',
+                              style: GoogleFonts.outfit(
+                                color: CelestialTheme.goldLight,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineStepper(int currentStep, OrderType orderType) {
+    final finalStepLabel = orderType == OrderType.delivery ? 'Delivery' : 'Ready';
+    final steps = [
+      (label: 'Order Sent', icon: Icons.send_rounded),
+      (label: 'Confirmed', icon: Icons.thumb_up_alt_rounded),
+      (label: 'Preparing', icon: Icons.coffee_maker_rounded),
+      (label: finalStepLabel, icon: Icons.celebration_rounded),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: CelestialTheme.borderWarm),
+      ),
+      child: Row(
+        children: [
+          for (int i = 0; i < steps.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  color: i <= currentStep
+                      ? CelestialTheme.goldPrimary
+                      : CelestialTheme.borderSubtle,
+                ),
+              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
-                    border: Border.all(color: statusColor.withValues(alpha: 0.5), width: 2),
+                    color: i < currentStep
+                        ? CelestialTheme.emeraldReady
+                        : (i == currentStep
+                            ? CelestialTheme.goldPrimary
+                            : CelestialTheme.bgSurface),
+                    border: Border.all(
+                      color: i <= currentStep
+                          ? CelestialTheme.goldLight
+                          : CelestialTheme.borderWarm,
+                      width: 1.5,
+                    ),
                   ),
-                  child: Icon(statusIcon, color: statusColor, size: 54),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  order.orderNumber,
-                  style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  statusTitle,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
+                  child: Center(
+                    child: Icon(
+                      i < currentStep
+                          ? Icons.check_rounded
+                          : steps[i].icon,
+                      size: 16,
+                      color: i <= currentStep ? Colors.black : CelestialTheme.textMuted,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  statusSubtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: CelestialTheme.textMuted),
-                ),
-                const SizedBox(height: 28),
-
-                // Order Details Summary Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: CelestialTheme.bgCard,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: CelestialTheme.borderWarm),
+                  steps[i].label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: i == currentStep ? FontWeight.bold : FontWeight.w500,
+                    color: i == currentStep
+                        ? CelestialTheme.goldLight
+                        : (i < currentStep ? CelestialTheme.creamSoft : CelestialTheme.textMuted),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Order Type:', style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12)),
-                          Text(order.orderType.label, style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold, fontSize: 13)),
-                        ],
-                      ),
-                      if (order.tableNumber != null) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Table:', style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12)),
-                            Text(order.tableNumber!, style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold, fontSize: 13)),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Total Amount:', style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12)),
-                          Text('₱${order.totalAmount.toStringAsFixed(2)}', style: GoogleFonts.outfit(color: CelestialTheme.goldLight, fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _submittedOrder = null;
-                      _statusTrackerTimer?.cancel();
-                    });
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: CelestialTheme.goldPrimary),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: Icon(Icons.arrow_back_rounded, size: 16, color: CelestialTheme.goldPrimary),
-                  label: Text('Back to Menu / Order Again', style: TextStyle(color: CelestialTheme.goldPrimary, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceiptInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: CelestialTheme.textMuted, fontSize: 12),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.outfit(
+              color: CelestialTheme.textLight,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
