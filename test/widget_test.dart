@@ -1125,6 +1125,7 @@ void main() {
         uid: 'test_cashier_uid',
         email: 'cashier@celestialcafe.com',
         displayName: 'Celestial Cashier',
+        role: UserRole.cashier,
         tier: SubscriptionTier.trial,
         trialStartDate: DateTime.now(),
       ),

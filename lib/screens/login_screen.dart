@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../providers/pos_provider.dart';
 import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
+import '../widgets/privacy_agreement_dialog.dart';
 import '../widgets/top_notification.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -138,92 +140,163 @@ class _LoginScreenState extends State<LoginScreen>
   void _showRegisterConfirmDialog(String email, String pin) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: CelestialTheme.bgSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: CelestialTheme.goldPrimary, width: 1.2),
-        ),
-        actionsOverflowDirection: VerticalDirection.down,
-        title: Row(
-          children: [
-            Icon(Icons.person_add_alt_1_rounded, color: CelestialTheme.goldPrimary, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Register New Station?',
-                style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (ctx) {
+        bool agreedToTerms = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: CelestialTheme.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: CelestialTheme.goldPrimary, width: 1.2),
+            ),
+            actionsOverflowDirection: VerticalDirection.down,
+            title: Row(
+              children: [
+                Icon(Icons.person_add_alt_1_rounded, color: CelestialTheme.goldPrimary, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Register New Station?',
+                    style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No existing account found for:',
+                  style: GoogleFonts.outfit(color: CelestialTheme.textMuted, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  style: GoogleFonts.outfit(color: CelestialTheme.goldLight, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Would you like to register a new POS station account with this 4-digit PIN?',
+                  style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: CelestialTheme.bgCard,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: agreedToTerms ? CelestialTheme.goldPrimary.withValues(alpha: 0.5) : CelestialTheme.borderWarm,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: agreedToTerms,
+                          activeColor: CelestialTheme.goldPrimary,
+                          checkColor: CelestialTheme.primaryBtnText,
+                          onChanged: (val) {
+                            setDialogState(() {
+                              agreedToTerms = val ?? false;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 12, color: CelestialTheme.textLight),
+                            children: [
+                              const TextSpan(text: 'I agree to the '),
+                              TextSpan(
+                                text: 'Terms of Service',
+                                style: TextStyle(
+                                  color: CelestialTheme.goldLight,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 1),
+                              ),
+                              const TextSpan(text: ' & '),
+                              TextSpan(
+                                text: 'Privacy Policy',
+                                style: TextStyle(
+                                  color: CelestialTheme.goldLight,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 0),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
               ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'No existing account found for:',
-              style: GoogleFonts.outfit(color: CelestialTheme.textMuted, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              email,
-              style: GoogleFonts.outfit(color: CelestialTheme.goldLight, fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Would you like to register a new POS station account with this 4-digit PIN?',
-              style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final auth = Provider.of<AuthService>(context, listen: false);
-              final isAlreadyRegistered = auth.isEmailRegistered(email) ||
-                  auth.hasPin(email) ||
-                  await auth.checkRemoteHasPin(email);
-              if (!mounted) return;
-              if (isAlreadyRegistered) {
-                _emailController.text = email;
-                _pinController.clear();
-                _pinFocusNode.requestFocus();
-                _showFeedback('Account already registered! Please enter your 4-digit PIN below to continue.');
-                return;
-              }
+              ElevatedButton(
+                onPressed: !agreedToTerms
+                    ? null
+                    : () async {
+                        Navigator.pop(ctx);
+                        final auth = Provider.of<AuthService>(context, listen: false);
+                        final isAlreadyRegistered = auth.isEmailRegistered(email) ||
+                            auth.hasPin(email) ||
+                            await auth.checkRemoteHasPin(email);
+                        if (!mounted) return;
+                        if (isAlreadyRegistered) {
+                          _emailController.text = email;
+                          _pinController.clear();
+                          _pinFocusNode.requestFocus();
+                          _showFeedback('Account already registered! Please enter your 4-digit PIN below to continue.');
+                          return;
+                        }
 
-              final success = await auth.setPinForUser(email: email, pin: pin, autoSignIn: false);
-              if (!mounted) return;
-              if (success) {
-                _emailController.text = email;
-                _pinController.clear();
-                _userManuallyClearedEmail = false;
-                await auth.rememberStationAccount(
-                  email: email,
-                  displayName: email.split('@').first,
-                );
-                setState(() {});
-                _pinFocusNode.requestFocus();
-                _showFeedback('Station PIN created! Please enter your 4-digit PIN below to continue.');
-              } else if (auth.errorMessage != null) {
-                _showError(auth.errorMessage!);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: CelestialTheme.goldPrimary,
-              foregroundColor: CelestialTheme.primaryBtnText,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Register & Sign In', style: TextStyle(fontWeight: FontWeight.bold)),
+                        final success = await auth.setPinForUser(email: email, pin: pin, autoSignIn: false);
+                        if (!mounted) return;
+                        if (success) {
+                          _emailController.text = email;
+                          _pinController.clear();
+                          _userManuallyClearedEmail = false;
+                          await auth.rememberStationAccount(
+                            email: email,
+                            displayName: email.split('@').first,
+                          );
+                          setState(() {});
+                          _pinFocusNode.requestFocus();
+                          _showFeedback('Station PIN created! Please enter your 4-digit PIN below to continue.');
+                        } else if (auth.errorMessage != null) {
+                          _showError(auth.errorMessage!);
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CelestialTheme.goldPrimary,
+                  foregroundColor: CelestialTheme.primaryBtnText,
+                  disabledBackgroundColor: CelestialTheme.goldPrimary.withValues(alpha: 0.3),
+                  disabledForegroundColor: CelestialTheme.primaryBtnText.withValues(alpha: 0.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Register & Sign In', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -286,6 +359,7 @@ class _LoginScreenState extends State<LoginScreen>
     bool obscureConfirm = true;
     String? localError;
     bool isSubmitting = false;
+    bool agreedToTerms = false;
     final name = displayName ?? email.split('@').first;
 
     await showDialog(
@@ -464,12 +538,77 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                     const SizedBox(height: 14),
                     _buildPinDots(pinCtrl.text),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: agreedToTerms
+                              ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                              : CelestialTheme.borderWarm,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: agreedToTerms,
+                              activeColor: CelestialTheme.goldPrimary,
+                              checkColor: CelestialTheme.primaryBtnText,
+                              onChanged: (val) {
+                                setModalState(() {
+                                  agreedToTerms = val ?? false;
+                                  if (agreedToTerms) localError = null;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.outfit(fontSize: 12, color: CelestialTheme.textLight),
+                                children: [
+                                  const TextSpan(text: 'I agree to the '),
+                                  TextSpan(
+                                    text: 'Terms of Service',
+                                    style: TextStyle(
+                                      color: CelestialTheme.goldLight,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 1),
+                                  ),
+                                  const TextSpan(text: ' & '),
+                                  TextSpan(
+                                    text: 'Privacy Policy',
+                                    style: TextStyle(
+                                      color: CelestialTheme.goldLight,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton.icon(
-                        onPressed: isSubmitting
+                        onPressed: (isSubmitting || !agreedToTerms)
                             ? null
                             : () async {
                                 final pin = pinCtrl.text.trim();
@@ -824,7 +963,38 @@ class _LoginScreenState extends State<LoginScreen>
                     _buildSignInForm(auth),
                   ],
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => PrivacyAgreementDialog.show(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.verified_user_outlined, size: 12, color: CelestialTheme.goldLight),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Privacy Policy & Terms of Agreement',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: CelestialTheme.goldLight,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: CelestialTheme.goldLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     'Developed by JC Celestial',
                     style: GoogleFonts.outfit(
@@ -1036,6 +1206,40 @@ class _LoginScreenState extends State<LoginScreen>
                 side: BorderSide(color: CelestialTheme.borderWarm),
               ),
               elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted, height: 1.4),
+              children: [
+                const TextSpan(text: 'By signing up, you agree to our '),
+                TextSpan(
+                  text: 'Terms of Service',
+                  style: TextStyle(
+                    color: CelestialTheme.goldLight,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 1),
+                ),
+                const TextSpan(text: ' & '),
+                TextSpan(
+                  text: 'Privacy Policy',
+                  style: TextStyle(
+                    color: CelestialTheme.goldLight,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 0),
+                ),
+                const TextSpan(text: '.'),
+              ],
             ),
           ),
         ),
