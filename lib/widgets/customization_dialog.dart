@@ -75,7 +75,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '⚠️ "${option.name}" is currently 86\'d / not available.',
+                '⚠️ "${option.name}" is currently sold out / not available.',
                 style: TextStyle(color: CelestialTheme.textLight, fontSize: 12),
               ),
             ),
@@ -170,7 +170,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
               child: Text(
                 newAvail
                     ? '"${option.name}" is now available in stock.'
-                    : '"${option.name}" is now 86\'d (sold out).',
+                    : '"${option.name}" is now marked sold out.',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 12.5,
@@ -257,7 +257,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Control in-stock & 86\'d modifier status',
+                                  'Control in-stock & modifier availability',
                                   style: GoogleFonts.outfit(
                                     fontSize: 11.5,
                                     color: CelestialTheme.textMuted,
@@ -901,7 +901,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                       Icon(Icons.tune_rounded, size: 11.5, color: CelestialTheme.goldPrimary),
                       const SizedBox(width: 4),
                       Text(
-                        'Prices / 86',
+                        'Availability',
                         style: GoogleFonts.outfit(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -1395,9 +1395,9 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/receipt_dialog.dart';
 import '../widgets/order_details_dialog.dart';
@@ -23,37 +24,32 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
+    final auth = Provider.of<AuthService>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
 
     final filteredOrders = posProvider.orders.where((order) {
-      if (_searchQuery.isEmpty) return _statusFilter == null || order.status == _statusFilter;
-
-      final q = _searchQuery.toLowerCase().trim();
-      final numStr = order.orderNumber.toLowerCase().replaceAll('#', '').trim();
-      final fullNum = order.orderNumber.toLowerCase();
+      final q = _searchQuery.trim().toLowerCase();
+      final numMatch = order.orderNumber.toLowerCase();
       final cust = order.customerName.toLowerCase();
-      final table = (order.tableNumber ?? '').toLowerCase();
       final cashier = order.cashierName.toLowerCase();
-      final itemsText = order.items.map((i) => i.menuItem.name.toLowerCase()).join(' ');
 
-      final matchesSearch = fullNum.contains(q) ||
-          numStr.contains(q) ||
+      final matchesQuery = q.isEmpty ||
+          numMatch.contains(q) ||
           cust.contains(q) ||
-          table.contains(q) ||
           cashier.contains(q) ||
-          itemsText.contains(q);
+          order.items.any((i) => i.menuItem.name.toLowerCase().contains(q));
 
       final matchesStatus = _statusFilter == null || order.status == _statusFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesQuery && matchesStatus;
     }).toList();
 
-    return Container(
-      color: CelestialTheme.bgDark,
-      child: Column(
+    return Scaffold(
+      backgroundColor: CelestialTheme.bgDark,
+      body: Column(
         children: [
-          // Filter & Search Header
-          _buildHeader(posProvider, isMobile),
+          // Header Bar with Actions & Search
+          _buildHeader(posProvider, auth, isMobile),
 
           const Divider(height: 1),
 
@@ -61,76 +57,79 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           Expanded(
             child: filteredOrders.isEmpty
                 ? _buildEmptyState()
-                : _buildOrdersList(context, posProvider, filteredOrders, isMobile),
+                : _buildOrdersList(context, posProvider, auth, filteredOrders, isMobile),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(PosProvider provider, bool isMobile) {
-    final actionButtons = [
-      OutlinedButton.icon(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: CelestialTheme.bgSurface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-              ),
-              title: Text(
-                'Reset Order Counter',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-              ),
-              content: Text(
-                'This will reset the order numbering so your next order starts at #1.',
-                style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+  Widget _buildHeader(PosProvider provider, AuthService auth, bool isMobile) {
+    final isOwner = auth.isOwner;
+    final actionButtons = <Widget>[
+      if (isOwner) ...[
+        OutlinedButton.icon(
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: CelestialTheme.bgSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    provider.resetOrderSequence(startNumber: 1);
-                    Navigator.pop(ctx);
-                    TopNotification.showSuccess(
-                      context,
-                      'Order counter reset: Next order will be #1',
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: CelestialTheme.goldPrimary,
-                    foregroundColor: CelestialTheme.primaryBtnText,
+                title: Text(
+                  'Reset Order Counter',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                ),
+                content: Text(
+                  'This will reset the order numbering so your next order starts at #1.',
+                  style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
                   ),
-                  child: const Text('Reset to #1'),
-                ),
-              ],
-            ),
-          );
-        },
-        icon: const Icon(Icons.restart_alt_rounded, size: 14),
-        label: const Text('Start at #1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: CelestialTheme.goldLight,
-          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ElevatedButton(
+                    onPressed: () {
+                      provider.resetOrderSequence(startNumber: 1);
+                      Navigator.pop(ctx);
+                      TopNotification.showSuccess(
+                        context,
+                        'Order counter reset: Next order will be #1',
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CelestialTheme.goldPrimary,
+                      foregroundColor: CelestialTheme.primaryBtnText,
+                    ),
+                    child: const Text('Reset to #1'),
+                  ),
+                ],
+              ),
+            );
+          },
+          icon: const Icon(Icons.restart_alt_rounded, size: 14),
+          label: const Text('Start at #1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: CelestialTheme.goldLight,
+            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         ),
-      ),
-      OutlinedButton.icon(
-        onPressed: () => _confirmDeleteAllHistory(context, provider),
-        icon: Icon(Icons.delete_sweep_rounded, size: 14, color: CelestialTheme.roseAlert),
-        label: Text('Clear History', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert)),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        OutlinedButton.icon(
+          onPressed: () => _confirmDeleteAllHistory(context, provider),
+          icon: Icon(Icons.delete_sweep_rounded, size: 14, color: CelestialTheme.roseAlert),
+          label: Text('Clear History', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         ),
-      ),
+      ],
     ];
 
     return Container(
@@ -281,7 +280,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     );
   }
 
-  Widget _buildOrdersList(BuildContext context, PosProvider provider, List<Order> orders, bool isMobile) {
+  Widget _buildOrdersList(BuildContext context, PosProvider provider, AuthService auth, List<Order> orders, bool isMobile) {
     return ListView.separated(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
       itemCount: orders.length,
@@ -753,15 +752,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Reprint Receipt',
                   ),
-                  const SizedBox(width: 2),
-                  IconButton(
-                    onPressed: () => _confirmDeleteSingleOrder(context, provider, order),
-                    icon: Icon(Icons.delete_outline_rounded, color: CelestialTheme.roseAlert, size: 18),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Delete Order Record',
-                  ),
+                  if (auth.isOwner) ...[
+                    const SizedBox(width: 2),
+                    IconButton(
+                      onPressed: () => _confirmDeleteSingleOrder(context, provider, order),
+                      icon: Icon(Icons.delete_outline_rounded, color: CelestialTheme.roseAlert, size: 18),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Delete Order Record',
+                    ),
+                  ],
                 ],
               ),
             ],

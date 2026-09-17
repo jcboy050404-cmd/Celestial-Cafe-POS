@@ -11,24 +11,47 @@ import '../services/cloud_backup_service.dart';
 import '../theme/celestial_theme.dart';
 
 class PosProvider extends ChangeNotifier {
-  static const String _keyThemeMode = 'celestial_theme_mode_v1';
-  static const String _keyMenuItems = 'celestial_menu_items_v1';
-  static const String _keyOrders = 'celestial_orders_v1';
-  static const String _keyOrderSeq = 'celestial_order_seq_v1';
-  static const String _keyActiveCashier = 'celestial_active_cashier_v1';
-  static const String _keyCustomLogo = 'celestial_custom_logo_v1';
-  static const String _keyStoreName = 'celestial_store_name_v1';
-  static const String _keyStoreTagline = 'celestial_store_tagline_v1';
-  static const String _keyStoreAddress = 'celestial_store_address_v1';
-  static const String _keyUiScale = 'celestial_ui_scale_v1';
-  static const String _keyCustomCategories = 'celestial_custom_categories_v1';
-  static const String _keySigBannerEnabled = 'celestial_sig_banner_enabled_v1';
-  static const String _keySigBannerBadge = 'celestial_sig_banner_badge_v1';
-  static const String _keySigBannerTitle = 'celestial_sig_banner_title_v1';
-  static const String _keySigBannerSubtitle = 'celestial_sig_banner_subtitle_v1';
-  static const String _keySigBannerButtonText = 'celestial_sig_banner_btn_text_v1';
-  static const String _keySigBannerItemId = 'celestial_sig_banner_item_id_v1';
-  static const String _keySigBannerImage = 'celestial_sig_banner_image_v1';
+  // Base keys — actual keys in prefs are prefixed per user via _key()
+  static const String _kThemeMode        = 'theme_mode_v1';
+  static const String _kMenuItems        = 'menu_items_v1';
+  static const String _kOrders           = 'orders_v1';
+  static const String _kOrderSeq         = 'order_seq_v1';
+  static const String _kActiveCashier    = 'active_cashier_v1';
+  static const String _kCustomLogo       = 'custom_logo_v1';
+  static const String _kStoreName        = 'store_name_v1';
+  static const String _kStoreTagline     = 'store_tagline_v1';
+  static const String _kStoreAddress     = 'store_address_v1';
+  static const String _kUiScale          = 'ui_scale_v1';
+  static const String _kCustomCategories = 'custom_categories_v1';
+  static const String _kSigBannerEnabled    = 'sig_banner_enabled_v1';
+  static const String _kSigBannerBadge      = 'sig_banner_badge_v1';
+  static const String _kSigBannerTitle      = 'sig_banner_title_v1';
+  static const String _kSigBannerSubtitle   = 'sig_banner_subtitle_v1';
+  static const String _kSigBannerButtonText = 'sig_banner_btn_text_v1';
+  static const String _kSigBannerItemId     = 'sig_banner_item_id_v1';
+  static const String _kSigBannerImage      = 'sig_banner_image_v1';
+  static const String _kHideSystemCats   = 'hide_system_cats_v1';
+
+  /// The per-user prefix for all SharedPreferences keys.
+  /// Format: 'celestial_pos/user_email_com/' (dots replaced with _)
+  String _userPrefix = 'celestial_pos/guest/';
+  String? _currentUserEmail;
+  String? get currentUserEmail => _currentUserEmail;
+
+  int _pendingSyncCount = 0;
+  int get pendingSyncCount => _pendingSyncCount;
+
+  bool _isSyncingPendingSales = false;
+  bool get isSyncingPendingSales => _isSyncingPendingSales;
+
+  /// Returns the fully namespaced storage key for the current user.
+  String _key(String base) => '$_userPrefix$base';
+
+  /// Computes the user prefix from an email address.
+  static String _prefixForEmail(String email) {
+    final safe = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+    return 'celestial_pos/${safe.isEmpty ? 'guest' : safe}/';
+  }
 
   // Display & Text Size Scaling (for Cashiers accessibility)
   double _uiScale = 1.0;
@@ -56,8 +79,11 @@ class PosProvider extends ChangeNotifier {
   ItemCategory _selectedCategory = ItemCategory.all;
   String _selectedCategoryId = 'all';
   List<CustomCategory> _customCategories = [];
+  bool _hideSystemCategories = false;
+  Set<String> _hiddenSystemCategoryIds = {};
   String _searchQuery = '';
   String _selectedTag = 'All';
+  bool _isCategoryPanelVisible = true;
 
   // Navigation (0: POS, 1: History, 2: Stock, 3: Analytics)
   int _currentNavIndex = 0;
@@ -82,12 +108,88 @@ class PosProvider extends ChangeNotifier {
   final List<Order> _orders = [];
   bool _isLoaded = false;
 
+  // Authenticated user reference (kept up-to-date for auto-sync)
+  AppUser? _currentUser;
+
+  // Last time an automatic Pro cloud backup completed successfully
+  DateTime? _autoSyncLastTime;
+  DateTime? get autoSyncLastTime => _autoSyncLastTime;
+
   PosProvider() {
     _initData();
   }
 
   bool get isLoaded => _isLoaded;
   int get currentOrderSequence => _orderSequence;
+
+  /// Updates the authenticated user reference used for automatic cloud sync.
+  /// Call this whenever the user signs in, signs out, or their license changes.
+  void updateCurrentUser(AppUser? user) {
+    _currentUser = user;
+  }
+
+  /// Call this after a user signs in or switches accounts.
+  /// Reloads all POS data from the namespace scoped to [email].
+  Future<void> loadForUser(String email) async {
+    _currentUserEmail = email.trim().toLowerCase();
+    final newPrefix = _prefixForEmail(email);
+    if (newPrefix == _userPrefix && _isLoaded) return; // already loaded for this user
+    _userPrefix = newPrefix;
+    _isLoaded = false;
+    notifyListeners();
+    await _initData();
+    await refreshPendingSyncCount();
+    unawaited(syncPendingSales());
+  }
+
+  /// Call this when the user signs out. Resets to guest namespace.
+  Future<void> clearUserSession() async {
+    if (_currentUser == null && _currentUserEmail == null && _userPrefix == 'celestial_pos/guest/' && !_isLoaded) {
+      return;
+    }
+    _currentUser = null;
+    _currentUserEmail = null;
+    _pendingSyncCount = 0;
+    _isSyncingPendingSales = false;
+    _userPrefix = 'celestial_pos/guest/';
+    _isLoaded = false;
+    _proCloudSyncDebounceTimer?.cancel();
+    _menuCloudSyncDebounceTimer?.cancel();
+    _saveOrdersDebounceTimer?.cancel();
+    _resetToDefaults();
+    notifyListeners();
+  }
+
+  void _resetToDefaults() {
+    _orderSequence = 1;
+    _menuItems = List.from(initialCelestialMenu);
+    _customCategories = [];
+    _hideSystemCategories = false;
+    _hiddenSystemCategoryIds = {};
+    _orders.clear();
+    _cart.clear();
+    _selectedCategory = ItemCategory.all;
+    _selectedCategoryId = 'all';
+    _searchQuery = '';
+    _selectedTag = 'All';
+    _customLogoBase64 = null;
+    _customLogoBytes = null;
+    _storeName = 'CELESTIAL CAFE';
+    _storeTagline = '';
+    _storeAddress = 'Celestial Cafe Main Branch\nTel: (02) 8721-4900 • TIN #482-901-382-000';
+    _uiScale = 1.0;
+    _activeCashier = 'Main POS';
+    _cashiers.clear();
+    _cashiers.add('Main POS');
+    _signatureBannerEnabled = true;
+    _signatureBannerBadge = 'CELESTIAL SIGNATURE CRAFT';
+    _signatureBannerTitle = 'Celestial Signature Latte';
+    _signatureBannerSubtitle = 'House specialty handcrafted celestial latte blend with silky sweet foam';
+    _signatureBannerButtonText = 'Order';
+    _signatureBannerItemId = 'nesp_1';
+    _signatureBannerImageBase64 = null;
+    _signatureBannerImageBytes = null;
+  }
 
   void resetOrderSequence({int startNumber = 1}) {
     _orderSequence = startNumber;
@@ -142,50 +244,64 @@ class PosProvider extends ChangeNotifier {
   }
 
   Future<void> _initData() async {
+    _resetToDefaults();
     try {
       final prefs = await _getPrefs();
 
+      // 0. Load hideSystemCategories flag first
+      _hideSystemCategories = prefs.getBool(_key(_kHideSystemCats)) ?? false;
+      final savedHiddenSys = prefs.getStringList(_key('hidden_system_categories'));
+      if (savedHiddenSys != null) {
+        _hiddenSystemCategoryIds = savedHiddenSys.toSet();
+      }
+
       // 1. Order Sequence
-      final lastSavedDate = prefs.getString('celestial_last_order_date');
+      final lastSavedDate = prefs.getString(_key('last_order_date'));
       final todayDate = DateTime.now().toIso8601String().substring(0, 10);
-      final savedSeq = prefs.getInt(_keyOrderSeq);
+      final savedSeq = prefs.getInt(_key(_kOrderSeq));
 
       if (lastSavedDate != null && lastSavedDate != todayDate) {
         _orderSequence = 1;
-        await prefs.setInt(_keyOrderSeq, 1);
-        await prefs.setString('celestial_last_order_date', todayDate);
+        await prefs.setInt(_key(_kOrderSeq), 1);
+        await prefs.setString(_key('last_order_date'), todayDate);
       } else {
         _orderSequence = savedSeq ?? 1;
         if (savedSeq == null) {
-          await prefs.setInt(_keyOrderSeq, 1);
-          await prefs.setString('celestial_last_order_date', todayDate);
+          await prefs.setInt(_key(_kOrderSeq), 1);
+          await prefs.setString(_key('last_order_date'), todayDate);
         }
       }
 
       // 2. Load menu items
-      final savedMenuJson = prefs.getString(_keyMenuItems);
+      final savedMenuJson = prefs.getString(_key(_kMenuItems));
       if (savedMenuJson != null && savedMenuJson.isNotEmpty) {
         try {
           final decoded = jsonDecode(savedMenuJson) as List<dynamic>;
           _menuItems = decoded
               .map((item) => MenuItem.fromJson(item as Map<String, dynamic>))
               .toList();
-          if (_menuItems.isEmpty) {
+          if (_menuItems.isEmpty && !_hideSystemCategories) {
             _menuItems = List.from(initialCelestialMenu);
             await _saveMenuToStorage();
           }
         } catch (e) {
           if (kDebugMode) print('Error parsing stored menu JSON: $e');
+          if (!_hideSystemCategories) {
+            _menuItems = List.from(initialCelestialMenu);
+            await _saveMenuToStorage();
+          }
+        }
+      } else {
+        if (_hideSystemCategories) {
+          _menuItems = [];
+        } else {
           _menuItems = List.from(initialCelestialMenu);
           await _saveMenuToStorage();
         }
-      } else {
-        _menuItems = List.from(initialCelestialMenu);
-        await _saveMenuToStorage();
       }
 
       // 3. Load custom categories
-      final savedCategoriesJson = prefs.getString(_keyCustomCategories);
+      final savedCategoriesJson = prefs.getString(_key(_kCustomCategories));
       if (savedCategoriesJson != null && savedCategoriesJson.isNotEmpty) {
         try {
           final decodedCats = jsonDecode(savedCategoriesJson) as List<dynamic>;
@@ -198,7 +314,7 @@ class PosProvider extends ChangeNotifier {
       }
 
       // 4. Load orders
-      final savedOrdersJson = prefs.getString(_keyOrders);
+      final savedOrdersJson = prefs.getString(_key(_kOrders));
       if (savedOrdersJson != null && savedOrdersJson.isNotEmpty) {
         try {
           final decoded = jsonDecode(savedOrdersJson) as List<dynamic>;
@@ -220,32 +336,32 @@ class PosProvider extends ChangeNotifier {
       }
 
       // 5. Load Custom Logo & Store details
-      final savedLogo = prefs.getString(_keyCustomLogo);
+      final savedLogo = prefs.getString(_key(_kCustomLogo));
       if (savedLogo != null && savedLogo.isNotEmpty) {
         _customLogoBase64 = savedLogo;
         try {
           _customLogoBytes = base64Decode(savedLogo);
         } catch (_) {}
       }
-      final savedStoreName = prefs.getString(_keyStoreName);
+      final savedStoreName = prefs.getString(_key(_kStoreName));
       if (savedStoreName != null && savedStoreName.isNotEmpty) {
         _storeName = savedStoreName;
       }
-      final savedTagline = prefs.getString(_keyStoreTagline);
+      final savedTagline = prefs.getString(_key(_kStoreTagline));
       if (savedTagline != null && savedTagline.isNotEmpty) {
         _storeTagline = savedTagline;
       }
-      final savedAddress = prefs.getString(_keyStoreAddress);
+      final savedAddress = prefs.getString(_key(_kStoreAddress));
       if (savedAddress != null && savedAddress.isNotEmpty) {
         _storeAddress = savedAddress;
       }
-      final savedUiScale = prefs.getDouble(_keyUiScale);
+      final savedUiScale = prefs.getDouble(_key(_kUiScale));
       if (savedUiScale != null && savedUiScale >= 0.80 && savedUiScale <= 1.50) {
         _uiScale = savedUiScale;
       }
 
       // 6. Cashier
-      final savedCashier = prefs.getString(_keyActiveCashier);
+      final savedCashier = prefs.getString(_key(_kActiveCashier));
       if (savedCashier != null && savedCashier.isNotEmpty) {
         _activeCashier = savedCashier;
         if (!_cashiers.contains(_activeCashier)) {
@@ -254,38 +370,38 @@ class PosProvider extends ChangeNotifier {
       }
 
       // 7. Signature Craft Banner Customization
-      final savedSigBannerEnabled = prefs.getBool(_keySigBannerEnabled);
+      final savedSigBannerEnabled = prefs.getBool(_key(_kSigBannerEnabled));
       if (savedSigBannerEnabled != null) {
         _signatureBannerEnabled = savedSigBannerEnabled;
       }
-      final savedSigBannerBadge = prefs.getString(_keySigBannerBadge);
+      final savedSigBannerBadge = prefs.getString(_key(_kSigBannerBadge));
       if (savedSigBannerBadge != null && savedSigBannerBadge.isNotEmpty) {
         _signatureBannerBadge = savedSigBannerBadge;
       }
-      final savedSigBannerTitle = prefs.getString(_keySigBannerTitle);
+      final savedSigBannerTitle = prefs.getString(_key(_kSigBannerTitle));
       if (savedSigBannerTitle != null && savedSigBannerTitle.isNotEmpty) {
         _signatureBannerTitle = savedSigBannerTitle;
       }
-      final savedSigBannerSubtitle = prefs.getString(_keySigBannerSubtitle);
+      final savedSigBannerSubtitle = prefs.getString(_key(_kSigBannerSubtitle));
       if (savedSigBannerSubtitle != null && savedSigBannerSubtitle.isNotEmpty) {
         _signatureBannerSubtitle = savedSigBannerSubtitle;
       }
-      final savedSigBannerBtnText = prefs.getString(_keySigBannerButtonText);
+      final savedSigBannerBtnText = prefs.getString(_key(_kSigBannerButtonText));
       if (savedSigBannerBtnText != null && savedSigBannerBtnText.isNotEmpty) {
         _signatureBannerButtonText = savedSigBannerBtnText;
       }
-      final savedSigBannerItemId = prefs.getString(_keySigBannerItemId);
+      final savedSigBannerItemId = prefs.getString(_key(_kSigBannerItemId));
       if (savedSigBannerItemId != null && savedSigBannerItemId.isNotEmpty) {
         _signatureBannerItemId = savedSigBannerItemId;
       }
-      final savedSigBannerImage = prefs.getString(_keySigBannerImage);
+      final savedSigBannerImage = prefs.getString(_key(_kSigBannerImage));
       if (savedSigBannerImage != null && savedSigBannerImage.isNotEmpty) {
         _signatureBannerImageBase64 = savedSigBannerImage;
         try {
           _signatureBannerImageBytes = base64Decode(savedSigBannerImage);
         } catch (_) {}
       }
-      final savedTheme = prefs.getString(_keyThemeMode);
+      final savedTheme = prefs.getString(_key(_kThemeMode));
       if (savedTheme == PosThemeMode.londonBistro.name) {
         CelestialTheme.setThemeMode(PosThemeMode.londonBistro);
       } else {
@@ -308,11 +424,12 @@ class PosProvider extends ChangeNotifier {
     CelestialTheme.setThemeMode(mode);
     try {
       final prefs = await _getPrefs();
-      await prefs.setString(_keyThemeMode, mode.name);
+      await prefs.setString(_key(_kThemeMode), mode.name);
     } catch (e) {
       if (kDebugMode) print('Error saving theme mode: $e');
     }
     notifyListeners();
+    _scheduleProCloudSync();
   }
 
   void _pruneOldOrders() {
@@ -332,7 +449,7 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final prefs = await _getPrefs();
-      await prefs.setDouble(_keyUiScale, _uiScale);
+      await prefs.setDouble(_key(_kUiScale), _uiScale);
     } catch (e) {
       if (kDebugMode) print('Error saving UI scale: $e');
     }
@@ -342,23 +459,139 @@ class PosProvider extends ChangeNotifier {
     await setUiScale(1.0);
   }
 
+  Timer? _menuCloudSyncDebounceTimer;
+  Timer? _proCloudSyncDebounceTimer;
+
+  void _scheduleMenuCloudSync() {
+    final email = _currentUserEmail;
+    if (email == null || email.isEmpty) return;
+    _menuCloudSyncDebounceTimer?.cancel();
+    _menuCloudSyncDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (_currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+        unawaited(CloudBackupService().syncMenuToCloud(
+          userEmail: _currentUserEmail!,
+          menuItems: List.from(_menuItems),
+          customCategories: List.from(_customCategories),
+        ));
+      }
+    });
+  }
+
+  /// Schedules an automatic Pro cloud backup with a 2-second debounce.
+  /// Only executes if the current user is a Pro/Admin account.
+  /// Safe to call frequently — multiple rapid calls collapse into one.
+  void _scheduleProCloudSync() {
+    final user = _currentUser;
+    if (user == null || (!user.isPro && !user.isAdmin)) return;
+    _proCloudSyncDebounceTimer?.cancel();
+    _proCloudSyncDebounceTimer = Timer(const Duration(seconds: 2), () async {
+      final activeUser = _currentUser;
+      if (activeUser == null || (!activeUser.isPro && !activeUser.isAdmin)) return;
+      final success = await syncProCloudBackup(activeUser);
+      if (success) {
+        _autoSyncLastTime = DateTime.now();
+        notifyListeners();
+      }
+    });
+  }
+
   Future<void> _saveMenuToStorage() async {
     try {
       final prefs = await _getPrefs();
       final jsonStr = jsonEncode(_menuItems.map((m) => m.toJson()).toList());
-      await prefs.setString(_keyMenuItems, jsonStr);
+      await prefs.setString(_key(_kMenuItems), jsonStr);
     } catch (e) {
       if (kDebugMode) print('Error saving menu to storage: $e');
     }
+    _scheduleMenuCloudSync();
   }
 
   Future<void> _saveCustomCategoriesToStorage() async {
     try {
       final prefs = await _getPrefs();
       final jsonStr = jsonEncode(_customCategories.map((c) => c.toJson()).toList());
-      await prefs.setString(_keyCustomCategories, jsonStr);
+      await prefs.setString(_key(_kCustomCategories), jsonStr);
     } catch (e) {
       if (kDebugMode) print('Error saving custom categories to storage: $e');
+    }
+    _scheduleMenuCloudSync();
+  }
+
+  /// Synchronizes or restores menu catalog & custom categories from Firebase Realtime Database
+  Future<bool> syncMenuFromCloud() async {
+    final email = _currentUserEmail;
+    if (email == null || email.isEmpty) return false;
+
+    try {
+      final data = await CloudBackupService().fetchMenuFromCloud(email);
+      if (data != null) {
+        final remoteMenuRaw = data['menuItems'] as List<dynamic>?;
+        final remoteCatsRaw = data['customCategories'] as List<dynamic>?;
+
+        bool updated = false;
+        if (remoteMenuRaw != null && remoteMenuRaw.isNotEmpty) {
+          _menuItems = remoteMenuRaw
+              .map((m) => MenuItem.fromJson(m as Map<String, dynamic>))
+              .toList();
+          final prefs = await _getPrefs();
+          await prefs.setString(
+            _key(_kMenuItems),
+            jsonEncode(_menuItems.map((m) => m.toJson()).toList()),
+          );
+          updated = true;
+        }
+        if (remoteCatsRaw != null) {
+          _customCategories = remoteCatsRaw
+              .map((c) => CustomCategory.fromJson(c as Map<String, dynamic>))
+              .toList();
+          final prefs = await _getPrefs();
+          await prefs.setString(
+            _key(_kCustomCategories),
+            jsonEncode(_customCategories.map((c) => c.toJson()).toList()),
+          );
+          updated = true;
+        }
+
+        if (updated) {
+          notifyListeners();
+          return true;
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error syncing menu from cloud: $e');
+    }
+    return false;
+  }
+
+  /// Refreshes the count of sales transactions waiting in the offline queue.
+  Future<void> refreshPendingSyncCount() async {
+    final email = _currentUserEmail;
+    final newCount = (email == null || email.isEmpty)
+        ? 0
+        : await CloudBackupService().getPendingSalesCount(email);
+    if (newCount != _pendingSyncCount) {
+      _pendingSyncCount = newCount;
+      notifyListeners();
+    }
+  }
+
+  /// Uploads all pending sales queued during offline operation to Firebase.
+  Future<int> syncPendingSales() async {
+    final email = _currentUserEmail;
+    if (email == null || email.isEmpty || _isSyncingPendingSales) {
+      return 0;
+    }
+    _isSyncingPendingSales = true;
+    notifyListeners();
+    try {
+      final synced = await CloudBackupService().syncPendingSalesQueue(
+        userEmail: email,
+      );
+      _pendingSyncCount = await CloudBackupService().getPendingSalesCount(email);
+      return synced;
+    } finally {
+      _isSyncingPendingSales = false;
+      notifyListeners();
     }
   }
 
@@ -371,13 +604,21 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
+  @override
+  void dispose() {
+    _menuCloudSyncDebounceTimer?.cancel();
+    _proCloudSyncDebounceTimer?.cancel();
+    _saveOrdersDebounceTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _saveOrdersToStorage() async {
     try {
       final prefs = await _getPrefs();
       final jsonStr = jsonEncode(_orders.map((o) => o.toJson()).toList());
-      await prefs.setString(_keyOrders, jsonStr);
-      await prefs.setInt(_keyOrderSeq, _orderSequence);
-      await prefs.setString('celestial_last_order_date', DateTime.now().toIso8601String().substring(0, 10));
+      await prefs.setString(_key(_kOrders), jsonStr);
+      await prefs.setInt(_key(_kOrderSeq), _orderSequence);
+      await prefs.setString(_key('last_order_date'), DateTime.now().toIso8601String().substring(0, 10));
     } catch (e) {
       if (kDebugMode) print('Error saving orders to storage: $e');
     }
@@ -386,7 +627,7 @@ class PosProvider extends ChangeNotifier {
   Future<void> _saveCashierToStorage() async {
     try {
       final prefs = await _getPrefs();
-      await prefs.setString(_keyActiveCashier, _activeCashier);
+      await prefs.setString(_key(_kActiveCashier), _activeCashier);
     } catch (e) {
       if (kDebugMode) print('Error saving cashier to storage: $e');
     }
@@ -415,19 +656,45 @@ class PosProvider extends ChangeNotifier {
   ItemCategory get selectedCategory => _selectedCategory;
   String get selectedCategoryId => _selectedCategoryId;
   List<CustomCategory> get customCategories => List.unmodifiable(_customCategories);
+  bool get hideSystemCategories => _hideSystemCategories;
+  Set<String> get hiddenSystemCategoryIds => Set.unmodifiable(_hiddenSystemCategoryIds);
+  bool get isCategoryPanelVisible => _isCategoryPanelVisible;
+
+  void toggleCategoryPanel() {
+    _isCategoryPanelVisible = !_isCategoryPanelVisible;
+    notifyListeners();
+  }
+
+  void setCategoryPanelVisible(bool visible) {
+    if (_isCategoryPanelVisible != visible) {
+      _isCategoryPanelVisible = visible;
+      notifyListeners();
+    }
+  }
 
   List<CategoryTabItem> get allCategoryTabs {
     final list = <CategoryTabItem>[
       const CategoryTabItem(id: 'all', label: 'All Items', icon: '✨'),
-      const CategoryTabItem(id: 'coffee', label: 'Coffee', icon: '☕'),
-      const CategoryTabItem(id: 'nonEspresso', label: 'Non Espresso', icon: '🍵'),
-      const CategoryTabItem(id: 'milktea', label: 'Milktea', icon: '🧋'),
-      const CategoryTabItem(id: 'frappe', label: 'Frappe', icon: '🥤'),
-      const CategoryTabItem(id: 'cheesecakeSeries', label: 'Cheesecake Series', icon: '🍰'),
-      const CategoryTabItem(id: 'streetBites', label: 'Street Bites', icon: '🍟'),
-      const CategoryTabItem(id: 'pastaDishes', label: 'Pasta Dishes', icon: '🍝', isKitchenDish: true),
-      const CategoryTabItem(id: 'sandwich', label: 'Sandwich', icon: '🥪', isKitchenDish: true),
-      const CategoryTabItem(id: 'dinner', label: 'Dinner & Rice Meals', icon: '🍛', isKitchenDish: true),
+      if (!_hideSystemCategories) ...[
+        if (!_hiddenSystemCategoryIds.contains('coffee'))
+          const CategoryTabItem(id: 'coffee', label: 'Coffee', icon: '☕'),
+        if (!_hiddenSystemCategoryIds.contains('nonEspresso'))
+          const CategoryTabItem(id: 'nonEspresso', label: 'Non Espresso', icon: '🍵'),
+        if (!_hiddenSystemCategoryIds.contains('milktea'))
+          const CategoryTabItem(id: 'milktea', label: 'Milktea', icon: '🧋'),
+        if (!_hiddenSystemCategoryIds.contains('frappe'))
+          const CategoryTabItem(id: 'frappe', label: 'Frappe', icon: '🥤'),
+        if (!_hiddenSystemCategoryIds.contains('cheesecakeSeries'))
+          const CategoryTabItem(id: 'cheesecakeSeries', label: 'Cheesecake Series', icon: '🍰'),
+        if (!_hiddenSystemCategoryIds.contains('streetBites'))
+          const CategoryTabItem(id: 'streetBites', label: 'Street Bites', icon: '🍟'),
+        if (!_hiddenSystemCategoryIds.contains('pastaDishes'))
+          const CategoryTabItem(id: 'pastaDishes', label: 'Pasta Dishes', icon: '🍝', isKitchenDish: true),
+        if (!_hiddenSystemCategoryIds.contains('sandwich'))
+          const CategoryTabItem(id: 'sandwich', label: 'Sandwich', icon: '🥪', isKitchenDish: true),
+        if (!_hiddenSystemCategoryIds.contains('dinner'))
+          const CategoryTabItem(id: 'dinner', label: 'Dinner & Rice Meals', icon: '🍛', isKitchenDish: true),
+      ],
     ];
     for (final custom in _customCategories) {
       list.add(CategoryTabItem(
@@ -571,7 +838,7 @@ class PosProvider extends ChangeNotifier {
     final newCat = CustomCategory(
       id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
       name: cleanName,
-      icon: icon.trim().isEmpty ? '🏷️' : icon.trim(),
+      icon: icon.trim(),
       isKitchenDish: isKitchenDish,
     );
     _customCategories.add(newCat);
@@ -586,7 +853,7 @@ class PosProvider extends ChangeNotifier {
     final newName = name.trim().isEmpty ? oldName : name.trim();
     final updated = _customCategories[index].copyWith(
       name: newName,
-      icon: icon.trim().isEmpty ? _customCategories[index].icon : icon.trim(),
+      icon: icon.trim(),
       isKitchenDish: isKitchenDish,
     );
     _customCategories[index] = updated;
@@ -631,6 +898,126 @@ class PosProvider extends ChangeNotifier {
       _selectedCategory = ItemCategory.all;
     }
     _saveCustomCategoriesToStorage();
+    notifyListeners();
+  }
+
+  Future<void> _saveHiddenSystemCategoriesToStorage() async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setStringList(_key('hidden_system_categories'), _hiddenSystemCategoryIds.toList());
+      _scheduleMenuCloudSync();
+    } catch (e) {
+      if (kDebugMode) print('Error saving hidden system categories: $e');
+    }
+  }
+
+  void updateCategory(
+    String id, {
+    required String name,
+    required String icon,
+    required bool isKitchenDish,
+  }) {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return;
+
+    // 1. If it matches an existing CustomCategory
+    final customIndex = _customCategories.indexWhere((c) => c.id == id || c.name == id);
+    if (customIndex >= 0) {
+      updateCustomCategory(
+        _customCategories[customIndex].id,
+        name: cleanName,
+        icon: icon,
+        isKitchenDish: isKitchenDish,
+      );
+      return;
+    }
+
+    // 2. Built-in category being edited: convert to custom category & hide original enum
+    _hiddenSystemCategoryIds.add(id);
+    _saveHiddenSystemCategoriesToStorage();
+
+    final newCat = CustomCategory(
+      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      name: cleanName,
+      icon: icon.trim(),
+      isKitchenDish: isKitchenDish,
+    );
+    _customCategories.add(newCat);
+    _saveCustomCategoriesToStorage();
+
+    final matchedEnum = ItemCategory.values.firstWhere(
+      (c) => c.name == id,
+      orElse: () => ItemCategory.custom,
+    );
+
+    bool menuModified = false;
+    for (var i = 0; i < _menuItems.length; i++) {
+      if (_menuItems[i].category == matchedEnum &&
+          (_menuItems[i].customCategory == null || _menuItems[i].customCategory!.isEmpty)) {
+        final currentTags = List<String>.from(_menuItems[i].tags);
+        if (isKitchenDish && !currentTags.contains('Kitchen')) {
+          currentTags.add('Kitchen');
+        } else if (!isKitchenDish) {
+          currentTags.removeWhere((t) => t.toLowerCase() == 'kitchen');
+        }
+        _menuItems[i] = _menuItems[i].copyWith(
+          category: ItemCategory.custom,
+          customCategory: cleanName,
+          tags: currentTags,
+        );
+        menuModified = true;
+      }
+    }
+
+    if (menuModified) {
+      _saveMenuToStorage();
+    }
+
+    if (_selectedCategoryId == id) {
+      _selectedCategoryId = cleanName;
+      _selectedCategory = ItemCategory.custom;
+    }
+
+    notifyListeners();
+  }
+
+  void deleteCategory(String id, {String? name}) {
+    // 1. If custom category
+    final customIndex = _customCategories.indexWhere((c) => c.id == id || (name != null && c.name == name));
+    if (customIndex >= 0) {
+      deleteCustomCategory(_customCategories[customIndex].id);
+      return;
+    }
+
+    // 2. Built-in category being removed
+    _hiddenSystemCategoryIds.add(id);
+    _saveHiddenSystemCategoriesToStorage();
+
+    final matchedEnum = ItemCategory.values.firstWhere(
+      (c) => c.name == id,
+      orElse: () => ItemCategory.custom,
+    );
+
+    bool menuModified = false;
+    for (var i = 0; i < _menuItems.length; i++) {
+      if (_menuItems[i].category == matchedEnum &&
+          (_menuItems[i].customCategory == null || _menuItems[i].customCategory!.isEmpty)) {
+        _menuItems[i] = _menuItems[i].copyWith(
+          clearCustomCategory: true,
+        );
+        menuModified = true;
+      }
+    }
+
+    if (menuModified) {
+      _saveMenuToStorage();
+    }
+
+    if (_selectedCategoryId == id) {
+      _selectedCategoryId = 'all';
+      _selectedCategory = ItemCategory.all;
+    }
+
     notifyListeners();
   }
 
@@ -814,6 +1201,25 @@ class PosProvider extends ChangeNotifier {
     _saveOrdersToStorage();
     _saveMenuToStorage();
 
+    // Asynchronously record monthly sales transaction in Firebase Realtime Database
+    // Or queue for offline sync if offline or upload failed
+    if (_currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+      final email = _currentUserEmail!;
+      unawaited(() async {
+        final success = await CloudBackupService().recordMonthlySaleTransaction(
+          userEmail: email,
+          order: newOrder,
+        );
+        if (!success) {
+          await CloudBackupService().enqueuePendingOrder(
+            userEmail: email,
+            order: newOrder,
+          );
+          await refreshPendingSyncCount();
+        }
+      }());
+    }
+
     HapticFeedback.heavyImpact();
     notifyListeners();
     return newOrder;
@@ -888,7 +1294,7 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  // Item & Modifier Availability Management (86 List)
+  // Item & Modifier Availability Management
   int get totalUnavailableItemsCount => _menuItems.where((item) => !item.inStock).length;
   int get totalUnavailableOptionsCount => _menuItems.fold(0, (sum, item) => sum + item.unavailableOptionsCount);
 
@@ -1156,11 +1562,12 @@ class PosProvider extends ChangeNotifier {
     _customLogoBase64 = base64Encode(bytes);
     try {
       final prefs = await _getPrefs();
-      await prefs.setString(_keyCustomLogo, _customLogoBase64!);
+      await prefs.setString(_key(_kCustomLogo), _customLogoBase64!);
     } catch (e) {
       if (kDebugMode) print('Error saving logo: $e');
     }
     notifyListeners();
+    _scheduleProCloudSync();
   }
 
   Future<void> resetToDefaultLogo() async {
@@ -1168,11 +1575,12 @@ class PosProvider extends ChangeNotifier {
     _customLogoBase64 = null;
     try {
       final prefs = await _getPrefs();
-      await prefs.remove(_keyCustomLogo);
+      await prefs.remove(_key(_kCustomLogo));
     } catch (e) {
       if (kDebugMode) print('Error removing logo: $e');
     }
     notifyListeners();
+    _scheduleProCloudSync();
   }
 
   Future<void> updateStoreDetails({
@@ -1185,13 +1593,14 @@ class PosProvider extends ChangeNotifier {
     _storeAddress = address.trim();
     try {
       final prefs = await _getPrefs();
-      await prefs.setString(_keyStoreName, _storeName);
-      await prefs.setString(_keyStoreTagline, _storeTagline);
-      await prefs.setString(_keyStoreAddress, _storeAddress);
+      await prefs.setString(_key(_kStoreName), _storeName);
+      await prefs.setString(_key(_kStoreTagline), _storeTagline);
+      await prefs.setString(_key(_kStoreAddress), _storeAddress);
     } catch (e) {
       if (kDebugMode) print('Error saving store details: $e');
     }
     notifyListeners();
+    _scheduleProCloudSync();
   }
 
   /// Synchronizes store branding & logo to Firebase Cloud if the user is PRO.
@@ -1235,11 +1644,11 @@ class PosProvider extends ChangeNotifier {
       }
 
       final prefs = await _getPrefs();
-      await prefs.setString(_keyStoreName, _storeName);
-      await prefs.setString(_keyStoreTagline, _storeTagline);
-      await prefs.setString(_keyStoreAddress, _storeAddress);
+      await prefs.setString(_key(_kStoreName), _storeName);
+      await prefs.setString(_key(_kStoreTagline), _storeTagline);
+      await prefs.setString(_key(_kStoreAddress), _storeAddress);
       if (_customLogoBase64 != null) {
-        await prefs.setString(_keyCustomLogo, _customLogoBase64!);
+        await prefs.setString(_key(_kCustomLogo), _customLogoBase64!);
       }
 
       notifyListeners();
@@ -1277,21 +1686,22 @@ class PosProvider extends ChangeNotifier {
 
     try {
       final prefs = await _getPrefs();
-      await prefs.setBool(_keySigBannerEnabled, _signatureBannerEnabled);
-      await prefs.setString(_keySigBannerBadge, _signatureBannerBadge);
-      await prefs.setString(_keySigBannerTitle, _signatureBannerTitle);
-      await prefs.setString(_keySigBannerSubtitle, _signatureBannerSubtitle);
-      await prefs.setString(_keySigBannerButtonText, _signatureBannerButtonText);
-      await prefs.setString(_keySigBannerItemId, _signatureBannerItemId);
+      await prefs.setBool(_key(_kSigBannerEnabled), _signatureBannerEnabled);
+      await prefs.setString(_key(_kSigBannerBadge), _signatureBannerBadge);
+      await prefs.setString(_key(_kSigBannerTitle), _signatureBannerTitle);
+      await prefs.setString(_key(_kSigBannerSubtitle), _signatureBannerSubtitle);
+      await prefs.setString(_key(_kSigBannerButtonText), _signatureBannerButtonText);
+      await prefs.setString(_key(_kSigBannerItemId), _signatureBannerItemId);
       if (removeCustomImage) {
-        await prefs.remove(_keySigBannerImage);
+        await prefs.remove(_key(_kSigBannerImage));
       } else if (_signatureBannerImageBase64 != null) {
-        await prefs.setString(_keySigBannerImage, _signatureBannerImageBase64!);
+        await prefs.setString(_key(_kSigBannerImage), _signatureBannerImageBase64!);
       }
     } catch (e) {
       if (kDebugMode) print('Error saving signature banner customization: $e');
     }
     notifyListeners();
+    _scheduleProCloudSync();
   }
 
   Future<void> resetSignatureBanner() async {
@@ -1306,13 +1716,13 @@ class PosProvider extends ChangeNotifier {
 
     try {
       final prefs = await _getPrefs();
-      await prefs.remove(_keySigBannerEnabled);
-      await prefs.remove(_keySigBannerBadge);
-      await prefs.remove(_keySigBannerTitle);
-      await prefs.remove(_keySigBannerSubtitle);
-      await prefs.remove(_keySigBannerButtonText);
-      await prefs.remove(_keySigBannerItemId);
-      await prefs.remove(_keySigBannerImage);
+      await prefs.remove(_key(_kSigBannerEnabled));
+      await prefs.remove(_key(_kSigBannerBadge));
+      await prefs.remove(_key(_kSigBannerTitle));
+      await prefs.remove(_key(_kSigBannerSubtitle));
+      await prefs.remove(_key(_kSigBannerButtonText));
+      await prefs.remove(_key(_kSigBannerItemId));
+      await prefs.remove(_key(_kSigBannerImage));
     } catch (e) {
       if (kDebugMode) print('Error resetting signature banner: $e');
     }
@@ -1322,17 +1732,17 @@ class PosProvider extends ChangeNotifier {
   // Reset Data
   Future<void> resetAllData() async {
     final prefs = await _getPrefs();
-    await prefs.remove(_keyMenuItems);
-    await prefs.remove(_keyOrders);
-    await prefs.remove(_keyOrderSeq);
-    await prefs.remove(_keyCustomCategories);
-    await prefs.remove(_keySigBannerEnabled);
-    await prefs.remove(_keySigBannerBadge);
-    await prefs.remove(_keySigBannerTitle);
-    await prefs.remove(_keySigBannerSubtitle);
-    await prefs.remove(_keySigBannerButtonText);
-    await prefs.remove(_keySigBannerItemId);
-    await prefs.remove(_keySigBannerImage);
+    await prefs.remove(_key(_kMenuItems));
+    await prefs.remove(_key(_kOrders));
+    await prefs.remove(_key(_kOrderSeq));
+    await prefs.remove(_key(_kCustomCategories));
+    await prefs.remove(_key(_kSigBannerEnabled));
+    await prefs.remove(_key(_kSigBannerBadge));
+    await prefs.remove(_key(_kSigBannerTitle));
+    await prefs.remove(_key(_kSigBannerSubtitle));
+    await prefs.remove(_key(_kSigBannerButtonText));
+    await prefs.remove(_key(_kSigBannerItemId));
+    await prefs.remove(_key(_kSigBannerImage));
     _signatureBannerEnabled = true;
     _signatureBannerBadge = 'CELESTIAL SIGNATURE CRAFT';
     _signatureBannerTitle = 'Celestial Signature Latte';
@@ -1341,6 +1751,8 @@ class PosProvider extends ChangeNotifier {
     _signatureBannerItemId = 'nesp_1';
     _signatureBannerImageBytes = null;
     _signatureBannerImageBase64 = null;
+    await prefs.remove(_key(_kHideSystemCats));
+    _hideSystemCategories = false;
     _customCategories.clear();
     _menuItems = List.from(initialCelestialMenu);
     await _saveMenuToStorage();
@@ -1351,9 +1763,52 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> restoreSystemCategories() async {
+    _hideSystemCategories = false;
+    _hiddenSystemCategoryIds.clear();
+    final prefs = await _getPrefs();
+    await prefs.setBool(_key(_kHideSystemCats), false);
+    await prefs.remove(_key('hidden_system_categories'));
+    notifyListeners();
+    _scheduleMenuCloudSync();
+  }
+
+  Future<void> removeAllCategories() async {
+    _customCategories.clear();
+    _hiddenSystemCategoryIds.clear();
+    await _saveCustomCategoriesToStorage();
+    _hideSystemCategories = true;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_key(_kHideSystemCats), true);
+    await prefs.remove(_key('hidden_system_categories'));
+
+    bool menuModified = false;
+    for (var i = 0; i < _menuItems.length; i++) {
+      if (_menuItems[i].customCategory != null) {
+        _menuItems[i] = _menuItems[i].copyWith(
+          clearCustomCategory: true,
+        );
+        menuModified = true;
+      }
+    }
+    if (menuModified) {
+      await _saveMenuToStorage();
+    }
+
+    _selectedCategoryId = 'all';
+    _selectedCategory = ItemCategory.all;
+    notifyListeners();
+    _scheduleMenuCloudSync();
+  }
+
   Future<void> resetCategoriesAndMenu() async {
     _customCategories.clear();
+    _hiddenSystemCategoryIds.clear();
     await _saveCustomCategoriesToStorage();
+    _hideSystemCategories = false;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_key(_kHideSystemCats), false);
+    await prefs.remove(_key('hidden_system_categories'));
     _menuItems = List.from(initialCelestialMenu);
     await _saveMenuToStorage();
     _selectedCategoryId = 'all';
@@ -1364,12 +1819,22 @@ class PosProvider extends ChangeNotifier {
   Future<void> loadSampleMenu() async {
     _menuItems = List.from(initialCelestialMenu);
     await _saveMenuToStorage();
+    _hideSystemCategories = false;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_key(_kHideSystemCats), false);
     notifyListeners();
   }
 
   Future<void> clearAllMenuItems() async {
     _menuItems.clear();
     await _saveMenuToStorage();
+    _customCategories.clear();
+    await _saveCustomCategoriesToStorage();
+    _hideSystemCategories = true;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_key(_kHideSystemCats), true);
+    _selectedCategoryId = 'all';
+    _selectedCategory = ItemCategory.all;
     notifyListeners();
   }
 
@@ -1386,10 +1851,10 @@ class PosProvider extends ChangeNotifier {
       }
     }
     final prefs = await _getPrefs();
-    await prefs.remove(_keyOrders);
+    await prefs.remove(_key(_kOrders));
     _orders.clear();
     _orderSequence = startNumber;
-    await prefs.setInt(_keyOrderSeq, startNumber);
+    await prefs.setInt(_key(_kOrderSeq), startNumber);
     _saveMenuToStorage();
     clearCart();
     notifyListeners();

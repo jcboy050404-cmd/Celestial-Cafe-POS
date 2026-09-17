@@ -33,7 +33,7 @@ class UpgradeProDialog extends StatelessWidget {
           color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+            color: Colors.white.withValues(alpha: 0.12),
             width: 1.2,
           ),
           boxShadow: [

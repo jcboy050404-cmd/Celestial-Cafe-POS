@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/menu_item.dart';
 import '../providers/pos_provider.dart';
 import '../theme/celestial_theme.dart';
+import 'customizations_editor_dialog.dart';
 
 class ItemEditorDialog {
   static void show(
@@ -19,16 +20,71 @@ class ItemEditorDialog {
     final iconController = TextEditingController(text: editItem?.icon ?? '☕');
     final stockController = TextEditingController(text: editItem != null ? '${editItem.stockCount}' : '50');
     ItemCategory selectedCategory = editItem?.category ?? ItemCategory.coffee;
-    String selectedCategoryKey = editItem != null
-        ? (editItem.customCategory != null && editItem.customCategory!.isNotEmpty
-            ? 'custom:${editItem.customCategory}'
-            : editItem.category.name)
-        : ItemCategory.coffee.name;
-    String? selectedCustomCategory = editItem?.customCategory;
+    String selectedCategoryKey;
+    if (editItem != null) {
+      selectedCategoryKey = (editItem.customCategory != null && editItem.customCategory!.isNotEmpty)
+          ? 'custom:${editItem.customCategory}'
+          : editItem.category.name;
+    } else {
+      final availableTabs = provider.allCategoryTabs.where((t) => t.id != 'all').toList();
+      if (availableTabs.isNotEmpty) {
+        final firstTab = availableTabs.first;
+        selectedCategoryKey = firstTab.isCustom ? 'custom:${firstTab.label}' : firstTab.id;
+        selectedCategory = firstTab.isCustom
+            ? ItemCategory.custom
+            : ItemCategory.values.firstWhere((c) => c.name == firstTab.id, orElse: () => ItemCategory.coffee);
+      } else {
+        selectedCategoryKey = 'custom:General';
+        selectedCategory = ItemCategory.custom;
+      }
+    }
+    String? selectedCustomCategory = editItem?.customCategory ??
+        (editItem == null && selectedCategoryKey.startsWith('custom:')
+            ? selectedCategoryKey.substring(7)
+            : null);
 
     String? currentImagePath = editItem?.imagePath;
     String? currentImageBase64 = editItem?.imageBase64;
+    List<CustomizationGroup>? currentCustomizations = editItem != null
+        ? List<CustomizationGroup>.from(
+            editItem.customizationGroups.map(
+              (g) => g.copyWith(options: g.options.map((o) => o.copyWith()).toList()),
+            ),
+          )
+        : null;
+    bool hasManuallyEditedCustomizations = false;
     bool isSaving = false;
+
+    // Helper to get default customizations based on category (deep cloned)
+    List<CustomizationGroup> getDefaultCustomizations(ItemCategory cat, String? customCat) {
+      final List<CustomizationGroup> list;
+      if (cat == ItemCategory.milktea) {
+        list = MenuItem.defaultMilkteaCustomizations;
+      } else if (cat == ItemCategory.cheesecakeSeries) {
+        list = MenuItem.getCheesecakeCustomizations();
+      } else if (cat == ItemCategory.frappe) {
+        list = MenuItem.defaultFrappeCustomizations;
+      } else if (cat == ItemCategory.dinner) {
+        list = MenuItem.defaultDinnerCustomizations;
+      } else if (cat == ItemCategory.streetBites ||
+          cat == ItemCategory.pastaDishes ||
+          cat == ItemCategory.sandwich ||
+          (customCat != null && provider.customCategories.any((c) => c.name == customCat && c.isKitchenDish))) {
+        list = MenuItem.defaultFoodCustomizations;
+      } else {
+        list = MenuItem.defaultCoffeeCustomizations;
+      }
+      return list.map((g) => g.copyWith(options: g.options.map((o) => o.copyWith()).toList())).toList();
+    }
+
+    if (currentCustomizations == null) {
+      if (editItem == null) {
+        // New item, set defaults immediately so they can be edited
+        currentCustomizations = getDefaultCustomizations(selectedCategory, selectedCustomCategory);
+      } else {
+        currentCustomizations = [];
+      }
+    }
 
     showDialog(
       context: context,
@@ -70,8 +126,11 @@ class ItemEditorDialog {
                 fontWeight: FontWeight.bold,
                 color: CelestialTheme.goldLight,
               ),
-              content: SizedBox(
-                width: 440,
+              content: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 440,
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                ),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -216,20 +275,18 @@ class ItemEditorDialog {
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         items: [
-                          ...ItemCategory.values
-                              .where((c) => c != ItemCategory.all && c != ItemCategory.custom)
-                              .map((c) {
+                          ...provider.allCategoryTabs.where((t) => t.id != 'all').map((t) {
+                            final val = t.isCustom ? 'custom:${t.label}' : t.id;
                             return DropdownMenuItem(
-                              value: c.name,
-                              child: Text('${c.icon} ${c.label}'),
+                              value: val,
+                              child: Text('${t.icon} ${t.label}'),
                             );
                           }),
-                          ...provider.customCategories.map((cc) {
-                            return DropdownMenuItem(
-                              value: 'custom:${cc.name}',
-                              child: Text('${cc.icon} ${cc.name} (Custom)'),
-                            );
-                          }),
+                          if (!provider.allCategoryTabs.where((t) => t.id != 'all').any((t) => (t.isCustom ? 'custom:${t.label}' : t.id) == selectedCategoryKey))
+                            DropdownMenuItem(
+                              value: selectedCategoryKey,
+                              child: Text(selectedCustomCategory != null ? '🏷️ $selectedCustomCategory' : '☕ Other'),
+                            ),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -244,6 +301,10 @@ class ItemEditorDialog {
                                   (c) => c.name == val,
                                   orElse: () => ItemCategory.coffee,
                                 );
+                              }
+                              // Only reset to category defaults if the user hasn't customized them yet
+                              if (!isEditing && !hasManuallyEditedCustomizations) {
+                                currentCustomizations = getDefaultCustomizations(selectedCategory, selectedCustomCategory);
                               }
                             });
                           }
@@ -300,6 +361,37 @@ class ItemEditorDialog {
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      
+                      // Manage Add-ons Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            CustomizationsEditorDialog.show(
+                              context,
+                              initialGroups: currentCustomizations ?? getDefaultCustomizations(selectedCategory, selectedCustomCategory),
+                              onSave: (updatedGroups) {
+                                setDialogState(() {
+                                  currentCustomizations = updatedGroups;
+                                  hasManuallyEditedCustomizations = true;
+                                });
+                              },
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: Text(
+                            'Manage Add-ons & Options (${currentCustomizations?.length ?? 0} groups)',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: CelestialTheme.goldLight,
+                            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -343,18 +435,34 @@ class ItemEditorDialog {
                           setDialogState(() => isSaving = true);
                           await Future.delayed(const Duration(milliseconds: 250));
 
+                          if (selectedCategory == ItemCategory.custom && selectedCustomCategory != null) {
+                            final exists = provider.customCategories.any((c) => c.name.toLowerCase() == selectedCustomCategory!.toLowerCase());
+                            if (!exists) {
+                              provider.addCustomCategory(name: selectedCustomCategory!, icon: '🏷️');
+                            }
+                          }
+
                           if (isEditing) {
                             final updated = editItem.copyWith(
                               name: name,
                               price: price,
                               category: selectedCategory,
                               customCategory: selectedCustomCategory,
+                              clearCustomCategory: selectedCustomCategory == null,
+                              clearImage: currentImagePath == null && (currentImageBase64 == null || currentImageBase64!.isEmpty),
                               description: desc,
                               icon: icon,
-                              stockCount: stock,
+                              tags: [
+                                if (selectedCustomCategory != null &&
+                                    provider.customCategories.any((c) => c.name == selectedCustomCategory && c.isKitchenDish))
+                                  'Kitchen Cooked',
+                                'House Special'
+                              ],
+                              stockCount: stock < 0 ? 0 : stock,
                               inStock: stock > 0,
                               imagePath: currentImagePath,
                               imageBase64: currentImageBase64,
+                              customizationGroups: currentCustomizations ?? getDefaultCustomizations(selectedCategory, selectedCustomCategory),
                             );
                             provider.updateMenuItem(updated);
                           } else {
@@ -372,25 +480,11 @@ class ItemEditorDialog {
                                   'Kitchen Cooked',
                                 'House Special'
                               ],
-                              stockCount: stock,
+                              stockCount: stock < 0 ? 0 : stock,
                               inStock: stock > 0,
                               imagePath: currentImagePath,
                               imageBase64: currentImageBase64,
-                              customizationGroups: selectedCategory == ItemCategory.milktea
-                                  ? MenuItem.defaultMilkteaCustomizations
-                                  : selectedCategory == ItemCategory.cheesecakeSeries
-                                      ? MenuItem.getCheesecakeCustomizations()
-                                      : selectedCategory == ItemCategory.frappe
-                                          ? MenuItem.defaultFrappeCustomizations
-                                          : selectedCategory == ItemCategory.dinner
-                                              ? MenuItem.defaultDinnerCustomizations
-                                              : (selectedCategory == ItemCategory.streetBites ||
-                                                      selectedCategory == ItemCategory.pastaDishes ||
-                                                      selectedCategory == ItemCategory.sandwich ||
-                                                      (selectedCustomCategory != null &&
-                                                          provider.customCategories.any((c) => c.name == selectedCustomCategory && c.isKitchenDish)))
-                                                  ? MenuItem.defaultFoodCustomizations
-                                                  : MenuItem.defaultCoffeeCustomizations,
+                              customizationGroups: currentCustomizations ?? getDefaultCustomizations(selectedCategory, selectedCustomCategory),
                             );
                             provider.addNewMenuItem(newItem);
                           }

@@ -161,8 +161,8 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
             color: CelestialTheme.bgSurface,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: CelestialTheme.roseAlert.withValues(alpha: 0.6),
-              width: 1.5,
+              color: Colors.white.withValues(alpha: 0.12),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
@@ -176,7 +176,7 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Glowing Icon Header
+              // Icon Header
               Container(
                 width: 64,
                 height: 64,
@@ -184,14 +184,14 @@ class _TrialExpiredDialogState extends State<TrialExpiredDialog> {
                   shape: BoxShape.circle,
                   color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
                   border: Border.all(
-                    color: CelestialTheme.roseAlert.withValues(alpha: 0.8),
-                    width: 2,
+                    color: CelestialTheme.roseAlert.withValues(alpha: 0.4),
+                    width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: CelestialTheme.roseAlert.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),

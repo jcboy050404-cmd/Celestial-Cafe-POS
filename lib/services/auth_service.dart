@@ -33,6 +33,12 @@ enum GoogleAuthResult {
   error,
 }
 
+enum UserRole {
+  admin,
+  owner,
+  cashier,
+}
+
 class AppUser {
   final String uid;
   final String email;
@@ -42,6 +48,8 @@ class AppUser {
   final DateTime trialStartDate;
   final DateTime? proActivatedDate;
   final bool isAdmin;
+  final UserRole role;
+  final String? ownerEmail;
   final int customTrialDays;
   final bool hasCustomTrial;
   final String? idToken;
@@ -56,13 +64,17 @@ class AppUser {
     required this.trialStartDate,
     this.proActivatedDate,
     this.isAdmin = false,
+    UserRole? role,
+    this.ownerEmail,
     this.customTrialDays = 14,
     this.hasCustomTrial = false,
     this.idToken,
     this.disabledFeatures = const [],
-  });
+  }) : role = isAdmin ? UserRole.admin : (role ?? UserRole.owner);
 
   bool get isPro => tier == SubscriptionTier.pro;
+  bool get isOwner => isAdmin || role == UserRole.owner;
+  bool get isCashier => !isAdmin && role == UserRole.cashier;
 
   bool isFeatureEnabled(String featureKey) {
     if (isAdmin) return true;
@@ -93,6 +105,8 @@ class AppUser {
     DateTime? trialStartDate,
     DateTime? proActivatedDate,
     bool? isAdmin,
+    UserRole? role,
+    String? ownerEmail,
     int? customTrialDays,
     bool? hasCustomTrial,
     String? idToken,
@@ -107,6 +121,8 @@ class AppUser {
       trialStartDate: trialStartDate ?? this.trialStartDate,
       proActivatedDate: proActivatedDate ?? this.proActivatedDate,
       isAdmin: isAdmin ?? this.isAdmin,
+      role: role ?? this.role,
+      ownerEmail: ownerEmail ?? this.ownerEmail,
       customTrialDays: customTrialDays ?? this.customTrialDays,
       hasCustomTrial: hasCustomTrial ?? this.hasCustomTrial,
       idToken: idToken ?? this.idToken,
@@ -123,6 +139,8 @@ class AppUser {
         'trialStartDate': trialStartDate.toIso8601String(),
         'proActivatedDate': proActivatedDate?.toIso8601String(),
         'isAdmin': isAdmin,
+        'role': role.name,
+        'ownerEmail': ownerEmail,
         'customTrialDays': customTrialDays,
         'hasCustomTrial': hasCustomTrial,
         'idToken': idToken,
@@ -130,6 +148,14 @@ class AppUser {
       };
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
+    final isAdminVal = json['isAdmin'] as bool? ?? false;
+    final roleStr = json['role'] as String?;
+    final parsedRole = isAdminVal
+        ? UserRole.admin
+        : (roleStr == 'cashier'
+            ? UserRole.cashier
+            : (roleStr == 'admin' ? UserRole.admin : UserRole.owner));
+
     return AppUser(
       uid: json['uid'] as String? ?? 'user_1',
       email: json['email'] as String? ?? 'cashier@celestialcafe.com',
@@ -144,7 +170,9 @@ class AppUser {
       proActivatedDate: json['proActivatedDate'] != null
           ? DateTime.tryParse(json['proActivatedDate'] as String)
           : null,
-      isAdmin: json['isAdmin'] as bool? ?? false,
+      isAdmin: isAdminVal,
+      role: parsedRole,
+      ownerEmail: json['ownerEmail'] as String?,
       customTrialDays: json['customTrialDays'] as int? ?? 14,
       hasCustomTrial: json['hasCustomTrial'] as bool? ?? false,
       idToken: json['idToken'] as String?,
@@ -503,6 +531,71 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  static Future<void> _syncAccountTierToRealtimeDatabase({
+    required String targetEmail,
+    required String tier,
+    required DateTime trialStartDate,
+    DateTime? proActivatedDate,
+  }) async {
+    try {
+      if (_isFlutterTest) return;
+      final cleanEmail = targetEmail.trim().toLowerCase();
+      final rtdbKey = cleanEmail.replaceAll('.', ',');
+
+      final rtdbData = {
+        'email': cleanEmail,
+        'tier': tier,
+        'trialStartDate': trialStartDate.toIso8601String(),
+        if (proActivatedDate != null) 'proActivatedDate': proActivatedDate.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      String? authToken = _cachedFirebaseToken;
+      final queryParam = (authToken != null && authToken.isNotEmpty) ? '?auth=$authToken' : '';
+      var rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json$queryParam');
+
+      var res = await http.patch(
+        rtdbUri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(rtdbData),
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode != 200) {
+        rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json');
+        await http.patch(
+          rtdbUri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(rtdbData),
+        ).timeout(const Duration(seconds: 4));
+      }
+      debugPrint('AuthService: Synced tier ($tier) for $cleanEmail to Firebase RTDB');
+    } catch (e) {
+      debugPrint('AuthService: _syncAccountTierToRealtimeDatabase error: $e');
+    }
+  }
+
+  static Future<void> _deleteUserFromRealtimeDatabase(String targetEmail) async {
+    try {
+      if (_isFlutterTest) return;
+      final cleanEmail = targetEmail.trim().toLowerCase();
+      final rtdbKey = cleanEmail.replaceAll('.', ',');
+
+      String? authToken = _cachedFirebaseToken;
+      final queryParam = (authToken != null && authToken.isNotEmpty) ? '?auth=$authToken' : '';
+      var rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json$queryParam');
+
+      var res = await http.delete(rtdbUri).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode != 200) {
+        rtdbUri = Uri.parse('$realtimeDbUrl/users/$rtdbKey.json');
+        await http.delete(rtdbUri).timeout(const Duration(seconds: 4));
+      }
+      debugPrint('AuthService: Deleted $cleanEmail from Firebase RTDB');
+    } catch (e) {
+      debugPrint('AuthService: _deleteUserFromRealtimeDatabase error: $e');
+    }
+  }
+
   static Future<Map<String, dynamic>?> _fetchUserFromRealtimeDatabase(String email, {String? pin}) async {
     try {
       if (_isFlutterTest) return null;
@@ -650,10 +743,15 @@ class AuthService extends ChangeNotifier {
   SubscriptionTier get currentTier => _currentUser?.tier ?? SubscriptionTier.trial;
   bool get isPro => _currentUser?.isPro ?? false;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool get isOwner => _currentUser?.isOwner ?? false;
+  bool get isCashier => _currentUser?.isCashier ?? false;
+  bool get isOwnerOrAdmin => isOwner || isAdmin;
   bool isFeatureEnabled(String featureKey) => _currentUser?.isFeatureEnabled(featureKey) ?? true;
   int get defaultTrialDays => _defaultTrialDays;
   List<String> get adminEmails => List.unmodifiable(_adminEmails);
   List<AppUser> get managedAccounts => List.unmodifiable(_managedAccounts);
+  bool _isSyncingCloudAccounts = false;
+  bool get isSyncingCloudAccounts => _isSyncingCloudAccounts;
   bool _needsPinSetup = false;
   bool get needsPinSetup => _needsPinSetup;
 
@@ -794,6 +892,13 @@ class AuthService extends ChangeNotifier {
     return _pinCredentials.containsKey(email.trim().toLowerCase());
   }
 
+  bool verifyPin(String email, String pin) {
+    final cleanEmail = email.trim().toLowerCase();
+    final storedHash = _pinCredentials[cleanEmail];
+    if (storedHash == null) return false;
+    return storedHash == _hashPin(cleanEmail, pin);
+  }
+
   /// Checks Firebase Realtime Database to see if an account was registered on another station or phone.
   Future<bool> checkRemoteHasPin(String? email) async {
     if (email == null || email.trim().isEmpty) return false;
@@ -810,6 +915,7 @@ class AuthService extends ChangeNotifier {
     required String email,
     required String pin,
     bool autoSignIn = true,
+    bool isUpdate = false,
   }) async {
     final cleanEmail = email.trim().toLowerCase();
     if (pin.length != 4 || int.tryParse(pin) == null) {
@@ -818,43 +924,21 @@ class AuthService extends ChangeNotifier {
       return false;
     }
 
-    if (_pinCredentials.containsKey(cleanEmail)) {
-      final storedHash = _pinCredentials[cleanEmail];
-      if (storedHash == _hashPin(cleanEmail, pin)) {
-        if (autoSignIn) {
-          return await signInWithPin(email: cleanEmail, pin: pin);
-        } else {
-          await rememberStationAccount(
-            email: cleanEmail,
-            displayName: _pendingGoogleUser?.displayName,
-            photoUrl: _pendingGoogleUser?.photoUrl,
-            isGoogle: cleanEmail.endsWith('@gmail.com') || _pendingGoogleUser != null,
-          );
-          _pendingGoogleUser = null;
-          _needsPinSetup = false;
-          notifyListeners();
-          return true;
-        }
-      } else {
-        _errorMessage = 'An account with this email already exists. Incorrect PIN.';
-        notifyListeners();
-        return false;
-      }
-    }
+    final bool isCurrentUser = _currentUser != null && _currentUser!.email.toLowerCase() == cleanEmail;
+    final bool isAdminActing = _currentUser != null && _currentUser!.isAdmin;
+    final bool shouldPermitUpdate = isUpdate || isCurrentUser || isAdminActing;
 
-    if (await checkRemoteHasPin(cleanEmail)) {
-      final remote = await _fetchUserFromRealtimeDatabase(cleanEmail, pin: pin);
-      if (remote != null) {
-        if (remote['pin']?.toString() == pin) {
+    if (!shouldPermitUpdate) {
+      if (_pinCredentials.containsKey(cleanEmail)) {
+        final storedHash = _pinCredentials[cleanEmail];
+        if (storedHash == _hashPin(cleanEmail, pin)) {
           if (autoSignIn) {
             return await signInWithPin(email: cleanEmail, pin: pin);
           } else {
-            _pinCredentials[cleanEmail] = _hashPin(cleanEmail, pin);
-            await _persistPinCredentials();
             await rememberStationAccount(
               email: cleanEmail,
-              displayName: _pendingGoogleUser?.displayName ?? remote['displayName']?.toString(),
-              photoUrl: _pendingGoogleUser?.photoUrl ?? remote['photoUrl']?.toString(),
+              displayName: _pendingGoogleUser?.displayName,
+              photoUrl: _pendingGoogleUser?.photoUrl,
               isGoogle: cleanEmail.endsWith('@gmail.com') || _pendingGoogleUser != null,
             );
             _pendingGoogleUser = null;
@@ -866,6 +950,34 @@ class AuthService extends ChangeNotifier {
           _errorMessage = 'An account with this email already exists. Incorrect PIN.';
           notifyListeners();
           return false;
+        }
+      }
+
+      if (await checkRemoteHasPin(cleanEmail)) {
+        final remote = await _fetchUserFromRealtimeDatabase(cleanEmail, pin: pin);
+        if (remote != null) {
+          if (remote['pin']?.toString() == pin) {
+            if (autoSignIn) {
+              return await signInWithPin(email: cleanEmail, pin: pin);
+            } else {
+              _pinCredentials[cleanEmail] = _hashPin(cleanEmail, pin);
+              await _persistPinCredentials();
+              await rememberStationAccount(
+                email: cleanEmail,
+                displayName: _pendingGoogleUser?.displayName ?? remote['displayName']?.toString(),
+                photoUrl: _pendingGoogleUser?.photoUrl ?? remote['photoUrl']?.toString(),
+                isGoogle: cleanEmail.endsWith('@gmail.com') || _pendingGoogleUser != null,
+              );
+              _pendingGoogleUser = null;
+              _needsPinSetup = false;
+              notifyListeners();
+              return true;
+            }
+          } else {
+            _errorMessage = 'An account with this email already exists. Incorrect PIN.';
+            notifyListeners();
+            return false;
+          }
         }
       }
     }
@@ -898,13 +1010,15 @@ class AuthService extends ChangeNotifier {
       userToRegister = AppUser(
         uid: existingManaged.uid.isEmpty ? uid : existingManaged.uid,
         email: cleanEmail,
-        displayName: displayName,
-        photoUrl: null,
+        displayName: existingManaged.displayName.isNotEmpty ? existingManaged.displayName : displayName,
+        photoUrl: existingManaged.photoUrl,
         tier: isAdminUser ? SubscriptionTier.pro : existingManaged.tier,
         trialStartDate: existingManaged.trialStartDate,
         proActivatedDate: existingManaged.proActivatedDate,
         isAdmin: isAdminUser,
         customTrialDays: existingManaged.customTrialDays,
+        hasCustomTrial: existingManaged.hasCustomTrial,
+        disabledFeatures: existingManaged.disabledFeatures,
       );
     }
 
@@ -918,7 +1032,14 @@ class AuthService extends ChangeNotifier {
       isGoogle: cleanEmail.endsWith('@gmail.com') || _pendingGoogleUser != null,
     );
 
-    if (autoSignIn) {
+    if (isCurrentUser) {
+      _currentUser = _currentUser!.copyWith(
+        displayName: _currentUser!.displayName.isNotEmpty ? _currentUser!.displayName : userToRegister.displayName,
+      );
+      await _persistUser(_currentUser!);
+    } else if (isAdminActing) {
+      // Admin updated another user's PIN: preserve admin's active session
+    } else if (autoSignIn) {
       _currentUser = userToRegister;
       await _persistUser(_currentUser!);
       if (_currentUser != null && !_currentUser!.isAdmin) {
@@ -1043,6 +1164,7 @@ class AuthService extends ChangeNotifier {
     try {
       await _loadAdminSettings();
       await _loadSavedUser();
+      unawaited(syncManagedAccountsFromCloud());
     } catch (e) {
       debugPrint('Error in _initAuth data loading: $e');
     } finally {
@@ -1256,6 +1378,8 @@ class AuthService extends ChangeNotifier {
             _currentUser = user.copyWith(
               displayName: managed.displayName.isNotEmpty ? managed.displayName : user.displayName,
               isAdmin: isAdminStored || user.isAdmin || managed.isAdmin,
+              role: managed.role,
+              ownerEmail: managed.ownerEmail ?? user.ownerEmail,
               tier: (isAdminStored || user.isAdmin || managed.isAdmin)
                   ? SubscriptionTier.pro
                   : managed.tier,
@@ -1265,6 +1389,7 @@ class AuthService extends ChangeNotifier {
               hasCustomTrial: managed.hasCustomTrial || user.hasCustomTrial,
               trialStartDate: managed.trialStartDate,
               proActivatedDate: managed.proActivatedDate ?? user.proActivatedDate,
+              disabledFeatures: managed.disabledFeatures.isNotEmpty ? managed.disabledFeatures : user.disabledFeatures,
             );
           } else {
             _currentUser = user.copyWith(
@@ -1392,10 +1517,15 @@ class AuthService extends ChangeNotifier {
           ? user.disabledFeatures
           : existing.disabledFeatures;
 
+      final effectiveRole = existing.role != UserRole.owner ? existing.role : user.role;
+      final effectiveOwnerEmail = existing.ownerEmail ?? user.ownerEmail;
+
       _managedAccounts[idx] = user.copyWith(
         hasCustomTrial: effectiveCustomTrial,
         customTrialDays: effectiveDays,
         tier: effectiveTier,
+        role: effectiveRole,
+        ownerEmail: effectiveOwnerEmail,
         trialStartDate: (existing.hasCustomTrial && !existing.isTrialExpired)
             ? existing.trialStartDate
             : user.trialStartDate,
@@ -1741,11 +1871,13 @@ class AuthService extends ChangeNotifier {
   Future<bool> resetAccountPin(String email, String newPin) async {
     if (newPin.length != 4 || int.tryParse(newPin) == null) return false;
     final cleanEmail = email.trim().toLowerCase();
-    if (!_pinCredentials.containsKey(cleanEmail)) return false;
-    _pinCredentials[cleanEmail] = _hashPin(cleanEmail, newPin);
-    await _persistPinCredentials();
-    notifyListeners();
-    return true;
+    if (!_pinCredentials.containsKey(cleanEmail) && !await checkRemoteHasPin(cleanEmail)) return false;
+    return await setPinForUser(
+      email: cleanEmail,
+      pin: newPin,
+      autoSignIn: false,
+      isUpdate: true,
+    );
   }
 
   /// Universal OAuth 2.0 Loopback Flow with RFC 7636 PKCE
@@ -2662,6 +2794,13 @@ class AuthService extends ChangeNotifier {
 
       await _persistManagedAccounts();
       notifyListeners();
+
+      unawaited(_syncAccountTierToRealtimeDatabase(
+        targetEmail: updated.email,
+        tier: updated.tier.name,
+        trialStartDate: updated.trialStartDate,
+        proActivatedDate: updated.proActivatedDate,
+      ));
     }
   }
 
@@ -2779,19 +2918,27 @@ class AuthService extends ChangeNotifier {
     return false;
   }
 
-  // --- Manage Account: Update Feature Permissions (Admin Only) ---
+  // --- Manage Account: Update Feature Permissions (Admin / Owner for their cashiers) ---
   Future<void> updateAccountDisabledFeatures(
     String uid,
     List<String> disabledFeatures,
   ) async {
-    if (!isAdmin) {
-      debugPrint('[AUTH] updateAccountDisabledFeatures rejected: Only administrators can configure feature permissions.');
+    if (!isOwnerOrAdmin) {
+      debugPrint('[AUTH] updateAccountDisabledFeatures rejected: Only store owners or administrators can configure feature permissions.');
       return;
     }
     final cleanList = List<String>.unmodifiable(disabledFeatures);
     final idx = _managedAccounts.indexWhere(
       (a) => a.uid == uid || a.email.toLowerCase() == uid.toLowerCase(),
     );
+    if (!isAdmin && idx >= 0) {
+      final target = _managedAccounts[idx];
+      final currentOwnerEmail = _currentUser?.email.toLowerCase();
+      if (!target.isCashier || target.ownerEmail?.toLowerCase() != currentOwnerEmail) {
+        debugPrint('[AUTH] updateAccountDisabledFeatures rejected: Cannot modify features of another store or admin.');
+        return;
+      }
+    }
     if (idx >= 0) {
       final existing = _managedAccounts[idx];
       final updated = existing.copyWith(disabledFeatures: cleanList);
@@ -2846,6 +2993,130 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // --- Sync All Accounts From Firebase Realtime Database (/users.json) ---
+  Future<bool> syncManagedAccountsFromCloud() async {
+    if (_isSyncingCloudAccounts) return false;
+    _isSyncingCloudAccounts = true;
+    notifyListeners();
+
+    try {
+      if (_isFlutterTest) {
+        _isSyncingCloudAccounts = false;
+        notifyListeners();
+        return false;
+      }
+
+      String? authToken = _cachedFirebaseToken;
+      final queryParam = (authToken != null && authToken.isNotEmpty) ? '?auth=$authToken' : '';
+      var rtdbUri = Uri.parse('$realtimeDbUrl/users.json$queryParam');
+
+      var res = await http.get(rtdbUri).timeout(const Duration(seconds: 6));
+      if (res.statusCode != 200) {
+        rtdbUri = Uri.parse('$realtimeDbUrl/users.json');
+        res = await http.get(rtdbUri).timeout(const Duration(seconds: 6));
+      }
+
+      if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
+        final dynamic raw = jsonDecode(res.body);
+        if (raw is Map<String, dynamic>) {
+          for (final entry in raw.entries) {
+            final val = entry.value;
+            if (val is! Map) continue;
+
+            final rawEmail = val['email']?.toString() ?? entry.key.replaceAll(',', '.');
+            final cleanEmail = rawEmail.trim().toLowerCase();
+            if (cleanEmail.isEmpty) continue;
+
+            final isAdminUser = val['isAdmin'] == true || checkIfAdmin(cleanEmail);
+            final tierStr = val['tier']?.toString().toLowerCase();
+            final tier = (tierStr == 'pro' || isAdminUser) ? SubscriptionTier.pro : SubscriptionTier.trial;
+
+            final rawName = val['displayName']?.toString().trim();
+            final photoUrl = val['photoUrl']?.toString();
+            final customDays = (val['customTrialDays'] as num?)?.toInt() ?? _defaultTrialDays;
+            final hasCustomTrial = val['hasCustomTrial'] == true || val['customTrialDays'] != null;
+            final trialStartDate = DateTime.tryParse(val['trialStartDate']?.toString() ?? '') ?? DateTime.now();
+            final proActivatedDate = DateTime.tryParse(val['proActivatedDate']?.toString() ?? '');
+            final uid = val['uid']?.toString() ?? 'cloud_${cleanEmail.hashCode.abs()}';
+            final disabledFeatures = (val['disabledFeatures'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                const <String>[];
+
+            final existingIdx = _managedAccounts.indexWhere(
+              (a) => a.uid == uid || a.email.trim().toLowerCase() == cleanEmail,
+            );
+
+            final existing = existingIdx >= 0 ? _managedAccounts[existingIdx] : null;
+
+            final effectiveName = (rawName != null && rawName.isNotEmpty)
+                ? rawName
+                : (existing != null && existing.displayName.isNotEmpty
+                    ? existing.displayName
+                    : cleanEmail.split('@').first);
+
+            final cloudAccount = AppUser(
+              uid: (existing != null && existing.uid.isNotEmpty) ? existing.uid : uid,
+              email: cleanEmail,
+              displayName: effectiveName,
+              photoUrl: photoUrl ?? existing?.photoUrl,
+              tier: tier,
+              trialStartDate: trialStartDate,
+              proActivatedDate: proActivatedDate ?? (tier == SubscriptionTier.pro ? DateTime.now() : null),
+              isAdmin: isAdminUser,
+              customTrialDays: customDays,
+              hasCustomTrial: hasCustomTrial,
+              disabledFeatures: disabledFeatures.isNotEmpty
+                  ? disabledFeatures
+                  : (existing?.disabledFeatures ?? const []),
+            );
+
+            if (existingIdx >= 0) {
+              _managedAccounts[existingIdx] = cloudAccount;
+            } else {
+              _managedAccounts.add(cloudAccount);
+            }
+
+            // Also keep PIN credential cache up to date if pin is available in RTDB
+            final remotePin = val['pin']?.toString().trim();
+            if (remotePin != null && remotePin.length == 4 && !_pinCredentials.containsKey(cleanEmail)) {
+              _pinCredentials[cleanEmail] = _hashPin(cleanEmail, remotePin);
+            }
+
+            // If this matches the current active user, sync current user fields
+            if (_currentUser != null &&
+                (_currentUser!.uid == uid || _currentUser!.email.toLowerCase() == cleanEmail)) {
+              _currentUser = _currentUser!.copyWith(
+                displayName: cloudAccount.displayName,
+                photoUrl: cloudAccount.photoUrl ?? _currentUser!.photoUrl,
+                tier: cloudAccount.tier,
+                isAdmin: cloudAccount.isAdmin,
+                customTrialDays: cloudAccount.customTrialDays,
+                hasCustomTrial: cloudAccount.hasCustomTrial,
+                trialStartDate: cloudAccount.trialStartDate,
+                proActivatedDate: cloudAccount.proActivatedDate ?? _currentUser!.proActivatedDate,
+                disabledFeatures: cloudAccount.disabledFeatures,
+              );
+              await _persistUser(_currentUser!);
+            }
+          }
+
+          await _persistManagedAccounts();
+          await _persistPinCredentials();
+          _isSyncingCloudAccounts = false;
+          notifyListeners();
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('AuthService: syncManagedAccountsFromCloud error: $e');
+    }
+
+    _isSyncingCloudAccounts = false;
+    notifyListeners();
+    return false;
+  }
+
   // --- Manage Account: Add New Managed Station / Account (JC Celestial Admin Only) ---
   Future<void> addManagedAccount({
     required String email,
@@ -2897,6 +3168,16 @@ class AuthService extends ChangeNotifier {
     }
 
     notifyListeners();
+
+    // Sync station to Firebase Realtime Database
+    unawaited(_syncUserWithFirebase(
+      cleanEmail,
+      '1234',
+      displayName: newAcc.displayName,
+      isAdmin: isAdminUser,
+      tier: newAcc.tier.name,
+      customTrialDays: newAcc.customTrialDays,
+    ));
   }
 
   // --- Manage Account: Delete Account (JC Celestial Admin Only) ---
@@ -2905,9 +3186,197 @@ class AuthService extends ChangeNotifier {
       debugPrint('[AUTH] deleteManagedAccount rejected: Only authorized administrators (JC Celestial) can delete station accounts.');
       return;
     }
-    _managedAccounts.removeWhere((a) => a.uid == uid);
+    final idx = _managedAccounts.indexWhere((a) => a.uid == uid || a.email.toLowerCase() == uid.toLowerCase());
+    String? emailToDelete;
+    if (idx >= 0) {
+      emailToDelete = _managedAccounts[idx].email;
+      _managedAccounts.removeAt(idx);
+    } else {
+      _managedAccounts.removeWhere((a) => a.uid == uid);
+    }
     await _persistManagedAccounts();
     notifyListeners();
+
+    if (emailToDelete != null && emailToDelete.isNotEmpty) {
+      unawaited(_deleteUserFromRealtimeDatabase(emailToDelete));
+    }
+  }
+
+  // --- Store Owner: Create Cashier Account with Custom Email & 4-Digit PIN ---
+  Future<bool> createCashierAccount({
+    required String email,
+    required String displayName,
+    required String pin,
+    List<String>? disabledFeatures,
+  }) async {
+    if (!isOwnerOrAdmin) {
+      debugPrint('[AUTH] createCashierAccount rejected: Only store owners or admins can create cashier accounts.');
+      _errorMessage = 'Store Owner privileges required to create cashiers.';
+      notifyListeners();
+      return false;
+    }
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      _errorMessage = 'Please enter a valid cashier email address (e.g. cashier1@mycafe.com).';
+      notifyListeners();
+      return false;
+    }
+    if (pin.length != 4 || int.tryParse(pin) == null) {
+      _errorMessage = 'PIN must be exactly 4 numeric digits.';
+      notifyListeners();
+      return false;
+    }
+
+    if (checkIfAdmin(cleanEmail)) {
+      _errorMessage = 'Cannot register an administrator email as a cashier station.';
+      notifyListeners();
+      return false;
+    }
+
+    final currentOwnerEmail = _currentUser?.email.toLowerCase() ?? '';
+
+    // Standard Cashier Only restrictions: cannot modify menu, stock, settings, or view costing/analytics
+    final featuresToLock = disabledFeatures ?? const [
+      'food_costing',
+      'analytics',
+      'store_settings',
+      'inventory',
+    ];
+
+    // Register PIN in local credentials
+    _pinCredentials[cleanEmail] = _hashPin(cleanEmail, pin);
+    await _persistPinCredentials();
+
+    final newCashier = AppUser(
+      uid: 'cashier_${DateTime.now().millisecondsSinceEpoch}',
+      email: cleanEmail,
+      displayName: displayName.trim().isEmpty ? cleanEmail.split('@').first : displayName.trim(),
+      tier: SubscriptionTier.pro, // Covered by Store Owner's Pro license
+      trialStartDate: DateTime.now(),
+      isAdmin: false,
+      role: UserRole.cashier,
+      ownerEmail: currentOwnerEmail,
+      disabledFeatures: featuresToLock,
+    );
+
+    final existingIdx = _managedAccounts.indexWhere(
+      (a) => a.email.toLowerCase() == cleanEmail,
+    );
+    if (existingIdx >= 0) {
+      _managedAccounts[existingIdx] = newCashier;
+    } else {
+      _managedAccounts.add(newCashier);
+    }
+    await _persistManagedAccounts();
+    notifyListeners();
+
+    // Synchronize to Firebase Realtime Database
+    unawaited(_syncUserWithFirebase(
+      cleanEmail,
+      pin,
+      displayName: newCashier.displayName,
+      isAdmin: false,
+      tier: 'pro',
+    ));
+    unawaited(_syncAccountFeaturesToRealtimeDatabase(
+      targetEmail: cleanEmail,
+      disabledFeatures: featuresToLock,
+    ));
+
+    return true;
+  }
+
+  /// Returns only the cashier stations belonging to this store owner (enforcing multi-owner separation).
+  List<AppUser> getCashiersForCurrentOwner() {
+    if (_currentUser == null) return [];
+    if (isAdmin) {
+      return _managedAccounts.where((a) => a.isCashier).toList();
+    }
+    final ownerEmail = _currentUser!.email.toLowerCase();
+    return _managedAccounts.where(
+      (a) => a.isCashier && (a.ownerEmail?.toLowerCase() == ownerEmail),
+    ).toList();
+  }
+
+  /// Returns cashier stations for a specific owner email.
+  List<AppUser> getCashiersForOwner(String ownerEmail) {
+    final clean = ownerEmail.trim().toLowerCase();
+    return _managedAccounts.where(
+      (a) => a.isCashier && (a.ownerEmail?.toLowerCase() == clean),
+    ).toList();
+  }
+
+  /// Store Owner: Update or reset 4-digit PIN for a cashier station.
+  Future<bool> updateCashierPin({
+    required String email,
+    required String newPin,
+  }) async {
+    if (!isOwnerOrAdmin) return false;
+    final cleanEmail = email.trim().toLowerCase();
+    if (newPin.length != 4 || int.tryParse(newPin) == null) {
+      _errorMessage = 'PIN must be exactly 4 numeric digits.';
+      notifyListeners();
+      return false;
+    }
+
+    if (!isAdmin) {
+      final currentOwnerEmail = _currentUser?.email.toLowerCase() ?? '';
+      final isMyCashier = _managedAccounts.any(
+        (a) => a.email.toLowerCase() == cleanEmail && a.isCashier && a.ownerEmail?.toLowerCase() == currentOwnerEmail,
+      );
+      if (!isMyCashier) {
+        debugPrint('[AUTH] updateCashierPin rejected: Unauthorized access to another store\'s cashier.');
+        return false;
+      }
+    }
+
+    _pinCredentials[cleanEmail] = _hashPin(cleanEmail, newPin);
+    await _persistPinCredentials();
+
+    final cashier = _managedAccounts.firstWhere(
+      (a) => a.email.toLowerCase() == cleanEmail,
+      orElse: () => AppUser(uid: '', email: cleanEmail, displayName: cleanEmail, trialStartDate: DateTime.now()),
+    );
+    unawaited(_syncUserWithFirebase(
+      cleanEmail,
+      newPin,
+      displayName: cashier.displayName,
+      isAdmin: false,
+      tier: 'pro',
+    ));
+    notifyListeners();
+    return true;
+  }
+
+  /// Store Owner: Remove a cashier station.
+  Future<bool> deleteCashierAccount(String emailOrUid) async {
+    if (!isOwnerOrAdmin) return false;
+    final clean = emailOrUid.trim().toLowerCase();
+    final idx = _managedAccounts.indexWhere(
+      (a) => a.uid.toLowerCase() == clean || a.email.toLowerCase() == clean,
+    );
+    if (idx < 0) return false;
+
+    final target = _managedAccounts[idx];
+    if (target.isAdmin) return false;
+
+    if (!isAdmin) {
+      final currentOwnerEmail = _currentUser?.email.toLowerCase() ?? '';
+      if (!target.isCashier || target.ownerEmail?.toLowerCase() != currentOwnerEmail) {
+        debugPrint('[AUTH] deleteCashierAccount rejected: Cannot delete cashier belonging to another store.');
+        return false;
+      }
+    }
+
+    final emailToDelete = target.email;
+    _managedAccounts.removeAt(idx);
+    _pinCredentials.remove(emailToDelete.toLowerCase());
+    await _persistManagedAccounts();
+    await _persistPinCredentials();
+    notifyListeners();
+
+    unawaited(_deleteUserFromRealtimeDatabase(emailToDelete));
+    return true;
   }
 
   // --- Upgrade Current User to Pro Tier (JC Celestial Admin Only) ---

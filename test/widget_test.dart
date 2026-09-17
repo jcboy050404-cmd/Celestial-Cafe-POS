@@ -33,7 +33,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     // Verify Login Screen — Google Sign In / Sign Up & PIN Sign In
-    expect(find.text('JC POS System'), findsOneWidget);
+    expect(find.text('JC POS SYSTEM'), findsOneWidget);
     expect(find.textContaining('Sign In with PIN'), findsOneWidget);
     expect(find.text('Create Account'), findsNothing);
     expect(find.text('Launch Free Trial Instantly'), findsNothing);
@@ -685,6 +685,85 @@ void main() {
     expect(auth.hasPin('googleuser@gmail.com'), true);
   });
 
+  test('AuthService setPinForUser updates existing PIN when isUpdate is true and preserves active session', () async {
+    SharedPreferences.setMockInitialValues({});
+    final auth = AuthService();
+
+    // 1. Initial PIN creation
+    final created = await auth.setPinForUser(email: 'activecashier@gmail.com', pin: '1234');
+    expect(created, true);
+    expect(auth.hasPin('activecashier@gmail.com'), true);
+    expect(auth.isLoggedIn, true);
+    expect(auth.currentUser?.email, 'activecashier@gmail.com');
+
+    // 2. Update PIN to '5678' with isUpdate: true
+    final updated = await auth.setPinForUser(
+      email: 'activecashier@gmail.com',
+      pin: '5678',
+      isUpdate: true,
+    );
+    expect(updated, true);
+    // User remains logged in!
+    expect(auth.isLoggedIn, true);
+    expect(auth.currentUser?.email, 'activecashier@gmail.com');
+
+    // 3. Old PIN '1234' no longer works, new PIN '5678' works
+    await auth.signOut();
+    expect(auth.isLoggedIn, false);
+
+    final oldFail = await auth.signInWithPin(email: 'activecashier@gmail.com', pin: '1234');
+    expect(oldFail, false);
+
+    final newSuccess = await auth.signInWithPin(email: 'activecashier@gmail.com', pin: '5678');
+    expect(newSuccess, true);
+    expect(auth.isLoggedIn, true);
+  });
+
+  testWidgets('CreatePinDialog in update mode updates PIN and succeeds', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final auth = AuthService();
+    await auth.setPinForUser(email: 'manager@gmail.com', pin: '1111');
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthService>.value(
+        value: auth,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: CreatePinDialog(
+              email: 'manager@gmail.com',
+              displayName: 'Manager',
+              isUpdate: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Verify update mode texts
+    expect(find.text('Update Station PIN'), findsOneWidget);
+    expect(find.text('Enter New 4-Digit PIN'), findsOneWidget);
+    expect(find.text('Confirm New 4-Digit PIN'), findsOneWidget);
+    expect(find.text('Update PIN'), findsOneWidget);
+
+    // Enter new PIN 9999 in both fields
+    final textFields = find.byType(TextField);
+    expect(textFields, findsNWidgets(2));
+
+    await tester.enterText(textFields.at(0), '9999');
+    await tester.enterText(textFields.at(1), '9999');
+    await tester.pump();
+
+    // Tap Update PIN
+    await tester.tap(find.text('Update PIN'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verify PIN was updated
+    expect(auth.verifyPin('manager@gmail.com', '9999'), true);
+    expect(auth.verifyPin('manager@gmail.com', '1111'), false);
+  });
+
   testWidgets('UpgradeProDialog and HeaderBar render dynamic trial text synced with admin default', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     final auth = AuthService();
@@ -1088,7 +1167,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     // Verify brand and components fit without overflow
-    expect(find.text('JC POS System'), findsOneWidget);
+    expect(find.text('JC POS SYSTEM'), findsOneWidget);
     expect(find.text('Sign In with Google'), findsNothing);
     expect(find.text('Sign Up with Google'), findsOneWidget);
     expect(find.textContaining('Sign In with PIN'), findsOneWidget);

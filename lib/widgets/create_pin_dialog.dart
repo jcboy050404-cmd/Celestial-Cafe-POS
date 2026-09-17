@@ -79,12 +79,35 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
     });
 
     final auth = Provider.of<AuthService>(context, listen: false);
+    final targetEmail = widget.email.trim().isNotEmpty
+        ? widget.email.trim()
+        : (auth.currentUser?.email ?? '');
+
+    if (targetEmail.isEmpty) {
+      setState(() {
+        _isSaving = false;
+        _errorMessage = 'No station email found to associate with PIN.';
+      });
+      return;
+    }
+
     final success = await auth.setPinForUser(
-      email: widget.email,
+      email: targetEmail,
       pin: pin,
+      isUpdate: widget.isUpdate,
+      autoSignIn: !widget.isUpdate && auth.currentUser == null,
     );
 
     if (success) {
+      if (mounted) {
+        TopNotification.show(
+          context,
+          message: widget.isUpdate
+              ? 'Station PIN updated successfully!'
+              : 'Station PIN configured successfully!',
+          type: TopNotificationType.success,
+        );
+      }
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop(true);
       } else if (TopNotification.navigatorKey.currentState?.canPop() ?? false) {
@@ -116,7 +139,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
         decoration: BoxDecoration(
           color: CelestialTheme.bgCard,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5), width: 1.5),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.6),
@@ -129,19 +152,19 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Glowing Icon Header
+            // Icon Header
             Container(
               width: 60,
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                border: Border.all(color: CelestialTheme.goldPrimary, width: 1.8),
+                border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4), width: 1.2),
                 boxShadow: [
                   BoxShadow(
-                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -211,7 +234,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Enter 4-Digit PIN',
+                widget.isUpdate ? 'Enter New 4-Digit PIN' : 'Enter 4-Digit PIN',
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -225,7 +248,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
               controller: _pinController,
               obscure: _obscurePin,
               onToggle: () => setState(() => _obscurePin = !_obscurePin),
-              hint: '4-digit PIN',
+              hint: widget.isUpdate ? 'New 4-digit PIN' : '4-digit PIN',
             ),
 
             const SizedBox(height: 14),
@@ -234,7 +257,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Confirm 4-Digit PIN',
+                widget.isUpdate ? 'Confirm New 4-Digit PIN' : 'Confirm 4-Digit PIN',
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -248,7 +271,7 @@ class _CreatePinDialogState extends State<CreatePinDialog> {
               controller: _confirmPinController,
               obscure: _obscureConfirmPin,
               onToggle: () => setState(() => _obscureConfirmPin = !_obscureConfirmPin),
-              hint: 'Re-enter PIN',
+              hint: widget.isUpdate ? 'Re-enter new PIN' : 'Re-enter PIN',
             ),
 
             const SizedBox(height: 16),

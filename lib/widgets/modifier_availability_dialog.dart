@@ -29,8 +29,9 @@ class ModifierAvailabilityDialog {
                 side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
               ),
               child: Container(
-                width: 500,
+                width: MediaQuery.of(context).size.width < 540 ? double.infinity : 500,
                 constraints: BoxConstraints(
+                  maxWidth: 500,
                   maxHeight: MediaQuery.of(context).size.height * 0.75,
                 ),
                 padding: const EdgeInsets.all(20),
@@ -47,7 +48,7 @@ class ModifierAvailabilityDialog {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${currentItem.name} - 86 & Modifiers',
+                                '${currentItem.name} - Modifier Availability',
                                 style: GoogleFonts.outfit(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,

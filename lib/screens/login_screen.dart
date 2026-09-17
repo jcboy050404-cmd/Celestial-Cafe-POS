@@ -326,12 +326,12 @@ class _LoginScreenState extends State<LoginScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
-                        border: Border.all(color: CelestialTheme.goldPrimary, width: 1.8),
+                        border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
@@ -640,23 +640,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // 3. Ambient Gold Glow Halo behind Card
-          Center(
-            child: Container(
-              width: 420,
-              height: 420,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.16),
-                    blurRadius: 180,
-                    spreadRadius: 60,
-                  ),
-                ],
-              ),
-            ),
-          ),
+
 
           // 4. Foreground Content with Frosted Glassmorphic Login Card
           Center(
@@ -673,8 +657,8 @@ class _LoginScreenState extends State<LoginScreen>
                       color: const Color(0xFF141210).withValues(alpha: 0.82),
                       borderRadius: BorderRadius.circular(28),
                       border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
-                        width: 1.4,
+                        color: Colors.white.withValues(alpha: 0.12),
+                        width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -682,11 +666,6 @@ class _LoginScreenState extends State<LoginScreen>
                           blurRadius: 40,
                           spreadRadius: 4,
                           offset: const Offset(0, 16),
-                        ),
-                        BoxShadow(
-                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.08),
-                          blurRadius: 30,
-                          spreadRadius: 1,
                         ),
                       ],
                     ),
@@ -703,16 +682,10 @@ class _LoginScreenState extends State<LoginScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.6),
-                        width: 2,
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 1.5,
                       ),
                       boxShadow: [
-                        BoxShadow(
-                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.22),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 4),
-                        ),
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.5),
                           blurRadius: 12,
@@ -754,7 +727,7 @@ class _LoginScreenState extends State<LoginScreen>
                       final pos = Provider.of<PosProvider>(ctx);
                       final displayName = (pos.storeName.isNotEmpty && pos.storeName != 'CELESTIAL CAFE')
                           ? pos.storeName
-                          : 'JC POS System';
+                          : 'JC POS SYSTEM';
                       return Text(
                         displayName,
                         style: GoogleFonts.outfit(

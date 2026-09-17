@@ -11,6 +11,7 @@ import '../theme/celestial_theme.dart';
 import 'cart_panel.dart';
 import 'settings_dialog.dart';
 import 'admin_management_dialog.dart';
+import 'cashier_management_dialog.dart';
 
 class HeaderBar extends StatefulWidget {
   final bool isScrolled;
@@ -166,6 +167,10 @@ class _HeaderBarState extends State<HeaderBar> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (posProvider.pendingSyncCount > 0) ...[
+                    _buildMobileOfflineSyncBadge(context, posProvider),
+                    const SizedBox(width: 4),
+                  ],
                   // Account / Subscription Pill (Mobile)
                   Consumer<AuthService>(
                     builder: (context, auth, _) {
@@ -359,6 +364,11 @@ class _HeaderBarState extends State<HeaderBar> {
             ),
           ),
 
+          if (posProvider.pendingSyncCount > 0) ...[
+            const SizedBox(width: 8),
+            _buildOfflineSyncBadge(context, posProvider),
+          ],
+
           if (MediaQuery.of(context).size.width >= 1100) ...[
             const SizedBox(width: 14),
             // Live Clock
@@ -398,7 +408,6 @@ class _HeaderBarState extends State<HeaderBar> {
     final isAdmin = auth.isAdmin || auth.checkIfAdmin(user?.email ?? '');
     final email = user?.email ?? 'cashier@celestial.com';
     final initial = email.isNotEmpty ? email[0].toUpperCase() : 'C';
-    final trialDays = (user?.hasCustomTrial == true ? user!.customTrialDays : null) ?? auth.defaultTrialDays;
 
     showDialog(
       context: context,
@@ -418,7 +427,7 @@ class _HeaderBarState extends State<HeaderBar> {
               color: CelestialTheme.bgSurface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                color: Colors.white.withValues(alpha: 0.12),
                 width: 1.2,
               ),
               boxShadow: [
@@ -458,12 +467,14 @@ class _HeaderBarState extends State<HeaderBar> {
                           Row(
                             children: [
                               Text(
-                                isAdmin ? 'ADMIN STATION' : 'CASHIER STATION',
+                                isAdmin
+                                    ? 'ADMIN STATION'
+                                    : (user?.isOwner == true ? 'OWNER STATION' : 'CASHIER STATION'),
                                 style: GoogleFonts.outfit(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1.0,
-                                  color: isAdmin ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                                  color: isAdmin || user?.isOwner == true ? CelestialTheme.goldLight : CelestialTheme.textMuted,
                                 ),
                               ),
                               const SizedBox(width: 6),
@@ -504,60 +515,51 @@ class _HeaderBarState extends State<HeaderBar> {
                 ),
 
                 const SizedBox(height: 16),
-                Divider(color: CelestialTheme.borderWarm, height: 1),
-                const SizedBox(height: 14),
 
-                // License & Cloud Status
+                // License Info Card
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: CelestialTheme.bgCard,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Icon(
+                        isAdmin
+                            ? Icons.admin_panel_settings_rounded
+                            : (isPro ? Icons.verified_rounded : Icons.hourglass_top_rounded),
+                        color: isPro || isAdmin ? CelestialTheme.goldPrimary : CelestialTheme.amberBrewing,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              isPro ? Icons.verified_rounded : Icons.timer_outlined,
-                              size: 18,
-                              color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
+                            Text(
+                              isAdmin
+                                  ? 'Administrator Pro Account'
+                                  : (user?.isOwner == true ? 'Store Owner Pro License' : 'Cashier Station Terminal'),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: CelestialTheme.textLight,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                isPro ? 'Pro Active' : '$trialDays-Day Trial License',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: CelestialTheme.textLight,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                            Text(
+                              isAdmin || isPro
+                                  ? 'Full lifetime / enterprise license active'
+                                  : 'Active terminal session',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: CelestialTheme.textMuted,
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: isPro
-                              ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
-                              : CelestialTheme.amberBrewing.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isPro ? 'UNLIMITED' : '${user?.trialDaysRemaining ?? trialDays}D LEFT',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
-                          ),
                         ),
                       ),
                     ],
@@ -567,6 +569,28 @@ class _HeaderBarState extends State<HeaderBar> {
                 const SizedBox(height: 14),
 
                 // Action Options
+                if (auth.isOwner)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          CashierManagementDialog.show(context);
+                        },
+                        icon: const Icon(Icons.people_alt_rounded, size: 16),
+                        label: const Text('Cashier & Staff Management', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: CelestialTheme.goldPrimary,
+                          foregroundColor: CelestialTheme.primaryBtnText,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 if (isAdmin)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -578,7 +602,7 @@ class _HeaderBarState extends State<HeaderBar> {
                           AdminManagementDialog.show(context);
                         },
                         icon: Icon(Icons.admin_panel_settings_rounded, size: 16, color: CelestialTheme.goldLight),
-                        label: Text('Admin Management Console', style: TextStyle(color: CelestialTheme.goldLight, fontSize: 12)),
+                        label: Text('Developer Admin Portal', style: TextStyle(color: CelestialTheme.goldLight, fontSize: 12)),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
                           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -744,16 +768,16 @@ class _HeaderBarState extends State<HeaderBar> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? CelestialTheme.caramelAccent.withValues(alpha: 0.70)
+                ? CelestialTheme.caramelAccent.withValues(alpha: 0.40)
                 : Colors.white.withValues(alpha: 0.04),
             width: 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: CelestialTheme.caramelAccent.withValues(alpha: 0.18),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
@@ -955,6 +979,130 @@ class _HeaderBarState extends State<HeaderBar> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMobileOfflineSyncBadge(BuildContext context, PosProvider posProvider) {
+    final isSyncing = posProvider.isSyncingPendingSales;
+    return Tooltip(
+      message: isSyncing
+          ? 'Syncing offline sales...'
+          : '${posProvider.pendingSyncCount} offline sales pending. Tap to sync.',
+      child: InkWell(
+        onTap: isSyncing
+            ? null
+            : () async {
+                final synced = await posProvider.syncPendingSales();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: CelestialTheme.bgCard,
+                      content: Text(
+                        synced > 0
+                            ? 'Synced $synced offline sale(s) to cloud!'
+                            : (posProvider.pendingSyncCount == 0
+                                ? 'All sales are synced.'
+                                : 'Still offline. Will sync when reconnected.'),
+                      ),
+                    ),
+                  );
+                }
+              },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade900.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.amber.shade400.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isSyncing ? Icons.sync_rounded : Icons.cloud_upload_outlined,
+                size: 11,
+                color: Colors.amber.shade300,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '${posProvider.pendingSyncCount}',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber.shade200,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineSyncBadge(BuildContext context, PosProvider posProvider) {
+    final isSyncing = posProvider.isSyncingPendingSales;
+    return Tooltip(
+      message: isSyncing
+          ? 'Syncing offline sales to cloud...'
+          : '${posProvider.pendingSyncCount} offline sale(s) waiting to sync. Tap to sync now.',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isSyncing
+              ? null
+              : () async {
+                  final synced = await posProvider.syncPendingSales();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: CelestialTheme.bgCard,
+                        content: Text(
+                          synced > 0
+                              ? 'Successfully synced $synced offline sale(s) to cloud!'
+                              : (posProvider.pendingSyncCount == 0
+                                  ? 'All sales are synced with cloud.'
+                                  : 'Could not sync yet. Device is still offline.'),
+                        ),
+                      ),
+                    );
+                  }
+                },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade900.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.amber.shade400.withValues(alpha: 0.6),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isSyncing ? Icons.sync_rounded : Icons.cloud_upload_outlined,
+                  size: 14,
+                  color: Colors.amber.shade300,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  isSyncing ? 'Syncing...' : '${posProvider.pendingSyncCount} Pending Sync',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.amber.shade200,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

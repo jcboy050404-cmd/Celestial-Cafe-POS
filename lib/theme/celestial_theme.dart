@@ -191,11 +191,6 @@ class CelestialTheme {
           blurRadius: isScrolled ? 26 : 20,
           offset: Offset(0, isScrolled ? 8 : 6),
         ),
-        BoxShadow(
-          color: (isLondon ? goldPrimary : caramelAccent).withValues(alpha: isScrolled ? 0.12 : 0.05),
-          blurRadius: isScrolled ? 30 : 24,
-          offset: const Offset(0, 2),
-        ),
       ],
     );
   }
@@ -224,12 +219,6 @@ class CelestialTheme {
           blurRadius: isElevated ? 16 : 8,
           offset: Offset(0, isElevated ? 6 : 3),
         ),
-        if (isHovered)
-          BoxShadow(
-            color: (isLondon ? goldPrimary : caramelAccent).withValues(alpha: 0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
       ],
     );
   }
@@ -248,16 +237,11 @@ class CelestialTheme {
             color: isLondon ? goldPrimary.withValues(alpha: 0.20) : Colors.white.withValues(alpha: 0.10),
             width: 1.0,
           ),
-      boxShadow: [
+      boxShadow: const [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.48),
+          color: Color(0x7A000000),
           blurRadius: 20,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: (isLondon ? goldPrimary : caramelAccent).withValues(alpha: 0.07),
-          blurRadius: 30,
-          offset: const Offset(0, 2),
+          offset: Offset(0, 8),
         ),
       ],
     );

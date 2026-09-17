@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import '../providers/pos_provider.dart';
 import 'inventory_screen.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/cart_panel.dart';
+import '../widgets/category_management_dialog.dart';
 import '../widgets/customization_dialog.dart';
 import '../widgets/menu_item_card.dart';
 import '../widgets/signature_banner_dialog.dart';
@@ -29,11 +32,19 @@ class PosScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final posProvider = Provider.of<PosProvider>(context);
-    final isDesktop = MediaQuery.of(context).size.width >= 1000;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1000;
+    final bool isWindows = (!kIsWeb && Platform.isWindows) || defaultTargetPlatform == TargetPlatform.windows;
+    final bool useLeftCategorySidebar = (isWindows && screenWidth >= 700) || screenWidth >= 1150;
+    final bool showSidebar = useLeftCategorySidebar && posProvider.isCategoryPanelVisible;
 
     return Row(
       children: [
-        // Left Menu Workstation
+        // 1. Left Category Sidebar (Windows & wide desktop workstation)
+        if (showSidebar)
+          _buildLeftCategorySidebar(context, posProvider),
+
+        // 2. Center Menu Workstation
         Expanded(
           child: Container(
             color: Colors.black,
@@ -42,12 +53,21 @@ class PosScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // STICKY Search Bar (Search field + Counter, slide tag buttons removed)
-                    _buildStickySearchBar(context, posProvider),
+                    // STICKY Search Bar (Search field + Counter + Category Sidebar Toggle)
+                    _buildStickySearchBar(
+                      context,
+                      posProvider,
+                      useLeftCategorySidebar: useLeftCategorySidebar,
+                    ),
 
-                    // Scrollable Area (Signature Craft Banner + Categories + Menu Items Grid)
+                    // Scrollable Area (Signature Craft Banner + Categories (if mobile or sidebar hidden) + Menu Items Grid)
                     Expanded(
-                      child: _buildScrollableMenuArea(context, posProvider, isDesktop),
+                      child: _buildScrollableMenuArea(
+                        context,
+                        posProvider,
+                        isDesktop,
+                        showTopCategoryTabs: !showSidebar,
+                      ),
                     ),
                   ],
                 ),
@@ -420,7 +440,11 @@ class PosScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStickySearchBar(BuildContext context, PosProvider provider) {
+  Widget _buildStickySearchBar(
+    BuildContext context,
+    PosProvider provider, {
+    bool useLeftCategorySidebar = false,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       decoration: BoxDecoration(
@@ -434,6 +458,60 @@ class PosScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Sidebar Toggle Button on Desktop / Windows
+          if (useLeftCategorySidebar) ...[
+            Tooltip(
+              message: provider.isCategoryPanelVisible
+                  ? 'Hide Category Panel'
+                  : 'Show Category Panel',
+              child: InkWell(
+                onTap: () => provider.toggleCategoryPanel(),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: provider.isCategoryPanelVisible
+                        ? CelestialTheme.bgCard
+                        : CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: provider.isCategoryPanelVisible
+                          ? CelestialTheme.borderSubtle
+                          : CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        provider.isCategoryPanelVisible
+                            ? Icons.view_sidebar_outlined
+                            : Icons.view_sidebar_rounded,
+                        size: 18,
+                        color: provider.isCategoryPanelVisible
+                            ? CelestialTheme.textMuted
+                            : CelestialTheme.goldLight,
+                      ),
+                      if (!provider.isCategoryPanelVisible) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'Categories',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.goldLight,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           // Search Field
           Expanded(
             child: Container(
@@ -485,6 +563,155 @@ class PosScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeftCategorySidebar(BuildContext context, PosProvider provider) {
+    final tabs = provider.allCategoryTabs;
+
+    return Container(
+      width: 200,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C0A09),
+        border: Border(
+          right: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1.0,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sidebar Header
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.category_rounded, size: 15, color: CelestialTheme.goldLight),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'CATEGORIES',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.9,
+                            color: CelestialTheme.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.tune_rounded, size: 16, color: CelestialTheme.textMuted),
+                      tooltip: 'Manage Categories',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                      splashRadius: 16,
+                      onPressed: () {
+                        CategoryManagementDialog.show(context, provider);
+                      },
+                    ),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      icon: Icon(Icons.first_page_rounded, size: 18, color: CelestialTheme.goldLight),
+                      tooltip: 'Hide Category Panel',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                      splashRadius: 16,
+                      onPressed: () {
+                        provider.toggleCategoryPanel();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+
+          // Vertical Category List
+          Expanded(
+            child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              itemCount: tabs.length,
+              separatorBuilder: (ctx, idx) => const SizedBox(height: 4),
+              itemBuilder: (context, index) {
+                final tab = tabs[index];
+                final isSelected = provider.selectedCategoryId == tab.id ||
+                    (tab.id == 'all' && provider.selectedCategory == ItemCategory.all);
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => provider.setCategoryById(tab.id),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? CelestialTheme.caramelGradient : null,
+                        color: isSelected ? null : (Colors.white.withValues(alpha: 0.02)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? CelestialTheme.caramelAccent.withValues(alpha: 0.6)
+                              : Colors.transparent,
+                          width: 1.0,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (tab.icon.trim().isNotEmpty) ...[
+                            Text(tab.icon, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Text(
+                              tab.label,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelected
+                                    ? CelestialTheme.primaryBtnText
+                                    : CelestialTheme.textLight,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -544,8 +771,10 @@ class PosScreen extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(tab.icon, style: const TextStyle(fontSize: 14)),
-                    const SizedBox(width: 6),
+                    if (tab.icon.trim().isNotEmpty) ...[
+                      Text(tab.icon, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                    ],
                     Text(
                       tab.label,
                       style: TextStyle(
@@ -577,7 +806,12 @@ class PosScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildScrollableMenuArea(BuildContext context, PosProvider provider, bool isDesktop) {
+  Widget _buildScrollableMenuArea(
+    BuildContext context,
+    PosProvider provider,
+    bool isDesktop, {
+    bool showTopCategoryTabs = true,
+  }) {
     final items = provider.filteredMenuItems;
 
     return LayoutBuilder(
@@ -585,25 +819,23 @@ class PosScreen extends StatelessWidget {
         int crossAxisCount = 2;
         double childAspectRatio = 0.70;
 
-        if (constraints.maxWidth > 1600) {
+        if (constraints.maxWidth > 1750) {
           crossAxisCount = 6;
-          childAspectRatio = 0.85;
-        } else if (constraints.maxWidth > 1300) {
+          childAspectRatio = 0.84;
+        } else if (constraints.maxWidth >= 820) {
+          // 5 columns of items for desktop and workstations
           crossAxisCount = 5;
-          childAspectRatio = 0.85;
-        } else if (constraints.maxWidth > 1050) {
-          crossAxisCount = 4;
-          childAspectRatio = 0.82;
-        } else if (constraints.maxWidth > 800) {
-          crossAxisCount = 3;
           childAspectRatio = 0.80;
-        } else if (constraints.maxWidth > 550) {
-          crossAxisCount = 2;
+        } else if (constraints.maxWidth >= 640) {
+          crossAxisCount = 4;
           childAspectRatio = 0.78;
+        } else if (constraints.maxWidth >= 480) {
+          crossAxisCount = 3;
+          childAspectRatio = 0.76;
         } else {
-          // Phones: 2 clean columns
+          // Phones / compact screens: 2 clean columns
           crossAxisCount = 2;
-          childAspectRatio = 0.75;
+          childAspectRatio = 0.74;
         }
 
         return CustomScrollView(
@@ -618,10 +850,11 @@ class PosScreen extends StatelessWidget {
                 ),
               ),
 
-            // 2. Category Tabs Bar
-            SliverToBoxAdapter(
-              child: _buildCategoryTabs(provider),
-            ),
+            // 2. Category Tabs Bar (Only when left sidebar is not active)
+            if (showTopCategoryTabs)
+              SliverToBoxAdapter(
+                child: _buildCategoryTabs(provider),
+              ),
 
             // 3. Menu Items Grid or Empty State
             if (items.isEmpty)

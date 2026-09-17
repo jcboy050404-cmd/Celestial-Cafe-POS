@@ -15,17 +15,18 @@ class CategoryManagementDialog {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
-            final customCategories = provider.customCategories;
+            final categories = provider.allCategoryTabs.where((t) => t.id != 'all').toList();
 
             return Dialog(
               backgroundColor: CelestialTheme.bgSurface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: Container(
-                width: 580,
+                width: MediaQuery.of(context).size.width < 620 ? double.infinity : 580,
                 constraints: BoxConstraints(
+                  maxWidth: 580,
                   maxHeight: MediaQuery.of(context).size.height * 0.85,
                 ),
                 padding: const EdgeInsets.all(24),
@@ -41,7 +42,7 @@ class CategoryManagementDialog {
                           decoration: BoxDecoration(
                             color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                           ),
                           child: Icon(Icons.category_rounded, color: CelestialTheme.goldLight, size: 22),
                         ),
@@ -89,7 +90,7 @@ class CategoryManagementDialog {
                               );
                             },
                             icon: const Icon(Icons.add_rounded, size: 18),
-                            label: const Text('Create Custom Category'),
+                            label: const Text('Create Category'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: CelestialTheme.goldPrimary,
                               foregroundColor: CelestialTheme.primaryBtnText,
@@ -114,7 +115,7 @@ class CategoryManagementDialog {
                           label: const Text('Reset Categories', style: TextStyle(fontSize: 12)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: CelestialTheme.goldLight,
-                            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
                             minimumSize: const Size(0, 42),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -127,7 +128,7 @@ class CategoryManagementDialog {
                     const SizedBox(height: 12),
 
                     Text(
-                      'All Categories (${provider.allCategoryTabs.length - 1})',
+                      'All Categories (${categories.length})',
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -141,50 +142,53 @@ class CategoryManagementDialog {
                       child: ListView(
                         shrinkWrap: true,
                         children: [
-                          // Section: Custom Categories
-                          if (customCategories.isNotEmpty) ...[
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 6, top: 4),
-                              child: Text(
-                                'CUSTOM CATEGORIES',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: CelestialTheme.goldLight,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ),
-                            ...customCategories.map((cc) {
-                              final count = provider.menuItems.where((i) => i.customCategory == cc.name).length;
+                          if (categories.isNotEmpty) ...[
+                            ...categories.map((cat) {
+                              final count = provider.menuItems.where((i) {
+                                if (cat.isCustom) {
+                                  return i.customCategory == cat.label || i.customCategory == cat.id;
+                                } else {
+                                  final enumMatch = ItemCategory.values.firstWhere(
+                                    (c) => c.name == cat.id,
+                                    orElse: () => ItemCategory.custom,
+                                  );
+                                  return i.category == enumMatch && (i.customCategory == null || i.customCategory!.isEmpty);
+                                }
+                              }).length;
+
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: CelestialTheme.bgCard,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.25)),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                                 ),
                                 child: Row(
                                   children: [
-                                    Text(cc.icon, style: const TextStyle(fontSize: 20)),
-                                    const SizedBox(width: 12),
+                                    if (cat.icon.trim().isNotEmpty) ...[
+                                      Text(cat.icon, style: const TextStyle(fontSize: 20)),
+                                      const SizedBox(width: 12),
+                                    ],
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
-                                              Text(
-                                                cc.name,
-                                                style: GoogleFonts.outfit(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: CelestialTheme.textLight,
+                                              Flexible(
+                                                child: Text(
+                                                  cat.label,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: CelestialTheme.textLight,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
-                                              const SizedBox(width: 8),
-                                              if (cc.isKitchenDish)
+                                              if (cat.isKitchenDish) ...[
+                                                const SizedBox(width: 8),
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
@@ -201,8 +205,10 @@ class CategoryManagementDialog {
                                                     ),
                                                   ),
                                                 ),
+                                              ],
                                             ],
                                           ),
+                                          const SizedBox(height: 2),
                                           Text(
                                             '$count item(s) in this category',
                                             style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
@@ -217,7 +223,7 @@ class CategoryManagementDialog {
                                         showCreateOrEditCategoryModal(
                                           dialogCtx,
                                           provider,
-                                          editCategory: cc,
+                                          editTab: cat,
                                           onSaved: () {
                                             setDialogState(() {});
                                             onUpdated?.call();
@@ -232,7 +238,7 @@ class CategoryManagementDialog {
                                         confirmDeleteCategory(
                                           dialogCtx,
                                           provider,
-                                          cc,
+                                          tab: cat,
                                           onDeleted: () {
                                             setDialogState(() {});
                                             onUpdated?.call();
@@ -244,59 +250,52 @@ class CategoryManagementDialog {
                                 ),
                               );
                             }),
-                            const SizedBox(height: 8),
                           ],
 
-                          // Section: System Built-in Categories
-                          Padding(
-                            padding: EdgeInsets.only(bottom: 6, top: 8),
-                            child: Text(
-                              'SYSTEM CATEGORIES',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: CelestialTheme.textMuted,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          ...ItemCategory.values.where((c) => c != ItemCategory.all && c != ItemCategory.custom).map((c) {
-                            final count = provider.menuItems.where((i) => i.category == c && (i.customCategory == null || i.customCategory!.isEmpty)).length;
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.03),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                              ),
-                              child: Row(
+                          // Empty State when no categories exist
+                          if (categories.isEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                              alignment: Alignment.center,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(c.icon, style: const TextStyle(fontSize: 18)),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      c.label,
-                                      style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
-                                    ),
-                                  ),
+                                  Icon(Icons.category_outlined, size: 44, color: CelestialTheme.textMuted.withValues(alpha: 0.4)),
+                                  const SizedBox(height: 12),
                                   Text(
-                                    '$count items',
-                                    style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white10,
-                                      borderRadius: BorderRadius.circular(4),
+                                    'No Categories in Catalog',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: CelestialTheme.textLight,
                                     ),
-                                    child: const Text('SYSTEM', style: TextStyle(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'All categories have been removed.\nClick "Create Category" above to add your own, or restore the default cafe categories below.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted, height: 1.4),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      await provider.restoreSystemCategories();
+                                      setDialogState(() {});
+                                      onUpdated?.call();
+                                    },
+                                    icon: const Icon(Icons.restore_rounded, size: 16),
+                                    label: const Text('Restore Default Categories', style: TextStyle(fontSize: 12)),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: CelestialTheme.goldLight,
+                                      side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
                                   ),
                                 ],
                               ),
-                            );
-                          }),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -313,15 +312,21 @@ class CategoryManagementDialog {
   static void showCreateOrEditCategoryModal(
     BuildContext context,
     PosProvider provider, {
+    CategoryTabItem? editTab,
     CustomCategory? editCategory,
     required VoidCallback onSaved,
   }) {
-    final isEditing = editCategory != null;
-    final nameCtrl = TextEditingController(text: editCategory?.name ?? '');
-    String selectedIcon = editCategory?.icon ?? '🍰';
-    bool isKitchen = editCategory?.isKitchenDish ?? false;
+    final isEditing = editTab != null || editCategory != null;
+    final catId = editTab?.id ?? editCategory?.id ?? '';
+    final initialName = editTab?.label ?? editCategory?.name ?? '';
+    final initialIcon = editTab?.icon ?? editCategory?.icon ?? '🍰';
+    final initialKitchen = editTab?.isKitchenDish ?? editCategory?.isKitchenDish ?? false;
 
-    const emojiPresets = ['🍰', '🍨', '🥞', '🍳', '🥩', '🍱', '🥤', '🧃', '🥐', '🍕', '🥗', '🏷️', '🍪', '🍩', '🍫', '🍿'];
+    final nameCtrl = TextEditingController(text: initialName);
+    String selectedIcon = initialIcon;
+    bool isKitchen = initialKitchen;
+
+    const emojiPresets = ['🍰', '☕', '🍵', '🧋', '🥤', '🍟', '🍝', '🥪', '🍛', '🍨', '🥞', '🍳', '🥩', '🍱', '🧃', '🥐', '🍕', '🥗', '🏷️', '🍪', '🍩', '🍫', '🍿'];
 
     showDialog(
       context: context,
@@ -332,100 +337,159 @@ class CategoryManagementDialog {
               backgroundColor: CelestialTheme.bgSurface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
               ),
-              title: Text(isEditing ? 'Edit Category' : 'New Custom Category'),
+              title: Text(isEditing ? 'Edit Category' : 'New Category'),
               titleTextStyle: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: CelestialTheme.goldLight,
               ),
-              content: SizedBox(
-                width: 400,
+              content: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 400,
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                ),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextField(
-                      controller: nameCtrl,
-                      autofocus: true,
-                      style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
-                      decoration: InputDecoration(
-                        labelText: 'Category Name',
-                        hintText: 'e.g. Desserts, Breakfast, Specials...',
-                        labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
-                        filled: true,
-                        fillColor: CelestialTheme.bgCard,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        controller: nameCtrl,
+                        autofocus: true,
+                        style: TextStyle(fontSize: 13, color: CelestialTheme.textLight),
+                        decoration: InputDecoration(
+                          labelText: 'Category Name',
+                          hintText: 'e.g. Desserts, Breakfast, Specials...',
+                          labelStyle: TextStyle(fontSize: 12, color: CelestialTheme.textMuted),
+                          filled: true,
+                          fillColor: CelestialTheme.bgCard,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
+                      const SizedBox(height: 14),
 
-                    Text(
-                      'Choose Category Icon / Emoji',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CelestialTheme.textMuted),
-                    ),
-                    const SizedBox(height: 8),
-
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: emojiPresets.map((emoji) {
-                        final isSel = selectedIcon == emoji;
-                        return InkWell(
-                          onTap: () => setModalState(() => selectedIcon = emoji),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isSel ? CelestialTheme.goldPrimary.withValues(alpha: 0.3) : CelestialTheme.bgCard,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSel ? CelestialTheme.goldPrimary : Colors.white12,
-                                width: isSel ? 1.5 : 1.0,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Choose Category Icon / Emoji',
+                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CelestialTheme.textMuted),
+                          ),
+                          if (selectedIcon.trim().isNotEmpty)
+                            InkWell(
+                              onTap: () => setModalState(() => selectedIcon = ''),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.block_rounded, size: 12, color: CelestialTheme.roseAlert),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'No Emoji',
+                                      style: TextStyle(fontSize: 11, color: CelestialTheme.roseAlert, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            child: Text(emoji, style: const TextStyle(fontSize: 18)),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // KDS Kitchen Routing Switch
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: CelestialTheme.bgCard,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.soup_kitchen_rounded, color: Color(0xFFFF7043), size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Route to Kitchen (KDS)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CelestialTheme.textLight)),
-                                Text('Kitchen display screens will receive orders for this category', style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted)),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: isKitchen,
-                            activeThumbColor: const Color(0xFFFF7043),
-                            onChanged: (val) => setModalState(() => isKitchen = val),
-                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 8),
+
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          // Option for No Emoji (Text Only)
+                          InkWell(
+                            onTap: () => setModalState(() => selectedIcon = ''),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Tooltip(
+                              message: 'No Emoji (Text only)',
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: selectedIcon.trim().isEmpty
+                                      ? CelestialTheme.goldPrimary.withValues(alpha: 0.3)
+                                      : CelestialTheme.bgCard,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: selectedIcon.trim().isEmpty ? CelestialTheme.goldPrimary : Colors.white12,
+                                    width: selectedIcon.trim().isEmpty ? 1.5 : 1.0,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.block_rounded,
+                                  size: 18,
+                                  color: selectedIcon.trim().isEmpty
+                                      ? CelestialTheme.goldLight
+                                      : CelestialTheme.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          ...emojiPresets.map((emoji) {
+                            final isSel = selectedIcon == emoji;
+                            return InkWell(
+                              onTap: () => setModalState(() => selectedIcon = emoji),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSel ? CelestialTheme.goldPrimary.withValues(alpha: 0.3) : CelestialTheme.bgCard,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSel ? CelestialTheme.goldPrimary : Colors.white12,
+                                    width: isSel ? 1.5 : 1.0,
+                                  ),
+                                ),
+                                child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // KDS Kitchen Routing Switch
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: CelestialTheme.bgCard,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.soup_kitchen_rounded, color: Color(0xFFFF7043), size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Route to Kitchen (KDS)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CelestialTheme.textLight)),
+                                  Text('Kitchen display screens will receive orders for this category', style: TextStyle(fontSize: 10, color: CelestialTheme.textMuted)),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: isKitchen,
+                              activeThumbColor: const Color(0xFFFF7043),
+                              onChanged: (val) => setModalState(() => isKitchen = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -439,8 +503,8 @@ class CategoryManagementDialog {
                     if (cleanName.isEmpty) return;
 
                     if (isEditing) {
-                      provider.updateCustomCategory(
-                        editCategory.id,
+                      provider.updateCategory(
+                        catId,
                         name: cleanName,
                         icon: selectedIcon,
                         isKitchenDish: isKitchen,
@@ -472,23 +536,27 @@ class CategoryManagementDialog {
 
   static void confirmDeleteCategory(
     BuildContext context,
-    PosProvider provider,
-    CustomCategory category, {
+    PosProvider provider, {
+    CategoryTabItem? tab,
+    CustomCategory? category,
     required VoidCallback onDeleted,
   }) {
+    final catId = tab?.id ?? category?.id ?? '';
+    final catName = tab?.label ?? category?.name ?? '';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: CelestialTheme.bgSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete "${category.name}"?'),
+        title: Text('Delete "$catName"?'),
         titleTextStyle: GoogleFonts.outfit(
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: CelestialTheme.roseAlert,
         ),
         content: Text(
-          'Any menu items assigned to "${category.name}" will remain safe and be moved to the Coffee category.',
+          'Any menu items in "$catName" will remain safe and be accessible under "All Items".',
           style: TextStyle(fontSize: 12.5, color: CelestialTheme.textLight),
         ),
         actions: [
@@ -498,7 +566,7 @@ class CategoryManagementDialog {
           ),
           ElevatedButton(
             onPressed: () {
-              provider.deleteCustomCategory(category.id);
+              provider.deleteCategory(catId, name: catName);
               Navigator.pop(ctx);
               onDeleted();
             },
@@ -524,25 +592,25 @@ class CategoryManagementDialog {
         backgroundColor: CelestialTheme.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
         ),
         title: Row(
           children: [
             Icon(Icons.restart_alt_rounded, color: CelestialTheme.goldLight, size: 22),
             const SizedBox(width: 8),
             Text(
-              'Reset Categories & Menu?',
+              'Reset Categories to Default?',
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: CelestialTheme.goldLight,
+                color: CelestialTheme.textLight,
               ),
             ),
           ],
         ),
         content: Text(
-          'This will clear all custom categories and reload the default cafe menu catalog with all original items (Coffee, Non Espresso, Milktea, Frappe, Cheesecake Series, Street Bites, Pasta, Sandwich, Dinner).\n\nActive orders will be preserved.',
-          style: TextStyle(fontSize: 12.5, color: CelestialTheme.textLight, height: 1.4),
+          'This will restore all default cafe categories (Coffee, Non Espresso, Milktea, Frappe, Cheesecake Series, Street Bites, Pasta Dishes, Sandwich, Dinner).\n\nExisting menu items will remain intact and will be re-aligned with the default categories.',
+          style: TextStyle(fontSize: 12.5, color: CelestialTheme.textMuted, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -551,12 +619,12 @@ class CategoryManagementDialog {
           ),
           ElevatedButton.icon(
             onPressed: () async {
-              await provider.resetCategoriesAndMenu();
+              await provider.restoreSystemCategories();
               if (ctx.mounted) Navigator.pop(ctx);
               onReset();
             },
-            icon: const Icon(Icons.check_rounded, size: 16),
-            label: const Text('Reset to Defaults'),
+            icon: const Icon(Icons.restart_alt_rounded, size: 16),
+            label: const Text('Reset Categories'),
             style: ElevatedButton.styleFrom(
               backgroundColor: CelestialTheme.goldPrimary,
               foregroundColor: CelestialTheme.primaryBtnText,

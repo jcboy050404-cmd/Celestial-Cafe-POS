@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "jc-pos-system",
     "public": "build/web",
     "ignore": [
       "firebase.json",

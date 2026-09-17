@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../firebase_options.dart';
+import '../models/menu_item.dart';
+import '../models/order.dart';
 import 'auth_service.dart';
 
 /// Service responsible for managing Cloud Backup & Restore for PRO users.
@@ -21,6 +25,7 @@ class CloudBackupService {
 
   static const String _rtdbUrl =
       'https://celestial-cafe-pos-2026-default-rtdb.asia-southeast1.firebasedatabase.app';
+  static const String _pendingSalesQueuePrefix = 'pending_sales_sync_';
 
   static String get _storageBucket =>
       DefaultFirebaseOptions.currentPlatform.storageBucket ??
@@ -36,8 +41,21 @@ class CloudBackupService {
     return email.trim().toLowerCase().replaceAll('.', ',');
   }
 
+  static bool get _isFlutterTest {
+    if (kIsWeb) return false;
+    try {
+      return Platform.environment.containsKey('FLUTTER_TEST');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool? isOnlineOverride;
+
   /// Checks if internet connectivity is available
   Future<bool> _isOnline() async {
+    if (isOnlineOverride != null) return isOnlineOverride!;
+    if (_isFlutterTest) return false;
     if (kIsWeb) return true;
     try {
       final res = await http
@@ -190,4 +208,281 @@ class CloudBackupService {
     }
     return null;
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ── Monthly Sales Transactions Cloud Sync ────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+
+  String _pendingSalesQueueKey(String email) =>
+      '$_pendingSalesQueuePrefix${_sanitizeEmailKey(email)}';
+
+  /// Retrieves list of orders waiting in the offline sync queue.
+  Future<List<Order>> getPendingOrders(String userEmail) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _pendingSalesQueueKey(cleanEmail);
+      final rawList = prefs.getStringList(key) ?? [];
+      final orders = <Order>[];
+      for (final raw in rawList) {
+        try {
+          final decoded = json.decode(raw);
+          if (decoded is Map<String, dynamic>) {
+            orders.add(Order.fromJson(decoded));
+          }
+        } catch (e) {
+          debugPrint('CloudBackup: Error parsing queued order: $e');
+        }
+      }
+      return orders;
+    } catch (e) {
+      debugPrint('CloudBackup: Error reading pending queue: $e');
+      return [];
+    }
+  }
+
+  /// Gets the count of pending sales awaiting sync
+  Future<int> getPendingSalesCount(String userEmail) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _pendingSalesQueueKey(cleanEmail);
+      return (prefs.getStringList(key) ?? []).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Enqueues an order to be synced to the cloud when offline or upload failed
+  Future<void> enqueuePendingOrder({
+    required String userEmail,
+    required Order order,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _pendingSalesQueueKey(cleanEmail);
+      final rawList = prefs.getStringList(key) ?? [];
+      final alreadyQueued = rawList.any((str) {
+        try {
+          final decoded = json.decode(str);
+          return decoded['id'] == order.id;
+        } catch (_) {
+          return false;
+        }
+      });
+      if (!alreadyQueued) {
+        rawList.add(json.encode(order.toJson()));
+        await prefs.setStringList(key, rawList);
+        debugPrint(
+          'CloudBackup: Enqueued order ${order.orderNumber} (${order.id}) for later cloud sync. Total queued: ${rawList.length}',
+        );
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Error enqueueing pending order: $e');
+    }
+  }
+
+  /// Removes an order from the pending queue after successful sync
+  Future<void> dequeuePendingOrder({
+    required String userEmail,
+    required String orderId,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _pendingSalesQueueKey(cleanEmail);
+      final rawList = prefs.getStringList(key) ?? [];
+      final originalLength = rawList.length;
+      rawList.removeWhere((str) {
+        try {
+          final decoded = json.decode(str);
+          return decoded['id'] == orderId;
+        } catch (_) {
+          return false;
+        }
+      });
+      if (rawList.length != originalLength) {
+        await prefs.setStringList(key, rawList);
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Error dequeuing pending order: $e');
+    }
+  }
+
+  /// Synchronizes all queued pending sales to Firebase.
+  /// Returns the number of successfully synced orders.
+  Future<int> syncPendingSalesQueue({
+    required String userEmail,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return 0;
+
+    final queued = await getPendingOrders(cleanEmail);
+    if (queued.isEmpty) return 0;
+
+    final online = await _isOnline();
+    if (!online) {
+      debugPrint('CloudBackup: Device is offline. Deferring sync of ${queued.length} orders.');
+      return 0;
+    }
+
+    int syncedCount = 0;
+    for (final order in queued) {
+      final ok = await recordMonthlySaleTransaction(
+        userEmail: cleanEmail,
+        order: order,
+      );
+      if (ok) {
+        syncedCount++;
+        await dequeuePendingOrder(userEmail: cleanEmail, orderId: order.id);
+      } else {
+        // Stop early if connection failed during the batch
+        break;
+      }
+    }
+
+    debugPrint('CloudBackup: Successfully synced $syncedCount offline orders to cloud.');
+    return syncedCount;
+  }
+
+  /// Records a completed sales transaction in Firebase Realtime Database
+  /// under: /sales_history/<emailKey>/<YYYY-MM>/<orderId>.json
+  Future<bool> recordMonthlySaleTransaction({
+    required String userEmail,
+    required Order order,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return false;
+
+    try {
+      final emailKey = _sanitizeEmailKey(cleanEmail);
+      final yearMonth =
+          '${order.createdAt.year.toString().padLeft(4, '0')}-${order.createdAt.month.toString().padLeft(2, '0')}';
+
+      final uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth/${order.id}.json');
+      final res = await http.put(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(order.toJson()),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        debugPrint('CloudBackup: Recorded sale ${order.orderNumber} under $yearMonth for $cleanEmail');
+        await dequeuePendingOrder(userEmail: cleanEmail, orderId: order.id);
+        return true;
+      } else {
+        debugPrint('CloudBackup: Failed to record sale ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Sale record error: $e');
+    }
+    return false;
+  }
+
+  /// Fetches monthly sales history from Firebase Realtime Database
+  /// for a specific month (e.g. '2026-09')
+  Future<List<Order>> fetchMonthlySalesHistory({
+    required String userEmail,
+    required String yearMonth,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return [];
+
+    try {
+      final emailKey = _sanitizeEmailKey(cleanEmail);
+      final uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth.json');
+
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
+        final decoded = json.decode(res.body);
+        if (decoded is Map<String, dynamic>) {
+          final orders = <Order>[];
+          decoded.forEach((key, value) {
+            if (value is Map<String, dynamic>) {
+              try {
+                orders.add(Order.fromJson(value));
+              } catch (e) {
+                debugPrint('CloudBackup: Error parsing order $key: $e');
+              }
+            }
+          });
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return orders;
+        }
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Failed to fetch monthly sales: $e');
+    }
+    return [];
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ── Menu Catalog & Categories Cloud Sync ─────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Synchronizes full menu items and custom categories to Firebase Realtime Database
+  /// under: /menu_catalog/<emailKey>.json
+  Future<bool> syncMenuToCloud({
+    required String userEmail,
+    required List<MenuItem> menuItems,
+    required List<CustomCategory> customCategories,
+  }) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return false;
+
+    try {
+      final emailKey = _sanitizeEmailKey(cleanEmail);
+      final uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+
+      final payload = {
+        'updatedAt': DateTime.now().toIso8601String(),
+        'menuItems': menuItems.map((m) => m.toJson()).toList(),
+        'customCategories': customCategories.map((c) => c.toJson()).toList(),
+      };
+
+      final res = await http.put(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        debugPrint('CloudBackup: Successfully synced menu catalog to Firebase for $cleanEmail');
+        return true;
+      } else {
+        debugPrint('CloudBackup: Failed to sync menu: ${res.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Menu sync error: $e');
+    }
+    return false;
+  }
+
+  /// Fetches cloud menu catalog and categories for the given user email.
+  Future<Map<String, dynamic>?> fetchMenuFromCloud(String userEmail) async {
+    final cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return null;
+
+    try {
+      final emailKey = _sanitizeEmailKey(cleanEmail);
+      final uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
+        final data = json.decode(res.body);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+      }
+    } catch (e) {
+      debugPrint('CloudBackup: Fetch menu error: $e');
+    }
+    return null;
+  }
 }
+

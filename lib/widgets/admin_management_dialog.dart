@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/app_feature.dart';
+import '../models/order.dart';
 import '../services/auth_service.dart';
+import '../services/cloud_backup_service.dart';
 import '../theme/celestial_theme.dart';
+import 'create_pin_dialog.dart';
 
 class AdminManagementDialog extends StatefulWidget {
   const AdminManagementDialog({super.key});
@@ -34,6 +38,25 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
   String _searchQuery = '';
   String _tierFilter = 'all'; // 'all', 'trial', 'pro'
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final auth = Provider.of<AuthService>(context, listen: false);
+        auth.syncManagedAccountsFromCloud();
+      }
+    });
+  }
+
+  void _showClientSalesHistoryDialog(BuildContext context, AppUser account) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      builder: (ctx) => _ClientSalesHistoryDialog(account: account),
+    );
+  }
+
   void _showCustomTrialDialog(BuildContext context, AuthService auth, AppUser account) {
     final initialDays = account.effectiveTrialDays(auth.defaultTrialDays);
     final daysController = TextEditingController(text: initialDays.toString());
@@ -59,7 +82,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                 color: CelestialTheme.bgSurface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                  color: Colors.white.withValues(alpha: 0.12),
                   width: 1.2,
                 ),
                 boxShadow: [
@@ -411,7 +434,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                 color: CelestialTheme.bgSurface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.5),
+                  color: Colors.white.withValues(alpha: 0.12),
                   width: 1.2,
                 ),
                 boxShadow: [
@@ -650,13 +673,20 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                                             borderRadius: BorderRadius.circular(4),
                                             border: Border.all(color: CelestialTheme.roseAlert.withValues(alpha: 0.3)),
                                           ),
-                                          child: Text(
-                                            'HIDDEN',
-                                            style: TextStyle(
-                                              fontSize: 8.5,
-                                              fontWeight: FontWeight.bold,
-                                              color: CelestialTheme.roseAlert,
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.lock_rounded, size: 7.5, color: CelestialTheme.roseAlert),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                'LOCKED',
+                                                style: TextStyle(
+                                                  fontSize: 8.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: CelestialTheme.roseAlert,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -1218,7 +1248,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
           color: CelestialTheme.bgSurface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: CelestialTheme.goldPrimary.withValues(alpha: 0.4),
+            color: Colors.white.withValues(alpha: 0.12),
             width: 1.2,
           ),
           boxShadow: [
@@ -1495,7 +1525,40 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              tooltip: 'Sync Cloud Accounts',
+                              onPressed: auth.isSyncingCloudAccounts
+                                  ? null
+                                  : () async {
+                                      final ok = await auth.syncManagedAccountsFromCloud();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            backgroundColor: CelestialTheme.bgCard,
+                                            content: Text(ok ? 'Cloud accounts synchronized.' : 'Cloud sync failed. Check connection.'),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    },
+                              icon: auth.isSyncingCloudAccounts
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
+                                    )
+                                  : Icon(Icons.cloud_sync_rounded, color: CelestialTheme.goldLight, size: 18),
+                              style: IconButton.styleFrom(
+                                backgroundColor: CelestialTheme.bgCard,
+                                padding: const EdgeInsets.all(8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: CelestialTheme.borderSubtle),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             ElevatedButton.icon(
                               onPressed: () => _showAddAccountDialog(context, auth),
                               icon: const Icon(Icons.add_rounded, size: 15),
@@ -1557,6 +1620,41 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                               _buildFilterButton('Trial', 'trial'),
                               _buildFilterButton('Pro', 'pro'),
                             ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: auth.isSyncingCloudAccounts
+                              ? null
+                              : () async {
+                                  final ok = await auth.syncManagedAccountsFromCloud();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        backgroundColor: CelestialTheme.bgCard,
+                                        content: Text(ok ? 'Cloud accounts synchronized.' : 'Cloud sync failed. Check connection.'),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                          icon: auth.isSyncingCloudAccounts
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
+                                )
+                              : Icon(Icons.cloud_sync_rounded, size: 16, color: CelestialTheme.goldLight),
+                          label: Text(
+                            auth.isSyncingCloudAccounts ? 'Syncing...' : 'Sync Cloud',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 12, color: CelestialTheme.goldLight),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: CelestialTheme.goldLight,
+                            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
+                            backgroundColor: CelestialTheme.bgCard,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1770,14 +1868,19 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                       backgroundColor: isPro
                           ? CelestialTheme.goldPrimary
                           : (isExpired ? CelestialTheme.roseAlert.withValues(alpha: 0.2) : CelestialTheme.brownRich),
-                      child: Text(
-                        initial,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isPro ? CelestialTheme.bgDark : CelestialTheme.textLight,
-                        ),
-                      ),
+                      backgroundImage: (account.photoUrl != null && account.photoUrl!.isNotEmpty)
+                          ? NetworkImage(account.photoUrl!)
+                          : null,
+                      child: (account.photoUrl != null && account.photoUrl!.isNotEmpty)
+                          ? null
+                          : Text(
+                              initial,
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isPro ? CelestialTheme.bgDark : CelestialTheme.textLight,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1905,7 +2008,7 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
 
                 const SizedBox(height: 10),
 
-                // Action Buttons Row (Full width distributed buttons)
+                // Action Buttons (Row 1: Tier & Trial controls)
                 Row(
                   children: [
                     if (!isPro) ...[
@@ -1955,7 +2058,12 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Action Buttons (Row 2: Features & Reset PIN)
+                Row(
+                  children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _showAccountFeaturesDialog(context, auth, account),
@@ -1975,7 +2083,57 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          CreatePinDialog.show(
+                            context,
+                            email: account.email,
+                            displayName: account.displayName,
+                            isUpdate: true,
+                          );
+                        },
+                        icon: const Icon(Icons.pin_outlined, size: 14),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Reset PIN',
+                            style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CelestialTheme.goldLight,
+                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                // Action Buttons (Row 3: View Sales History)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showClientSalesHistoryDialog(context, account),
+                    icon: Icon(Icons.receipt_long_rounded, size: 14, color: CelestialTheme.goldLight),
+                    label: Text(
+                      'View Sales History',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: CelestialTheme.goldLight,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CelestialTheme.goldLight,
+                      side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
                 ),
               ],
             )
@@ -1987,14 +2145,19 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                   backgroundColor: isPro
                       ? CelestialTheme.goldPrimary
                       : (isExpired ? CelestialTheme.roseAlert.withValues(alpha: 0.2) : CelestialTheme.brownRich),
-                  child: Text(
-                    initial,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isPro ? CelestialTheme.bgDark : CelestialTheme.textLight,
-                    ),
-                  ),
+                  backgroundImage: (account.photoUrl != null && account.photoUrl!.isNotEmpty)
+                      ? NetworkImage(account.photoUrl!)
+                      : null,
+                  child: (account.photoUrl != null && account.photoUrl!.isNotEmpty)
+                      ? null
+                      : Text(
+                          initial,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isPro ? CelestialTheme.bgDark : CelestialTheme.textLight,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 14),
 
@@ -2005,12 +2168,15 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            account.displayName,
-                            style: GoogleFonts.outfit(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: CelestialTheme.textLight,
+                          Flexible(
+                            child: Text(
+                              account.displayName,
+                              style: GoogleFonts.outfit(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: CelestialTheme.textLight,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (account.isAdmin) ...[
@@ -2068,20 +2234,23 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
                                 : (isExpired ? CelestialTheme.roseAlert : CelestialTheme.amberBrewing),
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            isPro
-                                ? 'Active Pro Lifetime / Monthly License'
-                                : (isExpired
-                                    ? (totalDays == 0
-                                        ? 'Trial Concluded (0 Days Remaining)'
-                                        : 'Trial Expired (0 of $totalDays days remaining)')
-                                    : '$remainingDays Days Remaining (of $totalDays ${isCustom ? "custom" : "default"} days)'),
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isPro
-                                  ? CelestialTheme.emeraldReady
-                                  : (isExpired ? CelestialTheme.roseAlert : CelestialTheme.amberBrewing),
+                          Flexible(
+                            child: Text(
+                              isPro
+                                  ? 'Active Pro Lifetime / Monthly License'
+                                  : (isExpired
+                                      ? (totalDays == 0
+                                          ? 'Trial Concluded (0 Days Remaining)'
+                                          : 'Trial Expired (0 of $totalDays days remaining)')
+                                      : '$remainingDays Days Remaining (of $totalDays ${isCustom ? "custom" : "default"} days)'),
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isPro
+                                    ? CelestialTheme.emeraldReady
+                                    : (isExpired ? CelestialTheme.roseAlert : CelestialTheme.amberBrewing),
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -2092,69 +2261,563 @@ class _AdminManagementDialogState extends State<AdminManagementDialog> {
 
                 const SizedBox(width: 12),
 
-                // Features Permissions Button
-                OutlinedButton.icon(
-                  onPressed: () => _showAccountFeaturesDialog(context, auth, account),
-                  icon: const Icon(Icons.tune_rounded, size: 15),
-                  label: Text(
-                    'Features',
-                    style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
+                // Action Buttons (Horizontally scrollable if viewport is tight)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Features Permissions Button
+                      OutlinedButton.icon(
+                        onPressed: () => _showAccountFeaturesDialog(context, auth, account),
+                        icon: const Icon(Icons.tune_rounded, size: 15),
+                        label: Text(
+                          'Features',
+                          style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CelestialTheme.textLight,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Reset Station PIN Button
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          CreatePinDialog.show(
+                            context,
+                            email: account.email,
+                            displayName: account.displayName,
+                            isUpdate: true,
+                          );
+                        },
+                        icon: Icon(Icons.pin_outlined, size: 15, color: CelestialTheme.goldLight),
+                        label: Text(
+                          'Reset PIN',
+                          style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CelestialTheme.goldLight,
+                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.3)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // View Sales History Button
+                      OutlinedButton.icon(
+                        onPressed: () => _showClientSalesHistoryDialog(context, account),
+                        icon: Icon(Icons.receipt_long_rounded, size: 15, color: CelestialTheme.goldLight),
+                        label: Text(
+                          'Sales',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.goldLight,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CelestialTheme.goldLight,
+                          side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.35)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Custom Input Trial Action Button
+                      if (!isPro) ...[
+                        OutlinedButton.icon(
+                          onPressed: () => _showCustomTrialDialog(context, auth, account),
+                          icon: const Icon(Icons.edit_calendar_rounded, size: 15),
+                          label: Text(
+                            isCustom ? 'Custom Trial ($totalDays d)' : 'Set Custom ($totalDays d)',
+                            style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: CelestialTheme.goldLight,
+                            side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+
+                      // Tier Switcher (Trial <-> Pro)
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final newTier = isPro ? SubscriptionTier.trial : SubscriptionTier.pro;
+                          await auth.updateAccountTier(account.uid, newTier);
+                        },
+                        icon: Icon(
+                          isPro ? Icons.arrow_downward_rounded : Icons.star_rounded,
+                          size: 14,
+                        ),
+                        label: Text(
+                          isPro ? 'Set Trial' : 'Make Pro',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isPro ? CelestialTheme.brownRich : CelestialTheme.goldPrimary,
+                          foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.primaryBtnText,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      deleteButton,
+                    ],
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: CelestialTheme.textLight,
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _ClientSalesHistoryDialog extends StatefulWidget {
+  final AppUser account;
+  const _ClientSalesHistoryDialog({required this.account});
+
+  @override
+  State<_ClientSalesHistoryDialog> createState() => _ClientSalesHistoryDialogState();
+}
+
+class _ClientSalesHistoryDialogState extends State<_ClientSalesHistoryDialog> {
+  late String _selectedYearMonth;
+  late List<String> _availableMonths;
+  bool _isLoading = true;
+  List<Order> _orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedYearMonth =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    _availableMonths = List.generate(6, (i) {
+      final d = DateTime(now.year, now.month - i, 1);
+      return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
+    });
+    _loadSales();
+  }
+
+  Future<void> _loadSales() async {
+    setState(() => _isLoading = true);
+    final history = await CloudBackupService().fetchMonthlySalesHistory(
+      userEmail: widget.account.email,
+      yearMonth: _selectedYearMonth,
+    );
+    if (mounted) {
+      setState(() {
+        _orders = history;
+        _isLoading = false;
+      });
+    }
+  }
+
+  double get _totalSales =>
+      _orders.fold<double>(0.0, (sum, o) => sum + o.totalAmount);
+
+  double get _averageTicket =>
+      _orders.isEmpty ? 0.0 : (_totalSales / _orders.length);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 24,
+        vertical: 20,
+      ),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: 740,
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        decoration: BoxDecoration(
+          color: CelestialTheme.bgSurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.7),
+              blurRadius: 32,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Bar
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.storefront_rounded,
+                    color: CelestialTheme.goldLight,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sales Transactions: ${widget.account.displayName}',
+                        style: GoogleFonts.outfit(
+                          fontSize: isMobile ? 16 : 19,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.account.email,
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: CelestialTheme.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _isLoading ? null : _loadSales,
+                  icon: _isLoading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(CelestialTheme.goldLight),
+                          ),
+                        )
+                      : Icon(Icons.refresh_rounded, color: CelestialTheme.goldLight),
+                  tooltip: 'Refresh Cloud Sales',
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Month Selector Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _availableMonths.map((ym) {
+                  final isSelected = ym == _selectedYearMonth;
+                  DateTime? parsed;
+                  try {
+                    final parts = ym.split('-');
+                    parsed = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+                  } catch (_) {}
+                  final label = parsed != null ? DateFormat('MMMM yyyy').format(parsed) : ym;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected && ym != _selectedYearMonth) {
+                          setState(() => _selectedYearMonth = ym);
+                          _loadSales();
+                        }
+                      },
+                      labelStyle: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? CelestialTheme.primaryBtnText : CelestialTheme.textLight,
+                      ),
+                      selectedColor: CelestialTheme.goldPrimary,
+                      backgroundColor: CelestialTheme.bgCard,
+                      side: BorderSide(
+                        color: isSelected
+                            ? CelestialTheme.goldPrimary
+                            : Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Metrics Summary Row
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Total Revenue',
+                    value: '₱${_totalSales.toStringAsFixed(2)}',
+                    icon: Icons.payments_outlined,
+                    accentColor: CelestialTheme.goldPrimary,
                   ),
                 ),
                 const SizedBox(width: 8),
-
-                // Custom Input Trial Action Button
-                if (!isPro) ...[
-                  OutlinedButton.icon(
-                    onPressed: () => _showCustomTrialDialog(context, auth, account),
-                    icon: const Icon(Icons.edit_calendar_rounded, size: 15),
-                    label: Text(
-                      isCustom ? 'Custom Trial ($totalDays d)' : 'Set Custom ($totalDays d)',
-                      style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: CelestialTheme.goldLight,
-                      side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-
-                // Tier Switcher (Trial <-> Pro)
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final newTier = isPro ? SubscriptionTier.trial : SubscriptionTier.pro;
-                    await auth.updateAccountTier(account.uid, newTier);
-                  },
-                  icon: Icon(
-                    isPro ? Icons.arrow_downward_rounded : Icons.star_rounded,
-                    size: 14,
-                  ),
-                  label: Text(
-                    isPro ? 'Set Trial' : 'Make Pro',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11.5),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isPro ? CelestialTheme.brownRich : CelestialTheme.goldPrimary,
-                    foregroundColor: isPro ? CelestialTheme.textLight : CelestialTheme.primaryBtnText,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Total Orders',
+                    value: '${_orders.length}',
+                    icon: Icons.receipt_long_outlined,
+                    accentColor: Colors.blueAccent,
                   ),
                 ),
-
-                const SizedBox(width: 6),
-
-                deleteButton,
+                if (!isMobile) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildMetricCard(
+                      title: 'Avg. Ticket',
+                      value: '₱${_averageTicket.toStringAsFixed(2)}',
+                      icon: Icons.analytics_outlined,
+                      accentColor: Colors.purpleAccent,
+                    ),
+                  ),
+                ],
               ],
             ),
+
+            const SizedBox(height: 16),
+
+            // Orders List
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation(CelestialTheme.goldPrimary),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Fetching cloud sales transactions...',
+                            style: GoogleFonts.outfit(color: CelestialTheme.textMuted),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _orders.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 48,
+                                  color: CelestialTheme.textMuted.withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No sales recorded in cloud for $_selectedYearMonth',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Orders taken while offline will automatically sync here as soon as the client device connects to the internet.',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: CelestialTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _orders.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, idx) {
+                            final order = _orders[idx];
+                            return _buildOrderTile(order);
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: accentColor, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(fontSize: 10.5, color: CelestialTheme.textMuted),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderTile(Order order) {
+    final dateStr = DateFormat('MMM d, yyyy • h:mm a').format(order.createdAt);
+    final itemsSummary = order.items
+        .map((i) => '${i.quantity}x ${i.menuItem.name}')
+        .join(', ');
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      order.orderNumber,
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: CelestialTheme.goldLight,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        order.orderType.name.toUpperCase(),
+                        style: GoogleFonts.outfit(fontSize: 9.5, color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        order.paymentMethod.name.toUpperCase(),
+                        style: GoogleFonts.outfit(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: CelestialTheme.goldLight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  itemsSummary.isEmpty ? 'Order details' : itemsSummary,
+                  style: GoogleFonts.outfit(fontSize: 11.5, color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$dateStr • Cashier: ${order.cashierName}',
+                  style: GoogleFonts.outfit(fontSize: 10.5, color: CelestialTheme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '₱${order.totalAmount.toStringAsFixed(2)}',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: CelestialTheme.goldPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -137,5 +137,53 @@ void main() {
       final tabsJson = provider.getCategoryTabsJsonForCustomer();
       expect(tabsJson.any((t) => t['id'] == 'Breakfast Bowls' && t['isCustom'] == true && t['isKitchenDish'] == true), isTrue);
     });
+
+    test('PosProvider can edit and delete default categories dynamically', () async {
+      final provider = PosProvider();
+
+      // Verify coffee is initially present in allCategoryTabs
+      expect(provider.allCategoryTabs.any((t) => t.id == 'coffee'), isTrue);
+
+      // Edit default 'coffee' category: rename to 'Artisan Coffee', change icon, route to kitchen
+      provider.updateCategory(
+        'coffee',
+        name: 'Artisan Coffee',
+        icon: '☕✨',
+        isKitchenDish: true,
+      );
+
+      // 'coffee' enum tab should be hidden and 'Artisan Coffee' should be present
+      expect(provider.allCategoryTabs.any((t) => t.id == 'coffee'), isFalse);
+      expect(provider.allCategoryTabs.any((t) => t.label == 'Artisan Coffee' && t.icon == '☕✨' && t.isKitchenDish == true), isTrue);
+
+      // Items that were in Coffee should now be under Artisan Coffee
+      final artisanItems = provider.menuItems.where((i) => i.customCategory == 'Artisan Coffee').toList();
+      expect(artisanItems.isNotEmpty, isTrue);
+      expect(artisanItems.any((i) => i.name == 'Americano'), isTrue);
+
+      // Delete a default category: e.g. 'frappe'
+      expect(provider.allCategoryTabs.any((t) => t.id == 'frappe'), isTrue);
+      provider.deleteCategory('frappe');
+      expect(provider.allCategoryTabs.any((t) => t.id == 'frappe'), isFalse);
+
+      // Restoring categories should restore coffee and frappe
+      await provider.restoreSystemCategories();
+      expect(provider.allCategoryTabs.any((t) => t.id == 'coffee'), isTrue);
+      expect(provider.allCategoryTabs.any((t) => t.id == 'frappe'), isTrue);
+    });
+
+    test('PosProvider supports category with no emoji (empty icon)', () async {
+      final provider = PosProvider();
+
+      // Create a category with empty icon
+      provider.addCustomCategory(name: 'Text Only Category', icon: '');
+      expect(provider.customCategories.any((c) => c.name == 'Text Only Category' && c.icon == ''), isTrue);
+      expect(provider.allCategoryTabs.any((t) => t.label == 'Text Only Category' && t.icon == ''), isTrue);
+
+      // Edit an existing category to have no emoji
+      provider.updateCategory('coffee', name: 'Coffee', icon: '', isKitchenDish: false);
+      final coffeeTab = provider.allCategoryTabs.firstWhere((t) => t.label == 'Coffee');
+      expect(coffeeTab.icon, '');
+    });
   });
 }

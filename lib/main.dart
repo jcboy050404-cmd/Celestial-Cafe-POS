@@ -51,9 +51,26 @@ class JcPosApp extends StatelessWidget {
       ],
       child: Consumer2<AuthService, PosProvider>(
         builder: (context, authService, posProvider, _) {
+          // Whenever the signed-in user changes, reload POS data for that account.
+          // This runs synchronously on the next frame to avoid calling setState during build.
+          final user = authService.currentUser;
+          final storeEmail = (user != null && user.isCashier && user.ownerEmail != null && user.ownerEmail!.isNotEmpty)
+              ? user.ownerEmail!
+              : (user?.email ?? '');
+          if (authService.isLoggedIn && storeEmail.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              posProvider.loadForUser(storeEmail);
+              posProvider.updateCurrentUser(authService.currentUser);
+            });
+          } else if (!authService.isLoggedIn) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              posProvider.clearUserSession();
+            });
+          }
+
           return MaterialApp(
             navigatorKey: TopNotification.navigatorKey,
-            title: 'JC POS System',
+            title: 'JC POS SYSTEM',
             debugShowCheckedModeBanner: false,
             theme: CelestialTheme.themeData,
             builder: (context, child) {
@@ -117,6 +134,10 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
               if (backup != null && mounted) {
                 final pos = Provider.of<PosProvider>(context, listen: false);
                 await pos.restoreFromProCloudBackup(backup);
+              }
+              if (mounted) {
+                final pos = Provider.of<PosProvider>(context, listen: false);
+                await pos.syncMenuFromCloud();
               }
             }
           } catch (_) {}

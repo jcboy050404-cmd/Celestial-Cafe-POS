@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,6 +39,10 @@ class TopNotification {
     TopNotificationType type = TopNotificationType.info,
     Widget? customContent,
   }) {
+    try {
+      if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+    } catch (_) {}
+
     // Resolve overlay
     OverlayState? overlayState;
     if (context != null && context.mounted) {
@@ -158,6 +163,23 @@ class TopNotification {
       type: TopNotificationType.error,
       icon: Icons.error_outline_rounded,
       iconColor: CelestialTheme.roseAlert,
+      duration: duration,
+    );
+  }
+
+  /// Quick informational notification
+  static void showInfo(
+    BuildContext? context,
+    String message, {
+    Duration duration = const Duration(milliseconds: 2400),
+  }) {
+    HapticFeedback.lightImpact();
+    show(
+      context,
+      message: message,
+      type: TopNotificationType.info,
+      icon: Icons.info_outline_rounded,
+      iconColor: const Color(0xFF38BDF8),
       duration: duration,
     );
   }
@@ -358,11 +380,6 @@ class _TopNotificationWidgetState extends State<_TopNotificationWidget>
                       blurRadius: 22,
                       offset: const Offset(0, 8),
                       spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: widget.iconColor.withValues(alpha: 0.1),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),

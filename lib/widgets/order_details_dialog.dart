@@ -47,7 +47,7 @@ class OrderDetailsDialog extends StatelessWidget {
           color: const Color(0xFF15100B),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+            color: Colors.white.withValues(alpha: 0.12),
             width: 1.2,
           ),
           boxShadow: [
@@ -55,11 +55,6 @@ class OrderDetailsDialog extends StatelessWidget {
               color: Colors.black.withValues(alpha: 0.85),
               blurRadius: 36,
               offset: const Offset(0, 14),
-            ),
-            BoxShadow(
-              color: CelestialTheme.caramelAccent.withValues(alpha: 0.08),
-              blurRadius: 28,
-              offset: const Offset(0, 2),
             ),
           ],
         ),

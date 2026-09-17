@@ -1,11 +1,11 @@
 {
-    "name": "JC POS System",
-    "short_name": "JC POS",
+    "name": "JC POS SYSTEM",
+    "short_name": "JC POS SYSTEM",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#12100E",
     "theme_color": "#12100E",
-    "description": "JC POS System - Professional Point of Sale & Terminal System",
+    "description": "JC POS SYSTEM - Professional Point of Sale & Terminal System",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

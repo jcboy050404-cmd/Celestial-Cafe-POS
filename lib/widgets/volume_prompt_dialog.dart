@@ -25,7 +25,6 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseScale;
-  late Animation<double> _glowAlpha;
   final FocusNode _focusNode = FocusNode();
 
   bool _isDismissing = false;
@@ -41,10 +40,6 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
     )..repeat(reverse: true);
 
     _pulseScale = Tween<double>(begin: 0.95, end: 1.08).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    _glowAlpha = Tween<double>(begin: 0.25, end: 0.75).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
@@ -151,22 +146,14 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
               border: Border.all(
                 color: _isDismissing
                     ? CelestialTheme.emeraldReady
-                    : CelestialTheme.goldPrimary.withValues(alpha: 0.6),
-                width: 1.5,
+                    : Colors.white.withValues(alpha: 0.12),
+                width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.85),
                   blurRadius: 36,
                   offset: const Offset(0, 14),
-                ),
-                BoxShadow(
-                  color: (_isDismissing
-                          ? CelestialTheme.emeraldReady
-                          : CelestialTheme.goldPrimary)
-                      .withValues(alpha: 0.18),
-                  blurRadius: 28,
-                  spreadRadius: 2,
                 ),
               ],
             ),
@@ -304,19 +291,14 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                                   border: Border.all(
                                     color: _isDismissing
                                         ? CelestialTheme.emeraldReady
-                                        : CelestialTheme.goldPrimary.withValues(
-                                            alpha: _glowAlpha.value),
-                                    width: 2.2,
+                                        : CelestialTheme.goldPrimary.withValues(alpha: 0.35),
+                                    width: 1.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (_isDismissing
-                                              ? CelestialTheme.emeraldReady
-                                              : CelestialTheme.goldPrimary)
-                                          .withValues(
-                                              alpha: _glowAlpha.value * 0.5),
-                                      blurRadius: 24,
-                                      spreadRadius: 3,
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
@@ -386,9 +368,8 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                             border: Border.all(
                               color: _isDismissing
                                   ? CelestialTheme.emeraldReady
-                                      .withValues(alpha: 0.5)
-                                  : CelestialTheme.goldPrimary
-                                      .withValues(alpha: 0.3),
+                                      .withValues(alpha: 0.4)
+                                  : Colors.white.withValues(alpha: 0.1),
                             ),
                             boxShadow: [
                               BoxShadow(
@@ -521,22 +502,15 @@ class _VolumePromptDialogState extends State<VolumePromptDialog>
                     ? CelestialTheme.goldPrimary
                     : CelestialTheme.amberWarm);
 
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              width: 4.5,
-              height: barHeights[index],
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(3),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.6),
-                    blurRadius: 5,
-                    spreadRadius: 0.5,
-                  ),
-                ],
-              ),
-            );
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: 4.5,
+                height: barHeights[index],
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
           }),
         );
       },

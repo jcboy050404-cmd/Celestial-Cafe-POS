@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -51,9 +52,11 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
   Widget build(BuildContext context) {
     final order = widget.order;
     final posProvider = Provider.of<PosProvider>(context);
-    final isCompact = MediaQuery.of(context).size.width < 500;
-    final paperWidth = isCompact ? 320.0 : 360.0;
-    final slotWidth = paperWidth + 40.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 500;
+    final maxAvailableWidth = screenWidth - 32; // Inset padding is 16 on each side
+    final paperWidth = isCompact ? math.min(300.0, maxAvailableWidth - 28.0) : 360.0;
+    final slotWidth = paperWidth + 28.0;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -530,8 +533,11 @@ class _ReceiptDialogState extends State<ReceiptDialog> with SingleTickerProvider
 
   /// Bottom Print & New Order Action Buttons
   Widget _buildBottomControls(BuildContext context, PosProvider posProvider, Order order) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 10,
       children: [
         // Print Thermal Slip Button
         ElevatedButton.icon(

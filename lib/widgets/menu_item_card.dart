@@ -127,7 +127,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                   style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: CelestialTheme.textLight),
                                 ),
                                 Text(
-                                  currentItem.inStock ? 'Available on POS & Menu' : '86\'d / Sold Out',
+                                  currentItem.inStock ? 'Available on POS & Menu' : 'Sold Out / Unavailable',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     color: currentItem.inStock ? CelestialTheme.emeraldReady : CelestialTheme.roseAlert,
@@ -156,7 +156,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                   if (currentItem.customizationGroups.isNotEmpty) ...[
                     const SizedBox(height: 14),
                     Text(
-                      'MODIFIERS & OPTIONS (86 LIST)',
+                      'MODIFIERS & OPTIONS AVAILABILITY',
                       style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: CelestialTheme.goldLight),
                     ),
                     const SizedBox(height: 8),
@@ -390,7 +390,7 @@ class _MenuItemCardState extends State<MenuItemCard> {
                                       border: Border.all(color: CelestialTheme.amberBrewing.withValues(alpha: 0.5)),
                                     ),
                                     child: Text(
-                                      '⚠️ ${item.unavailableOptionsCount} 86\'d',
+                                      '⚠️ ${item.unavailableOptionsCount} Sold Out',
                                       style: TextStyle(
                                         fontSize: 8,
                                         fontWeight: FontWeight.bold,

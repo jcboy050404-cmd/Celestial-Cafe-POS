@@ -42,7 +42,7 @@ class CustomCategory {
   factory CustomCategory.fromJson(Map<String, dynamic> json) => CustomCategory(
         id: json['id'] as String? ?? 'custom_${json['name'] ?? 'cat'}',
         name: json['name'] as String? ?? 'Custom',
-        icon: json['icon'] as String? ?? '🏷️',
+        icon: json['icon'] as String? ?? '',
         isKitchenDish: json['isKitchenDish'] as bool? ?? false,
       );
 
@@ -577,6 +577,7 @@ class MenuItem {
     ItemCategory? category,
     String? customCategory,
     bool clearCustomCategory = false,
+    bool clearImage = false,
     double? price,
     String? description,
     String? icon,
@@ -605,8 +606,8 @@ class MenuItem {
       inStock: inStock ?? this.inStock,
       stockCount: stockCount ?? this.stockCount,
       rating: rating ?? this.rating,
-      imagePath: imagePath ?? this.imagePath,
-      imageBase64: imageBase64 ?? this.imageBase64,
+      imagePath: clearImage ? null : (imagePath ?? this.imagePath),
+      imageBase64: clearImage ? null : (imageBase64 ?? this.imageBase64),
       customizationGroups: customizationGroups ?? this.customizationGroups,
       ingredients: ingredients ?? this.ingredients,
       otherMaterials: otherMaterials ?? this.otherMaterials,
