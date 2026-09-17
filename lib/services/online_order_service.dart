@@ -112,13 +112,31 @@ class OnlineOrderService {
     return clean.replaceAll('@', '_at_').replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
   }
 
+  /// Public base URL for customer web ordering.
+  /// Dynamically detects current web host if running in a web browser,
+  /// or defaults to the live deployed Firebase Hosting site: https://jc-pos-system.web.app
+  static String get defaultBaseUrl {
+    if (kIsWeb) {
+      try {
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty && !origin.startsWith('file://')) {
+          return origin;
+        }
+      } catch (_) {}
+    }
+    return 'https://jc-pos-system.web.app';
+  }
+
   /// Constructs the public customer web ordering URL for a given store.
   static String getOrderingUrl({
     required String storeId,
     String? tableNumber,
-    String baseUrl = 'https://celestialcafe.web.app',
+    String? baseUrl,
   }) {
-    final buffer = StringBuffer('$baseUrl/#/order?store=$storeId');
+    final domain = (baseUrl != null && baseUrl.trim().isNotEmpty)
+        ? baseUrl.trim().replaceAll(RegExp(r'/+$'), '')
+        : defaultBaseUrl;
+    final buffer = StringBuffer('$domain/#/order?store=$storeId');
     if (tableNumber != null && tableNumber.trim().isNotEmpty) {
       buffer.write('&table=${Uri.encodeComponent(tableNumber.trim())}');
     }

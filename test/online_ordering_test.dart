@@ -32,13 +32,13 @@ void main() {
       final generalUrl = OnlineOrderService.getOrderingUrl(
         storeId: 'owner1_at_celestialcafe_com',
       );
-      expect(generalUrl, 'https://celestialcafe.web.app/#/order?store=owner1_at_celestialcafe_com');
+      expect(generalUrl, 'https://jc-pos-system.web.app/#/order?store=owner1_at_celestialcafe_com');
 
       final tableUrl = OnlineOrderService.getOrderingUrl(
         storeId: 'owner1_at_celestialcafe_com',
         tableNumber: 'Table 04',
       );
-      expect(tableUrl, 'https://celestialcafe.web.app/#/order?store=owner1_at_celestialcafe_com&table=Table%2004');
+      expect(tableUrl, 'https://jc-pos-system.web.app/#/order?store=owner1_at_celestialcafe_com&table=Table%2004');
     });
   });
 
