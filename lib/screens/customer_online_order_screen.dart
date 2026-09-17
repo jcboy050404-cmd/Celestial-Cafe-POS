@@ -7,6 +7,7 @@ import '../services/online_order_service.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/client_menu_item_card.dart';
 import '../widgets/customization_dialog.dart';
+import '../widgets/item_thumbnail.dart';
 import '../widgets/top_notification.dart';
 
 /// Public customer-facing web & mobile screen allowing customers anywhere to browse a store's menu and order online.
@@ -126,6 +127,237 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
   double get _cartTotal => _cart.fold(0.0, (sum, i) => sum + i.totalPrice);
   int get _cartItemCount => _cart.fold(0, (sum, i) => sum + i.quantity);
 
+  MenuItem? get _bestSellerItem {
+    if (_menuItems.isEmpty) return null;
+    final inStockItems = _menuItems.where((m) => m.inStock).toList();
+    if (inStockItems.isEmpty) return null;
+
+    final candidatePool = _selectedCategory == 'all'
+        ? inStockItems
+        : inStockItems.where((m) => (m.customCategory ?? m.category.name) == _selectedCategory).toList();
+    if (candidatePool.isEmpty) return null;
+
+    // Prioritize items tagged with best seller or signature classics
+    final tagged = candidatePool.where((m) =>
+        m.tags.any((t) =>
+            t.toLowerCase().contains('best') ||
+            t.toLowerCase().contains('seller') ||
+            t.toLowerCase().contains('popular')) ||
+        m.name.toLowerCase().contains('spanish latte') ||
+        m.name.toLowerCase().contains('caramel macchiato') ||
+        m.name.toLowerCase().contains('signature') ||
+        m.name.toLowerCase().contains('americano') ||
+        m.name.toLowerCase().contains('dirty matcha'));
+    if (tagged.isNotEmpty) return tagged.first;
+
+    candidatePool.sort((a, b) => b.rating.compareTo(a.rating));
+    return candidatePool.first;
+  }
+
+  Widget _buildBestSellerBanner(MenuItem item, bool isOpen) {
+    final isAvailable = item.inStock && isOpen;
+    final priceStr = item.price % 1 == 0 ? item.price.toInt().toString() : item.price.toStringAsFixed(2);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+
+        return Container(
+          margin: EdgeInsets.fromLTRB(isMobile ? 12 : 16, 2, isMobile ? 12 : 16, 6),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2C211A), Color(0xFF1E1712), Color(0xFF15100D)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: CelestialTheme.goldPrimary.withValues(alpha: 0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.40),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: CelestialTheme.goldPrimary.withValues(alpha: 0.08),
+                blurRadius: 18,
+                spreadRadius: 1,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: isAvailable ? () => _openCustomizationSheet(item) : null,
+              child: Stack(
+                children: [
+                  // Subtle Coffee Cover Artwork on right
+                  Positioned.fill(
+                    child: Row(
+                      children: [
+                        const Spacer(flex: 3),
+                        Expanded(
+                          flex: 4,
+                          child: ShaderMask(
+                            shaderCallback: (rect) {
+                              return const LinearGradient(
+                                colors: [Colors.transparent, Colors.black45, Colors.black],
+                                stops: [0.0, 0.35, 1.0],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ).createShader(rect);
+                            },
+                            blendMode: BlendMode.dstIn,
+                            child: ItemThumbnail(
+                              item: item,
+                              width: double.infinity,
+                              borderRadius: BorderRadius.zero,
+                              iconSize: 38,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Foreground Content Layer
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 16,
+                      vertical: isMobile ? 8 : 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Best Seller Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: CelestialTheme.caramelAccent.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: CelestialTheme.goldPrimary.withValues(alpha: 0.6),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('⭐', style: TextStyle(fontSize: 9)),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'BEST SELLER',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: CelestialTheme.goldLight,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+
+                              // Item Name
+                              Text(
+                                item.name,
+                                style: GoogleFonts.outfit(
+                                  fontSize: isMobile ? 14 : 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: CelestialTheme.creamLight,
+                                  letterSpacing: 0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 1),
+
+                              // Subtitle / Description
+                              Text(
+                                item.description.isNotEmpty
+                                    ? item.description
+                                    : 'Handcrafted signature house favorite',
+                                style: GoogleFonts.outfit(
+                                  fontSize: isMobile ? 9.5 : 10.5,
+                                  color: CelestialTheme.creamSoft,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 5),
+
+                              // Price & Quick Order Button
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '₱$priceStr',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: isMobile ? 13.5 : 15,
+                                      fontWeight: FontWeight.w900,
+                                      color: CelestialTheme.goldLight,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 8 : 10,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: CelestialTheme.caramelGradient,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.3),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.add_rounded, size: 12, color: Colors.white),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          'Order',
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _addToCart(MenuItem item, {List<SelectedCustomization> customizations = const [], String? notes}) {
     final customHash = customizations.map((c) => '${c.groupTitle}:${c.optionName}').join('|');
     final cartItemId = '${item.id}_${customHash}_${notes ?? ''}';
@@ -220,7 +452,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text('Complete Your Order', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: CelestialTheme.textLight)),
-                  Text('$_cartItemCount items • Total: ₱${_cartTotal.toStringAsFixed(2)}', style: TextStyle(color: CelestialTheme.goldLight, fontWeight: FontWeight.w600)),
+                  Text('$_cartItemCount items • Total: ₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}', style: TextStyle(color: CelestialTheme.goldLight, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 16),
 
                   // Order Type Selector
@@ -419,7 +651,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                       ),
                       child: isSubmitting
                           ? const CircularProgressIndicator(color: Colors.black)
-                          : Text('Place Order • ₱${_cartTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          : Text('Place Order • ₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                     ),
                   ),
                 ],
@@ -569,6 +801,10 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                 ],
               ),
             ),
+
+            // Best Seller Spotlight Banner (matching cashier hero spotlight)
+            if (_searchQuery.isEmpty && _bestSellerItem != null)
+              _buildBestSellerBanner(_bestSellerItem!, isOpen),
 
             // Category Tabs Bar (matching cashier POS style)
             Container(
@@ -778,7 +1014,7 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                           style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
                         ),
                         Text(
-                          '₱${_cartTotal.toStringAsFixed(2)}',
+                          '₱${_cartTotal % 1 == 0 ? _cartTotal.toInt() : _cartTotal.toStringAsFixed(2)}',
                           style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
                         ),
                       ],

@@ -165,13 +165,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify Store Name and Menu Item render
+      // Verify Store Name, Best Seller banner, and Menu Item render without .00
       expect(find.text('Celestial Coffee Roasters'), findsOneWidget);
-      expect(find.text('Iced Spanish Latte'), findsOneWidget);
-      expect(find.text('₱140.00'), findsOneWidget);
+      expect(find.text('BEST SELLER'), findsOneWidget);
+      expect(find.text('Iced Spanish Latte'), findsWidgets);
+      expect(find.text('₱140'), findsWidgets);
 
       // Tap Add to Cart
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.text('Add').first);
       await tester.pumpAndSettle();
 
       // Verify bottom cart bar appears

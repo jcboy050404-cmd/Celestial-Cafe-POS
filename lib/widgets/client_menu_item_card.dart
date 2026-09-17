@@ -205,18 +205,18 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    '₱${item.price.toStringAsFixed(2)}',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: isMobile ? 12.5 : (isCompact ? 15 : 17.5),
-                                      fontWeight: FontWeight.w800,
-                                      color: isAvailable ? Colors.white : CelestialTheme.textSubtle,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                                 Expanded(
+                                   child: Text(
+                                     '₱${item.price % 1 == 0 ? item.price.toInt() : item.price.toStringAsFixed(2)}',
+                                     style: GoogleFonts.outfit(
+                                       fontSize: isMobile ? 12.5 : (isCompact ? 15 : 17.5),
+                                       fontWeight: FontWeight.w800,
+                                       color: isAvailable ? Colors.white : CelestialTheme.textSubtle,
+                                     ),
+                                     maxLines: 1,
+                                     overflow: TextOverflow.ellipsis,
+                                   ),
+                                 ),
                                 if (isAvailable) ...[
                                   const SizedBox(width: 4),
                                   Container(
