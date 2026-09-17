@@ -11,11 +11,13 @@ import 'price_editor_dialog.dart';
 class CustomizationDialog extends StatefulWidget {
   final MenuItem item;
   final Function(int quantity, List<SelectedCustomization> customizations, String? notes) onAddToCart;
+  final bool isCustomerView;
 
   const CustomizationDialog({
     super.key,
     required this.item,
     required this.onAddToCart,
+    this.isCustomerView = false,
   });
 
   @override
@@ -27,6 +29,13 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
   final Map<String, List<CustomizationOption>> _selectedOptions = {};
   bool _isAdding = false;
   late MenuItem _currentItem;
+  final TextEditingController _notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
 
   PosProvider? get _posProvider {
     try {
@@ -679,6 +688,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           ..._liveItem.customizationGroups.map((group) {
                             return _buildGroupSection(group, isMobile);
                           }),
+                          _buildSpecialInstructionsSection(isMobile),
                         ],
                       ),
                     ),
@@ -829,7 +839,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onLongPress: () => _showGroupAvailabilitySheet(group),
+        onLongPress: widget.isCustomerView ? null : () => _showGroupAvailabilitySheet(group),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -884,34 +894,36 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                   ),
                 ),
               ],
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _showGroupAvailabilitySheet(group),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: CelestialTheme.bgCardHover,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: CelestialTheme.borderWarm, width: 0.8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.tune_rounded, size: 11.5, color: CelestialTheme.goldPrimary),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Availability',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: CelestialTheme.creamSoft,
+              if (!widget.isCustomerView) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => _showGroupAvailabilitySheet(group),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: CelestialTheme.bgCardHover,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: CelestialTheme.borderWarm, width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tune_rounded, size: 11.5, color: CelestialTheme.goldPrimary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Availability',
+                          style: GoogleFonts.outfit(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: CelestialTheme.creamSoft,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -964,7 +976,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                           });
                         }
                       : () => _notifyOptionUnavailable(group, option),
-                  onLongPress: () => _toggleOptionAvailability(group, option),
+                  onLongPress: widget.isCustomerView ? null : () => _toggleOptionAvailability(group, option),
                   borderRadius: BorderRadius.circular(14),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
@@ -1022,7 +1034,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              if (!isAvailable) ...[
+                              if (!widget.isCustomerView && !isAvailable) ...[
                                 const SizedBox(height: 3),
                                 InkWell(
                                   onTap: () => _toggleOptionAvailability(group, option, true),
@@ -1055,10 +1067,12 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                         if (option.extraPrice > 0) ...[
                           const SizedBox(width: 8),
                           InkWell(
-                            onTap: () {
-                              final posProvider = _posProvider;
-                              if (posProvider == null) return;
-                              PriceEditorDialog.showOptionPriceEditor(
+                            onTap: widget.isCustomerView
+                                ? null
+                                : () {
+                                    final posProvider = _posProvider;
+                                    if (posProvider == null) return;
+                                    PriceEditorDialog.showOptionPriceEditor(
                                 context,
                                 posProvider,
                                 itemId: widget.item.id,
@@ -1189,7 +1203,7 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
 
     return InkWell(
       onTap: isAvailable ? onTap : () => _notifyOptionUnavailable(group, option),
-      onLongPress: () => _toggleOptionAvailability(group, option),
+      onLongPress: widget.isCustomerView ? null : () => _toggleOptionAvailability(group, option),
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
@@ -1306,6 +1320,67 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
     );
   }
 
+  Widget _buildSpecialInstructionsSection(bool isMobile) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: CelestialTheme.bgCardActive,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.edit_note_rounded,
+                  size: 15,
+                  color: CelestialTheme.goldPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'SPECIAL INSTRUCTIONS',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _notesController,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Special instructions (e.g. less ice, extra shot)',
+              hintStyle: TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
+              filled: true,
+              fillColor: CelestialTheme.bgCard,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: CelestialTheme.borderWarm),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: CelestialTheme.borderWarm),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: CelestialTheme.goldPrimary),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFooter(bool isMobile) {
     return Container(
       padding: EdgeInsets.symmetric(
@@ -1384,7 +1459,10 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                         setState(() => _isAdding = true);
                         await Future.delayed(const Duration(milliseconds: 160));
                         final customs = _buildCustomizationsList();
-                        widget.onAddToCart(_quantity, customs, null);
+                        final note = _notesController.text.trim().isNotEmpty
+                            ? _notesController.text.trim()
+                            : null;
+                        widget.onAddToCart(_quantity, customs, note);
                         if (mounted) Navigator.pop(context);
                       },
                 borderRadius: BorderRadius.circular(16),
@@ -1423,8 +1501,12 @@ class _CustomizationDialogState extends State<CustomizationDialog> {
                               Flexible(
                                 child: Text(
                                   _quantity > 1
-                                      ? 'Add $_quantity to Order • ₱${_currentTotalPrice.toStringAsFixed(0)}'
-                                      : 'Add to Order • ₱${_currentTotalPrice.toStringAsFixed(0)}',
+                                      ? (widget.isCustomerView
+                                          ? 'Add $_quantity to Cart • ₱${_currentTotalPrice.toStringAsFixed(2)}'
+                                          : 'Add $_quantity to Order • ₱${_currentTotalPrice.toStringAsFixed(0)}')
+                                      : (widget.isCustomerView
+                                          ? 'Add to Cart • ₱${_currentTotalPrice.toStringAsFixed(2)}'
+                                          : 'Add to Order • ₱${_currentTotalPrice.toStringAsFixed(0)}'),
                                   style: GoogleFonts.outfit(
                                     fontSize: isMobile ? 15 : 16,
                                     fontWeight: FontWeight.w800,

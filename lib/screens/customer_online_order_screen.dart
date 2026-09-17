@@ -6,6 +6,7 @@ import '../models/order.dart';
 import '../services/online_order_service.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/client_menu_item_card.dart';
+import '../widgets/customization_dialog.dart';
 import '../widgets/top_notification.dart';
 
 /// Public customer-facing web & mobile screen allowing customers anywhere to browse a store's menu and order online.
@@ -143,146 +144,30 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
   void _openCustomizationSheet(MenuItem item) {
     if (item.customizationGroups.isEmpty) {
       _addToCart(item);
+      TopNotification.showSuccess(
+        context,
+        'Added ${item.name} to cart',
+      );
       return;
     }
 
-    final selected = <String, SelectedCustomization>{};
-    final notesCtrl = TextEditingController();
-
-    // Defaults
-    for (var group in item.customizationGroups) {
-      if (group.isRequired && group.options.isNotEmpty) {
-        selected[group.title] = SelectedCustomization(
-          groupTitle: group.title,
-          optionName: group.options.first.name,
-          extraPrice: group.options.first.extraPrice,
-        );
-      }
-    }
-
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: CelestialTheme.bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (sheetCtx, setSheetState) {
-          double itemTotal = item.price;
-          for (var c in selected.values) {
-            itemTotal += c.extraPrice;
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (ctx) => CustomizationDialog(
+        item: item,
+        isCustomerView: true,
+        onAddToCart: (quantity, customizations, notes) {
+          for (int q = 0; q < quantity; q++) {
+            _addToCart(
+              item,
+              customizations: customizations,
+              notes: notes,
+            );
           }
-
-          return DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.75,
-            maxChildSize: 0.9,
-            minChildSize: 0.4,
-            builder: (_, scrollCtrl) => SingleChildScrollView(
-              controller: scrollCtrl,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(color: CelestialTheme.borderWarm, borderRadius: BorderRadius.circular(2)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(item.name, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: CelestialTheme.textLight)),
-                  Text(item.description, style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted)),
-                  const SizedBox(height: 16),
-
-                  ...item.customizationGroups.map((group) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          group.title.toUpperCase(),
-                          style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.bold, color: CelestialTheme.goldLight),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: group.options.map((option) {
-                            final isSel = selected[group.title]?.optionName == option.name;
-                            return ChoiceChip(
-                              label: Text(
-                                option.extraPrice > 0
-                                    ? '${option.name} (+₱${option.extraPrice.toStringAsFixed(0)})'
-                                    : option.name,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  color: isSel ? CelestialTheme.primaryBtnText : CelestialTheme.textLight,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                              selected: isSel,
-                              selectedColor: CelestialTheme.goldPrimary,
-                              backgroundColor: CelestialTheme.bgCard,
-                              onSelected: (val) {
-                                setSheetState(() {
-                                  if (val) {
-                                    selected[group.title] = SelectedCustomization(
-                                      groupTitle: group.title,
-                                      optionName: option.name,
-                                      extraPrice: option.extraPrice,
-                                    );
-                                  }
-                                });
-                              },
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
-                  }),
-
-                  TextField(
-                    controller: notesCtrl,
-                    style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Special instructions (e.g. less ice, extra shot)',
-                      hintStyle: TextStyle(color: CelestialTheme.textSubtle, fontSize: 12),
-                      filled: true,
-                      fillColor: CelestialTheme.bgCard,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: CelestialTheme.borderWarm)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _addToCart(
-                          item,
-                          customizations: selected.values.toList(),
-                          notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: CelestialTheme.goldPrimary,
-                        foregroundColor: CelestialTheme.primaryBtnText,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        'Add to Cart • ₱${itemTotal.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          TopNotification.showSuccess(
+            context,
+            'Added $quantity× ${item.name} to cart',
           );
         },
       ),
