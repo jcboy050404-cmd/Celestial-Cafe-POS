@@ -28,7 +28,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     final auth = Provider.of<AuthService>(context);
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    final filteredOrders = posProvider.orders.where((order) {
+    // Combine local POS orders and incoming real-time online orders
+    final allOrders = [
+      ...posProvider.incomingOnlineOrders,
+      ...posProvider.orders.where((o) => !posProvider.incomingOnlineOrders.any((io) => io.id == o.id)),
+    ];
+
+    final filteredOrders = allOrders.where((order) {
       final q = _searchQuery.trim().toLowerCase();
       final numMatch = order.orderNumber.toLowerCase();
       final cust = order.customerName.toLowerCase();
@@ -196,6 +202,57 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               ],
             ),
           ],
+          if (provider.pendingOnlineOrdersCount > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                    CelestialTheme.caramelAccent.withValues(alpha: 0.15),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: CelestialTheme.goldPrimary, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: CelestialTheme.goldPrimary, borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.notifications_active_rounded, color: Colors.black, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${provider.pendingOnlineOrdersCount} NEW ONLINE ORDER${provider.pendingOnlineOrdersCount > 1 ? 'S' : ''} WAITING!',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: CelestialTheme.goldLight),
+                        ),
+                        Text(
+                          'Review customer order details below and accept to send to kitchen.',
+                          style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _onlineOnlyFilter = true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CelestialTheme.goldPrimary,
+                      foregroundColor: CelestialTheme.primaryBtnText,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Filter Online', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           // Search Input
           Container(
@@ -223,7 +280,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildFilterChip('All', null, provider.orders.length),
+                _buildFilterChip('All', null, provider.orders.length + provider.incomingOnlineOrders.where((io) => !provider.orders.any((o) => o.id == io.id)).length),
                 const SizedBox(width: 6),
                 _buildOnlineFilterChip(provider),
                 const SizedBox(width: 6),
@@ -233,7 +290,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 const SizedBox(width: 6),
                 _buildFilterChip('Brewing', OrderStatus.preparing, provider.preparingOrders.length, CelestialTheme.amberBrewing),
                 const SizedBox(width: 6),
-                _buildFilterChip('Pending', OrderStatus.pending, provider.pendingOrders.length, CelestialTheme.goldPrimary),
+                _buildFilterChip('Pending', OrderStatus.pending, provider.pendingOrders.length + provider.pendingOnlineOrdersCount, CelestialTheme.goldPrimary),
               ],
             ),
           ),
@@ -243,9 +300,14 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   Widget _buildOnlineFilterChip(PosProvider provider) {
-    final onlineCount = provider.orders.where((o) => o.id.startsWith('online_') || o.cashierName.toLowerCase().contains('online')).length;
+    final allOrders = [
+      ...provider.incomingOnlineOrders,
+      ...provider.orders.where((o) => !provider.incomingOnlineOrders.any((io) => io.id == o.id)),
+    ];
+    final onlineCount = allOrders.where((o) => o.id.startsWith('online_') || o.cashierName.toLowerCase().contains('online')).length;
+    final pendingCount = provider.pendingOnlineOrdersCount;
     final isSelected = _onlineOnlyFilter;
-    final activeColor = CelestialTheme.goldLight;
+    final activeColor = pendingCount > 0 ? CelestialTheme.caramelAccent : CelestialTheme.goldLight;
 
     return ChoiceChip(
       label: Row(
@@ -256,15 +318,15 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: isSelected ? activeColor : CelestialTheme.bgSurface,
+              color: isSelected ? activeColor : (pendingCount > 0 ? CelestialTheme.roseAlert : CelestialTheme.bgSurface),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
-              '$onlineCount',
+              pendingCount > 0 ? '$onlineCount ($pendingCount NEW)' : '$onlineCount',
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? CelestialTheme.bgDark : CelestialTheme.textLight,
+                color: isSelected ? CelestialTheme.bgDark : Colors.white,
               ),
             ),
           ),
@@ -275,7 +337,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       backgroundColor: CelestialTheme.bgCard,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       side: BorderSide(
-        color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.06),
+        color: isSelected ? activeColor : (pendingCount > 0 ? CelestialTheme.caramelAccent : Colors.white.withValues(alpha: 0.06)),
       ),
       labelStyle: TextStyle(
         fontSize: 11,
@@ -724,7 +786,103 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 ),
               ),
 
-              if (order.status == OrderStatus.pending) ...[
+              if (order.id.startsWith('online_') || order.cashierName.toLowerCase().contains('online')) ...[
+                const SizedBox(height: 10),
+                if (order.status == OrderStatus.pending) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            await provider.acceptOnlineOrder(order);
+                            TopNotification.showSuccess(
+                              context,
+                              'Online Order ${order.orderNumber} accepted & sent to kitchen!',
+                            );
+                          },
+                          icon: const Icon(Icons.check_circle_rounded, size: 16),
+                          label: const Text(
+                            'Accept & Prepare Order',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: CelestialTheme.emeraldReady,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await provider.cancelOnlineOrder(order);
+                          TopNotification.show(
+                            context,
+                            message: 'Online Order ${order.orderNumber} rejected.',
+                            icon: Icons.cancel_outlined,
+                          );
+                        },
+                        icon: Icon(Icons.close_rounded, size: 15, color: CelestialTheme.roseAlert),
+                        label: Text('Reject', style: TextStyle(color: CelestialTheme.roseAlert, fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.5)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (order.status == OrderStatus.preparing) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await provider.markOnlineOrderReady(order);
+                        TopNotification.showSuccess(
+                          context,
+                          'Online Order ${order.orderNumber} is Ready!',
+                        );
+                      },
+                      icon: const Icon(Icons.notifications_active_rounded, size: 16),
+                      label: const Text(
+                        'Mark Order Ready for Pickup / Serving',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: CelestialTheme.goldPrimary,
+                        foregroundColor: CelestialTheme.primaryBtnText,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ] else if (order.status == OrderStatus.ready) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await provider.completeOnlineOrder(order);
+                        TopNotification.showSuccess(
+                          context,
+                          'Online Order ${order.orderNumber} completed & delivered!',
+                        );
+                      },
+                      icon: const Icon(Icons.done_all_rounded, size: 16),
+                      label: const Text(
+                        'Complete & Hand Over Order',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: CelestialTheme.emeraldReady,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ] else if (order.status == OrderStatus.pending) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

@@ -233,8 +233,16 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
       if (auth.isFeatureEnabled(AppFeature.orderHistory))
         (
           targetIndex: 1,
-          icon: const Icon(Icons.receipt_long_outlined),
-          selectedIcon: const Icon(Icons.receipt_long_rounded),
+          icon: Badge(
+            isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
+            label: Text('${posProvider.pendingOnlineOrdersCount}'),
+            child: const Icon(Icons.receipt_long_outlined),
+          ),
+          selectedIcon: Badge(
+            isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
+            label: Text('${posProvider.pendingOnlineOrdersCount}'),
+            child: const Icon(Icons.receipt_long_rounded),
+          ),
           label: 'History',
         ),
       if (auth.isFeatureEnabled(AppFeature.inventory))
@@ -284,6 +292,62 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
             children: [
               // Top Persistent Header Bar with Liquid Glass Scroll Animation
               HeaderBar(isScrolled: _isScrolled),
+
+              // Pending Online Orders Global Alert Banner (When on POS or any tab except Order History)
+              if (posProvider.pendingOnlineOrdersCount > 0 && posProvider.currentNavIndex != 1)
+                Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          CelestialTheme.goldPrimary.withValues(alpha: 0.9),
+                          CelestialTheme.caramelAccent.withValues(alpha: 0.9),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active_rounded, color: Colors.black, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '🔔 ${posProvider.pendingOnlineOrdersCount} NEW ONLINE ORDER${posProvider.pendingOnlineOrdersCount > 1 ? 'S' : ''} RECEIVED!',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            posProvider.setNavIndex(1);
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.black87,
+                            foregroundColor: CelestialTheme.goldLight,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                          child: const Text('View in History', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
               // Screen Content
               Expanded(
