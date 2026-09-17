@@ -152,7 +152,7 @@ class Order {
   final double changeDue;
   OrderStatus status;
   final DateTime createdAt;
-  final String cashierName;
+  String cashierName;
   final String? orderNotes;
 
   Order({

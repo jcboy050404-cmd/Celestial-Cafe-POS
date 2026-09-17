@@ -283,11 +283,15 @@ class OnlineOrderService {
     required String storeId,
     required String orderId,
     required OrderStatus newStatus,
+    String? cashierName,
   }) async {
     if (_mockStoreOrders.containsKey(storeId)) {
       final idx = _mockStoreOrders[storeId]!.indexWhere((o) => o.id == orderId);
       if (idx >= 0) {
         _mockStoreOrders[storeId]![idx].status = newStatus;
+        if (cashierName != null && cashierName.isNotEmpty) {
+          _mockStoreOrders[storeId]![idx].cashierName = cashierName;
+        }
       }
     }
 
@@ -295,8 +299,12 @@ class OnlineOrderService {
 
     try {
       final uri = Uri.parse('$_rtdbUrl/online_stores/$storeId/incoming_orders/$orderId/status.json');
-      final res = await http.put(uri, body: jsonEncode(newStatus.name)).timeout(const Duration(seconds: 6));
-      return res.statusCode >= 200 && res.statusCode < 300;
+      await http.put(uri, body: jsonEncode(newStatus.name)).timeout(const Duration(seconds: 6));
+      if (cashierName != null && cashierName.isNotEmpty) {
+        final cashierUri = Uri.parse('$_rtdbUrl/online_stores/$storeId/incoming_orders/$orderId/cashierName.json');
+        await http.put(cashierUri, body: jsonEncode(cashierName)).timeout(const Duration(seconds: 6));
+      }
+      return true;
     } catch (e) {
       if (kDebugMode) print('OnlineOrderService.updateOrderStatus error: $e');
       return false;

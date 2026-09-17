@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'models/app_feature.dart';
+import 'models/order.dart';
 import 'providers/pos_provider.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/food_costing_screen.dart';
@@ -16,6 +17,7 @@ import 'services/auth_service.dart';
 import 'services/cloud_backup_service.dart';
 import 'theme/celestial_theme.dart';
 import 'widgets/header_bar.dart';
+import 'widgets/online_order_confirm_dialog.dart';
 import 'widgets/top_notification.dart';
 import 'widgets/trial_expired_dialog.dart';
 
@@ -330,19 +332,45 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
                             ),
                           ),
                         ),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            final pendingList = posProvider.incomingOnlineOrders
+                                .where((o) => o.status == OrderStatus.pending)
+                                .toList();
+                            if (pendingList.isNotEmpty) {
+                              OnlineOrderConfirmDialog.show(context, pendingList.first);
+                            } else if (posProvider.incomingOnlineOrders.isNotEmpty) {
+                              OnlineOrderConfirmDialog.show(context, posProvider.incomingOnlineOrders.first);
+                            } else {
+                              posProvider.setNavIndex(1);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black87,
+                            foregroundColor: CelestialTheme.emeraldReady,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            elevation: 0,
+                          ),
+                          icon: Icon(Icons.check_circle_rounded, size: 14, color: CelestialTheme.emeraldReady),
+                          label: const Text('Confirm Order', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 6),
                         TextButton(
                           onPressed: () {
                             posProvider.setNavIndex(1);
                           },
                           style: TextButton.styleFrom(
-                            backgroundColor: Colors.black87,
-                            foregroundColor: CelestialTheme.goldLight,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            backgroundColor: Colors.black45,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                           ),
-                          child: const Text('View in History', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                          child: const Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),

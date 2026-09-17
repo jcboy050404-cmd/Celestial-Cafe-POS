@@ -826,15 +826,20 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
 
     switch (status) {
       case OrderStatus.pending:
-        statusTitle = 'Order Sent • Waiting for Confirmation';
-        statusSubtitle = 'The café has received your order and will confirm shortly.';
+        statusTitle = 'Order Sent • Waiting for Cashier Confirmation';
+        statusSubtitle = 'The café has received your order. The cashier will review and confirm shortly.';
         statusIcon = Icons.hourglass_top_rounded;
         statusColor = CelestialTheme.amberBrewing;
         break;
       case OrderStatus.confirmed:
       case OrderStatus.preparing:
-        statusTitle = 'Kitchen is Preparing Your Order!';
-        statusSubtitle = 'Estimated time: ~${_profile?.estimatedPrepMinutes ?? 15} mins.';
+        final hasCashier = order.cashierName.isNotEmpty &&
+            !order.cashierName.toLowerCase().contains('online') &&
+            !order.cashierName.toLowerCase().contains('web');
+        statusTitle = 'Order Confirmed by Cashier!';
+        statusSubtitle = hasCashier
+            ? 'Confirmed by cashier ${order.cashierName}. Kitchen is preparing your items (~${_profile?.estimatedPrepMinutes ?? 15} mins).'
+            : 'Confirmed by cashier! Kitchen is preparing your items (~${_profile?.estimatedPrepMinutes ?? 15} mins).';
         statusIcon = Icons.local_fire_department_rounded;
         statusColor = CelestialTheme.goldPrimary;
         break;

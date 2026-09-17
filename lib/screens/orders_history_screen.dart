@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import '../widgets/receipt_dialog.dart';
 import '../widgets/order_details_dialog.dart';
+import '../widgets/online_order_confirm_dialog.dart';
 import '../widgets/top_notification.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
@@ -793,16 +794,10 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await provider.acceptOnlineOrder(order);
-                            TopNotification.showSuccess(
-                              context,
-                              'Online Order ${order.orderNumber} accepted & sent to kitchen!',
-                            );
-                          },
+                          onPressed: () => OnlineOrderConfirmDialog.show(context, order),
                           icon: const Icon(Icons.check_circle_rounded, size: 16),
                           label: const Text(
-                            'Accept & Prepare Order',
+                            'Review & Confirm Order',
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                           style: ElevatedButton.styleFrom(
@@ -817,11 +812,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       OutlinedButton.icon(
                         onPressed: () async {
                           await provider.cancelOnlineOrder(order);
-                          TopNotification.show(
-                            context,
-                            message: 'Online Order ${order.orderNumber} rejected.',
-                            icon: Icons.cancel_outlined,
-                          );
+                          if (context.mounted) {
+                            TopNotification.show(
+                              context,
+                              message: 'Online Order ${order.orderNumber} rejected.',
+                              icon: Icons.cancel_outlined,
+                            );
+                          }
                         },
                         icon: Icon(Icons.close_rounded, size: 15, color: CelestialTheme.roseAlert),
                         label: Text('Reject', style: TextStyle(color: CelestialTheme.roseAlert, fontSize: 12)),
@@ -839,10 +836,12 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         await provider.markOnlineOrderReady(order);
-                        TopNotification.showSuccess(
-                          context,
-                          'Online Order ${order.orderNumber} is Ready!',
-                        );
+                        if (context.mounted) {
+                          TopNotification.showSuccess(
+                            context,
+                            'Online Order ${order.orderNumber} is Ready!',
+                          );
+                        }
                       },
                       icon: const Icon(Icons.notifications_active_rounded, size: 16),
                       label: const Text(
@@ -863,10 +862,12 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         await provider.completeOnlineOrder(order);
-                        TopNotification.showSuccess(
-                          context,
-                          'Online Order ${order.orderNumber} completed & delivered!',
-                        );
+                        if (context.mounted) {
+                          TopNotification.showSuccess(
+                            context,
+                            'Online Order ${order.orderNumber} completed & delivered!',
+                          );
+                        }
                       },
                       icon: const Icon(Icons.done_all_rounded, size: 16),
                       label: const Text(

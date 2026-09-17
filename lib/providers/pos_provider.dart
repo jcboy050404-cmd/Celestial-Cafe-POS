@@ -1373,12 +1373,20 @@ class PosProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<bool> acceptOnlineOrder(Order order) async {
+  Future<bool> acceptOnlineOrder(Order order, {String? cashierName}) async {
     final storeId = effectiveStoreId;
+    final confirmedBy = cashierName ??
+        (_currentUser?.displayName ??
+            _currentUser?.email.split('@').first ??
+            'Cashier');
+
     final orderIdx = _incomingOnlineOrders.indexWhere((o) => o.id == order.id);
     if (orderIdx >= 0) {
       _incomingOnlineOrders[orderIdx].status = OrderStatus.preparing;
+      _incomingOnlineOrders[orderIdx].cashierName = confirmedBy;
     }
+    order.status = OrderStatus.preparing;
+    order.cashierName = confirmedBy;
 
     // Deduct stock for items in order
     for (var cartItem in order.items) {
@@ -1394,16 +1402,21 @@ class PosProvider extends ChangeNotifier {
     _saveMenuToStorage();
 
     // Insert into completed/active orders list in POS if not present
-    if (!_orders.any((o) => o.id == order.id)) {
+    final inOrdersIdx = _orders.indexWhere((o) => o.id == order.id);
+    if (inOrdersIdx >= 0) {
+      _orders[inOrdersIdx].status = OrderStatus.preparing;
+      _orders[inOrdersIdx].cashierName = confirmedBy;
+    } else {
       _orders.insert(0, order);
-      _scheduleSaveOrders();
     }
+    _scheduleSaveOrders();
 
     notifyListeners();
     return await OnlineOrderService().updateOrderStatus(
       storeId: storeId,
       orderId: order.id,
       newStatus: OrderStatus.preparing,
+      cashierName: confirmedBy,
     );
   }
 
