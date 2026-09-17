@@ -683,36 +683,57 @@ class _CustomerOnlineOrderScreenState extends State<CustomerOnlineOrderScreen> {
                         )
                       : LayoutBuilder(
                           builder: (context, constraints) {
-                            int crossAxisCount = 2;
-                            double childAspectRatio = 0.74;
+                            int crossAxisCount = 3;
+                            double childAspectRatio = 0.64;
+                            double spacing = 8.0;
+                            EdgeInsets padding = EdgeInsets.fromLTRB(
+                              8,
+                              6,
+                              8,
+                              _cart.isNotEmpty ? 90 : 24,
+                            );
 
                             if (constraints.maxWidth >= 1100) {
                               crossAxisCount = 5;
                               childAspectRatio = 0.78;
-                            } else if (constraints.maxWidth >= 850) {
-                              crossAxisCount = 4;
-                              childAspectRatio = 0.78;
-                            } else if (constraints.maxWidth >= 520) {
-                              crossAxisCount = 3;
-                              childAspectRatio = 0.76;
-                            } else {
-                              crossAxisCount = 2;
-                              childAspectRatio = 0.74;
-                            }
-
-                            return GridView.builder(
-                              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                              padding: EdgeInsets.fromLTRB(
+                              spacing = 12.0;
+                              padding = EdgeInsets.fromLTRB(
                                 12,
                                 8,
                                 12,
                                 _cart.isNotEmpty ? 90 : 24,
-                              ),
+                              );
+                            } else if (constraints.maxWidth >= 750) {
+                              crossAxisCount = 4;
+                              childAspectRatio = 0.76;
+                              spacing = 10.0;
+                              padding = EdgeInsets.fromLTRB(
+                                10,
+                                8,
+                                10,
+                                _cart.isNotEmpty ? 90 : 24,
+                              );
+                            } else {
+                              // Mobile screens: 3 clean columns
+                              crossAxisCount = 3;
+                              childAspectRatio = 0.64;
+                              spacing = 8.0;
+                              padding = EdgeInsets.fromLTRB(
+                                8,
+                                6,
+                                8,
+                                _cart.isNotEmpty ? 90 : 24,
+                              );
+                            }
+
+                            return GridView.builder(
+                              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                              padding: padding,
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: crossAxisCount,
                                 childAspectRatio: childAspectRatio,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
+                                crossAxisSpacing: spacing,
+                                mainAxisSpacing: spacing,
                               ),
                               itemCount: _filteredItems.length,
                               itemBuilder: (context, idx) {

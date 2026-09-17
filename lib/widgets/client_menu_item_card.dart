@@ -43,6 +43,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 145;
         final isCompact = constraints.maxWidth < 180;
 
         return MouseRegion(
@@ -55,7 +56,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
               duration: const Duration(milliseconds: 180),
               decoration: BoxDecoration(
                 color: _isHovered ? CelestialTheme.bgCardHover : CelestialTheme.bgCard,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
                 border: Border.all(
                   color: widget.inCartCount > 0
                       ? CelestialTheme.goldPrimary.withValues(alpha: 0.65)
@@ -81,13 +82,13 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
-                            isCompact ? 8 : 10,
-                            isCompact ? 8 : 10,
-                            isCompact ? 8 : 10,
+                            isMobile ? 6 : (isCompact ? 8 : 10),
+                            isMobile ? 6 : (isCompact ? 8 : 10),
+                            isMobile ? 6 : (isCompact ? 8 : 10),
                             0,
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(isMobile ? 11 : 14),
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
@@ -97,16 +98,19 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                     color: Colors.black.withValues(alpha: 0.55),
                                     alignment: Alignment.center,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isMobile ? 5 : 8,
+                                        vertical: isMobile ? 2 : 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: CelestialTheme.roseAlert.withValues(alpha: 0.9),
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
                                         !widget.isStoreOpen ? 'PAUSED' : 'SOLD OUT',
                                         style: GoogleFonts.outfit(
                                           color: Colors.white,
-                                          fontSize: 10,
+                                          fontSize: isMobile ? 8.5 : 10,
                                           fontWeight: FontWeight.bold,
                                           letterSpacing: 0.5,
                                         ),
@@ -121,7 +125,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
 
                       // Details & Price Actions
                       Padding(
-                        padding: EdgeInsets.all(isCompact ? 8 : 10),
+                        padding: EdgeInsets.all(isMobile ? 6 : (isCompact ? 8 : 10)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -129,7 +133,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                             Text(
                               item.name,
                               style: GoogleFonts.outfit(
-                                fontSize: isCompact ? 13.5 : 15.5,
+                                fontSize: isMobile ? 12 : (isCompact ? 13.5 : 15.5),
                                 fontWeight: FontWeight.bold,
                                 color: isAvailable ? CelestialTheme.textLight : CelestialTheme.textSubtle,
                                 height: 1.15,
@@ -137,7 +141,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 2),
 
                             // Category Tag in Warm Toasted Beige
                             Row(
@@ -148,17 +152,20 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.outfit(
-                                      fontSize: isCompact ? 9.5 : 10.5,
+                                      fontSize: isMobile ? 8 : (isCompact ? 9.5 : 10.5),
                                       fontWeight: FontWeight.w700,
                                       color: CelestialTheme.warmBeige,
-                                      letterSpacing: 0.8,
+                                      letterSpacing: 0.6,
                                     ),
                                   ),
                                 ),
                                 if (item.customizationGroups.isNotEmpty) ...[
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 3),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 3 : 5,
+                                      vertical: isMobile ? 1 : 1.5,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: CelestialTheme.goldPrimary.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(4),
@@ -167,7 +174,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                     child: Text(
                                       'Options',
                                       style: TextStyle(
-                                        fontSize: 8.5,
+                                        fontSize: isMobile ? 7.5 : 8.5,
                                         fontWeight: FontWeight.bold,
                                         color: CelestialTheme.goldLight,
                                       ),
@@ -177,7 +184,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                               ],
                             ),
 
-                            if (item.description.isNotEmpty) ...[
+                            if (item.description.isNotEmpty && !isMobile) ...[
                               const SizedBox(height: 3),
                               Text(
                                 item.description,
@@ -191,7 +198,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                               ),
                             ],
 
-                            const SizedBox(height: 6),
+                            SizedBox(height: isMobile ? 4 : 6),
 
                             // Bottom Row: Price & Tactile Button (matches cashier card '+' and provides 'Add' action)
                             Row(
@@ -202,7 +209,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                   child: Text(
                                     '₱${item.price.toStringAsFixed(2)}',
                                     style: GoogleFonts.outfit(
-                                      fontSize: isCompact ? 15 : 17.5,
+                                      fontSize: isMobile ? 12.5 : (isCompact ? 15 : 17.5),
                                       fontWeight: FontWeight.w800,
                                       color: isAvailable ? Colors.white : CelestialTheme.textSubtle,
                                     ),
@@ -211,15 +218,15 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                   ),
                                 ),
                                 if (isAvailable) ...[
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 4),
                                   Container(
-                                    height: isCompact ? 28 : 32,
+                                    height: isMobile ? 24 : (isCompact ? 28 : 32),
                                     padding: EdgeInsets.symmetric(
-                                      horizontal: isCompact ? 8 : 10,
+                                      horizontal: isMobile ? 6 : (isCompact ? 8 : 10),
                                     ),
                                     decoration: BoxDecoration(
                                       color: CelestialTheme.caramelAccent,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(12),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withValues(alpha: 0.30),
@@ -234,7 +241,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                         Icon(
                                           Icons.add_rounded,
                                           color: CelestialTheme.creamLight,
-                                          size: isCompact ? 16 : 18,
+                                          size: isMobile ? 13 : (isCompact ? 16 : 18),
                                         ),
                                         const SizedBox(width: 2),
                                         Text(
@@ -242,7 +249,7 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                                           style: GoogleFonts.outfit(
                                             color: CelestialTheme.creamLight,
                                             fontWeight: FontWeight.bold,
-                                            fontSize: isCompact ? 11 : 12,
+                                            fontSize: isMobile ? 10 : (isCompact ? 11 : 12),
                                           ),
                                         ),
                                       ],
@@ -260,13 +267,16 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                   // In-cart Badge
                   if (widget.inCartCount > 0)
                     Positioned(
-                      top: 10,
-                      right: 10,
+                      top: isMobile ? 6 : 10,
+                      right: isMobile ? 6 : 10,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 5 : 7,
+                          vertical: isMobile ? 2 : 3,
+                        ),
                         decoration: BoxDecoration(
                           gradient: CelestialTheme.goldGradient,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.4),
@@ -278,12 +288,12 @@ class _ClientMenuItemCardState extends State<ClientMenuItemCard> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.shopping_bag_rounded, size: 10, color: CelestialTheme.bgDark),
-                            const SizedBox(width: 3),
+                            Icon(Icons.shopping_bag_rounded, size: isMobile ? 8 : 10, color: CelestialTheme.bgDark),
+                            const SizedBox(width: 2),
                             Text(
                               '${widget.inCartCount}',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: isMobile ? 9.5 : 11,
                                 fontWeight: FontWeight.w900,
                                 color: CelestialTheme.bgDark,
                               ),
