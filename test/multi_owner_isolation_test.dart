@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:celestial_pos/models/app_feature.dart';
 import 'package:celestial_pos/models/order.dart';
 import 'package:celestial_pos/providers/pos_provider.dart';
 import 'package:celestial_pos/services/auth_service.dart';
 import 'package:celestial_pos/screens/orders_history_screen.dart';
 import 'package:celestial_pos/screens/inventory_screen.dart';
+import 'package:celestial_pos/screens/login_screen.dart';
+import 'package:celestial_pos/screens/online_orders_screen.dart';
+import 'package:celestial_pos/widgets/online_ordering_dialog.dart';
+import 'package:celestial_pos/main.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -312,6 +317,270 @@ void main() {
       expect(find.text('Prices'), findsNothing);
       expect(find.text('Edit'), findsNothing);
       expect(find.byIcon(Icons.delete_outline_rounded), findsNothing);
+    });
+
+    test('Cashier account creation with station label and strict access enforcement', () async {
+      final owner = AppUser(
+        uid: 'owner_test',
+        email: 'owner@celestial.com',
+        displayName: 'Owner',
+        trialStartDate: DateTime.now(),
+        role: UserRole.owner,
+      );
+      final auth = AuthService(initialUser: owner);
+
+      final created = await auth.createCashierAccount(
+        email: 'cashier1@celestial.com',
+        displayName: 'Counter 1',
+        pin: '1111',
+        role: UserRole.cashier,
+        customRoleTitle: 'CASHIER 1',
+      );
+      expect(created, isTrue);
+
+      final cashiers = auth.getCashiersForCurrentOwner();
+      expect(cashiers.length, 1);
+      final cashier = cashiers.first;
+      expect(cashier.roleBadgeLabel, 'CASHIER 1');
+      expect(cashier.isCashier, isTrue);
+
+      // Cashier only accesses POS, Order History, and Online Orders
+      expect(cashier.isFeatureEnabled(AppFeature.orderHistory), isTrue);
+      expect(cashier.isFeatureEnabled(AppFeature.inventory), isFalse);
+      expect(cashier.isFeatureEnabled(AppFeature.analytics), isFalse);
+      expect(cashier.isFeatureEnabled(AppFeature.foodCosting), isFalse);
+      expect(cashier.isFeatureEnabled(AppFeature.storeSettings), isFalse);
+
+      // Updating role & label
+      final updated = await auth.updateCashierRole(
+        email: 'cashier1@celestial.com',
+        newRole: UserRole.cashier,
+        customRoleTitle: 'DRIVE-THRU',
+      );
+      expect(updated, isTrue);
+      final updatedCashier = auth.getCashiersForCurrentOwner().first;
+      expect(updatedCashier.roleBadgeLabel, 'DRIVE-THRU');
+    });
+
+    testWidgets('Cashier in MainWorkstationScaffold only sees POS, Online Orders, and Order History', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final cashierUser = AppUser(
+        uid: 'cashier_desk_1',
+        email: 'cashier1@cafe.com',
+        displayName: 'Station 1',
+        trialStartDate: DateTime.now(),
+        role: UserRole.cashier,
+        customRoleTitle: 'CASHIER 1',
+        ownerEmail: 'owner@cafe.com',
+      );
+      final authService = AuthService(initialUser: cashierUser);
+      final posProvider = PosProvider();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthService>.value(value: authService),
+            ChangeNotifierProvider<PosProvider>.value(value: posProvider),
+          ],
+          child: const MaterialApp(
+            home: MainWorkstationScaffold(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Allowed tabs
+      expect(find.text('POS Station'), findsOneWidget);
+      expect(find.text('Online Orders'), findsOneWidget);
+      expect(find.text('Order History'), findsOneWidget);
+
+      // Blocked tabs for cashier
+      expect(find.text('Menu & Stock'), findsNothing);
+      expect(find.text('Analytics'), findsNothing);
+      expect(find.text('Food Costing'), findsNothing);
+
+      // Store settings button is hidden for cashier
+      expect(find.byTooltip('Store Settings & Station Configuration'), findsNothing);
+
+      // Cashier role badge is visible in header
+      expect(find.text('CASHIER 1'), findsWidgets);
+    });
+
+    test('Cashier Name and PIN Login: service layer resolves displayName, station label, and username to account', () async {
+      SharedPreferences.setMockInitialValues({});
+      final auth = AuthService();
+
+      final owner = AppUser(
+        uid: 'owner_test_uid',
+        email: 'owner@test.com',
+        displayName: 'Store Owner',
+        tier: SubscriptionTier.pro,
+        trialStartDate: DateTime.now(),
+        role: UserRole.owner,
+      );
+      auth.setLoggedInUserForTesting(owner);
+
+      // Create cashier account with distinct Display Name, Station Label, and Username
+      await auth.createCashierAccount(
+        email: 'cashier_register1@cafe.com',
+        pin: '5566',
+        displayName: 'Maria Santos',
+        customRoleTitle: 'COUNTER 1',
+      );
+
+      // 1. Login with Cashier Name ("Maria Santos") + PIN
+      final loginByName = await auth.signInStaff(nameOrEmail: 'Maria Santos', pin: '5566');
+      expect(loginByName, isTrue);
+      expect(auth.currentUser?.email, equals('cashier_register1@cafe.com'));
+      expect(auth.currentUser?.displayName, equals('Maria Santos'));
+      expect(auth.currentUser?.roleBadgeLabel, equals('COUNTER 1'));
+
+      // 2. Login with Station Label ("COUNTER 1") + PIN
+      final loginByLabel = await auth.signInStaff(nameOrEmail: 'COUNTER 1', pin: '5566');
+      expect(loginByLabel, isTrue);
+      expect(auth.currentUser?.email, equals('cashier_register1@cafe.com'));
+
+      // 3. Login with Username prefix ("cashier_register1") + PIN
+      final loginByUsername = await auth.signInStaff(nameOrEmail: 'cashier_register1', pin: '5566');
+      expect(loginByUsername, isTrue);
+      expect(auth.currentUser?.email, equals('cashier_register1@cafe.com'));
+
+      // 4. Incorrect PIN fails
+      final wrongPin = await auth.signInStaff(nameOrEmail: 'Maria Santos', pin: '9999');
+      expect(wrongPin, isFalse);
+
+      // 5. Unknown Cashier Name fails
+      final unknownStaff = await auth.signInStaff(nameOrEmail: 'Unknown Person', pin: '5566');
+      expect(unknownStaff, isFalse);
+    });
+
+    testWidgets('Cashier Name and PIN Login: LoginScreen widget permits staff sign in using Cashier Name and PIN', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      SharedPreferences.setMockInitialValues({});
+      final auth = AuthService();
+      final pos = PosProvider();
+
+      final owner = AppUser(
+        uid: 'owner_ui_uid',
+        email: 'owner@ui.com',
+        displayName: 'Store Owner',
+        tier: SubscriptionTier.pro,
+        trialStartDate: DateTime.now(),
+        role: UserRole.owner,
+      );
+      auth.setLoggedInUserForTesting(owner);
+
+      await auth.createCashierAccount(
+        email: 'cashier_front@cafe.com',
+        pin: '1234',
+        displayName: 'Front Cashier',
+        customRoleTitle: 'CASHIER 1',
+      );
+
+      // Log out so LoginScreen is presented
+      await auth.signOut();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthService>.value(value: auth),
+            ChangeNotifierProvider<PosProvider>.value(value: pos),
+          ],
+          child: const MaterialApp(
+            home: LoginScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to Employee (Staff) login tab
+      final employeeTabFinder = find.byKey(const ValueKey('login_role_employee_tab'));
+      expect(employeeTabFinder, findsOneWidget);
+      await tester.tap(employeeTabFinder);
+      await tester.pumpAndSettle();
+
+      // Verify the Cashier Name / Email input field is present
+      final emailInputFinder = find.byKey(const ValueKey('employee_email_input'));
+      expect(emailInputFinder, findsOneWidget);
+
+      // Enter Cashier Name ("Front Cashier") instead of email
+      await tester.enterText(emailInputFinder, 'Front Cashier');
+      await tester.pumpAndSettle();
+
+      // Enter 4-digit PIN ("1234")
+      final pinInputFinder = find.byType(TextField).last;
+      await tester.enterText(pinInputFinder, '1234');
+      await tester.pumpAndSettle();
+
+      // Tap Sign In as Staff button
+      final signInBtnFinder = find.byKey(const ValueKey('employee_sign_in_btn'));
+      expect(signInBtnFinder, findsOneWidget);
+      await tester.tap(signInBtnFinder);
+      await tester.pumpAndSettle();
+
+      // Verify user is successfully logged in as cashier
+      expect(auth.currentUser, isNotNull);
+      expect(auth.currentUser?.email, equals('cashier_front@cafe.com'));
+      expect(auth.currentUser?.displayName, equals('Front Cashier'));
+      expect(auth.currentUser?.isCashier, isTrue);
+    });
+
+    testWidgets('Cashier cannot access customer online ordering settings, order links, or store controls', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      SharedPreferences.setMockInitialValues({});
+      final auth = AuthService();
+      final pos = PosProvider();
+
+      final cashier = AppUser(
+        uid: 'cashier_online_uid',
+        email: 'cashier@cafe.com',
+        displayName: 'Cashier Station',
+        role: UserRole.cashier,
+        tier: SubscriptionTier.trial,
+        trialStartDate: DateTime.now(),
+        customRoleTitle: 'CASHIER 1',
+      );
+      auth.setLoggedInUserForTesting(cashier);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthService>.value(value: auth),
+            ChangeNotifierProvider<PosProvider>.value(value: pos),
+          ],
+          child: const MaterialApp(
+            home: MainWorkstationScaffold(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. QR button is hidden in HeaderBar on Desktop
+      expect(find.byKey(const ValueKey('desktop_online_order_btn')), findsNothing);
+
+      // 2. Switch to Online Orders Tab
+      await tester.tap(find.text('Online Orders'));
+      await tester.pumpAndSettle();
+
+      // 3. 'QR & Store Controls' button is hidden for cashier in OnlineOrdersScreen
+      expect(find.text('QR & Store Controls'), findsNothing);
+
+      // 4. In empty state, 'Show Ordering QR Code & Link' button is hidden for cashier
+      expect(find.text('Show Ordering QR Code & Link'), findsNothing);
+
+      // 5. Calling OnlineOrderingDialog.show does not open configuration dialog
+      await OnlineOrderingDialog.show(tester.element(find.byType(OnlineOrdersScreen)));
+      await tester.pumpAndSettle();
+      expect(find.text('Online Store Controls'), findsNothing);
     });
   });
 }

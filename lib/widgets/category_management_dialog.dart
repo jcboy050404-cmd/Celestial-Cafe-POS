@@ -127,178 +127,293 @@ class CategoryManagementDialog {
                     Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
                     const SizedBox(height: 12),
 
-                    Text(
-                      'All Categories (${categories.length})',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: CelestialTheme.textLight,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          'All Categories (${categories.length})',
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: CelestialTheme.textLight,
+                          ),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Icon(Icons.swap_vert_rounded, size: 14, color: CelestialTheme.goldLight),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Drag to choose 1st section',
+                              style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
 
-                    // List of Categories
+                    // Reorderable List of Categories
                     Flexible(
-                      child: ListView(
+                      child: ReorderableListView.builder(
                         shrinkWrap: true,
-                        children: [
-                          if (categories.isNotEmpty) ...[
-                            ...categories.map((cat) {
-                              final count = provider.menuItems.where((i) {
-                                if (cat.isCustom) {
-                                  return i.customCategory == cat.label || i.customCategory == cat.id;
-                                } else {
-                                  final enumMatch = ItemCategory.values.firstWhere(
-                                    (c) => c.name == cat.id,
-                                    orElse: () => ItemCategory.custom,
-                                  );
-                                  return i.category == enumMatch && (i.customCategory == null || i.customCategory!.isEmpty);
-                                }
-                              }).length;
+                        buildDefaultDragHandles: false,
+                        itemCount: categories.length,
+                        // ignore: deprecated_member_use
+                        onReorder: (oldIndex, newIndex) {
+                          provider.reorderCategoryTabs(oldIndex, newIndex);
+                          setDialogState(() {});
+                          onUpdated?.call();
+                        },
+                        proxyDecorator: (child, index, animation) {
+                          return Material(
+                            color: Colors.transparent,
+                            elevation: 6,
+                            shadowColor: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: CelestialTheme.bgSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: CelestialTheme.goldPrimary, width: 1.5),
+                              ),
+                              child: child,
+                            ),
+                          );
+                        },
+                        itemBuilder: (ctx, index) {
+                          final cat = categories[index];
+                          final isFirst = index == 0;
+                          final count = provider.menuItems.where((i) {
+                            if (cat.isCustom) {
+                              return i.customCategory == cat.label || i.customCategory == cat.id;
+                            } else {
+                              final enumMatch = ItemCategory.values.firstWhere(
+                                (c) => c.name == cat.id,
+                                orElse: () => ItemCategory.custom,
+                              );
+                              return i.category == enumMatch && (i.customCategory == null || i.customCategory!.isEmpty);
+                            }
+                          }).length;
 
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: CelestialTheme.bgCard,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (cat.icon.trim().isNotEmpty) ...[
-                                      Text(cat.icon, style: const TextStyle(fontSize: 20)),
-                                      const SizedBox(width: 12),
-                                    ],
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Flexible(
-                                                child: Text(
-                                                  cat.label,
-                                                  style: GoogleFonts.outfit(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: CelestialTheme.textLight,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              if (cat.isKitchenDish) ...[
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFFFF7043).withValues(alpha: 0.18),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(color: const Color(0xFFFF7043).withValues(alpha: 0.5)),
-                                                  ),
-                                                  child: const Text(
-                                                    'KDS KITCHEN',
-                                                    style: TextStyle(
-                                                      fontSize: 9,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Color(0xFFFF7043),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '$count item(s) in this category',
-                                            style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
-                                          ),
-                                        ],
+                          return Container(
+                            key: ValueKey(cat.id),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: CelestialTheme.bgCard,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isFirst
+                                    ? CelestialTheme.goldPrimary.withValues(alpha: 0.4)
+                                    : Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Drag Handle & Position Indicator
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isFirst
+                                          ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                          : Colors.white.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: isFirst
+                                            ? CelestialTheme.goldPrimary.withValues(alpha: 0.5)
+                                            : Colors.white.withValues(alpha: 0.1),
                                       ),
                                     ),
-                                    IconButton(
-                                      icon: Icon(Icons.edit_outlined, size: 18, color: CelestialTheme.goldLight),
-                                      tooltip: 'Edit Category',
-                                      onPressed: () {
-                                        showCreateOrEditCategoryModal(
-                                          dialogCtx,
-                                          provider,
-                                          editTab: cat,
-                                          onSaved: () {
-                                            setDialogState(() {});
-                                            onUpdated?.call();
-                                          },
-                                        );
-                                      },
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.drag_indicator_rounded,
+                                          size: 15,
+                                          color: isFirst ? CelestialTheme.goldPrimary : CelestialTheme.textMuted,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          isFirst ? '1ST' : '#${index + 1}',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: isFirst ? CelestialTheme.goldPrimary : CelestialTheme.textMuted,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    IconButton(
-                                      icon: Icon(Icons.delete_outline, size: 18, color: CelestialTheme.roseAlert),
-                                      tooltip: 'Delete Category',
-                                      onPressed: () {
-                                        confirmDeleteCategory(
-                                          dialogCtx,
-                                          provider,
-                                          tab: cat,
-                                          onDeleted: () {
-                                            setDialogState(() {});
-                                            onUpdated?.call();
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              );
-                            }),
-                          ],
-
-                          // Empty State when no categories exist
-                          if (categories.isEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-                              alignment: Alignment.center,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.category_outlined, size: 44, color: CelestialTheme.textMuted.withValues(alpha: 0.4)),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No Categories in Catalog',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: CelestialTheme.textLight,
-                                    ),
+                                const SizedBox(width: 10),
+                                if (cat.icon.trim().isNotEmpty) ...[
+                                  Text(cat.icon, style: const TextStyle(fontSize: 18)),
+                                  const SizedBox(width: 10),
+                                ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              cat.label,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: CelestialTheme.textLight,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (isFirst) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: CelestialTheme.goldPrimary.withValues(alpha: 0.2),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.4)),
+                                              ),
+                                              child: Text(
+                                                '1ST SECTION',
+                                                style: TextStyle(
+                                                  fontSize: 8.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: CelestialTheme.goldLight,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          if (cat.isKitchenDish) ...[
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFF7043).withValues(alpha: 0.18),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: const Color(0xFFFF7043).withValues(alpha: 0.5)),
+                                              ),
+                                              child: const Text(
+                                                'KDS KITCHEN',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFFFF7043),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '$count item(s) in this category',
+                                        style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'All categories have been removed.\nClick "Create Category" above to add your own, or restore the default cafe categories below.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted, height: 1.4),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  OutlinedButton.icon(
-                                    onPressed: () async {
-                                      await provider.restoreSystemCategories();
+                                ),
+                                if (!isFirst)
+                                  IconButton(
+                                    icon: Icon(Icons.vertical_align_top_rounded, size: 17, color: CelestialTheme.goldLight),
+                                    tooltip: 'Move to 1st Section',
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      provider.moveCategoryToFirst(cat.id);
                                       setDialogState(() {});
                                       onUpdated?.call();
                                     },
-                                    icon: const Icon(Icons.restore_rounded, size: 16),
-                                    label: const Text('Restore Default Categories', style: TextStyle(fontSize: 12)),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: CelestialTheme.goldLight,
-                                      side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
                                   ),
-                                ],
+                                IconButton(
+                                  icon: Icon(Icons.edit_outlined, size: 17, color: CelestialTheme.goldLight),
+                                  tooltip: 'Edit Category',
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () {
+                                    showCreateOrEditCategoryModal(
+                                      dialogCtx,
+                                      provider,
+                                      editTab: cat,
+                                      onSaved: () {
+                                        setDialogState(() {});
+                                        onUpdated?.call();
+                                      },
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 2),
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline, size: 17, color: CelestialTheme.roseAlert),
+                                  tooltip: 'Delete Category',
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () {
+                                    confirmDeleteCategory(
+                                      dialogCtx,
+                                      provider,
+                                      tab: cat,
+                                      onDeleted: () {
+                                        setDialogState(() {});
+                                        onUpdated?.call();
+                                      },
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    // Empty State when no categories exist
+                    if (categories.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.category_outlined, size: 44, color: CelestialTheme.textMuted.withValues(alpha: 0.4)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No Categories in Catalog',
+                              style: GoogleFonts.outfit(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: CelestialTheme.textLight,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'All categories have been removed.\nClick "Create Category" above to add your own, or restore the default cafe categories below.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 12, color: CelestialTheme.textMuted, height: 1.4),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await provider.restoreSystemCategories();
+                                setDialogState(() {});
+                                onUpdated?.call();
+                              },
+                              icon: const Icon(Icons.restore_rounded, size: 16),
+                              label: const Text('Restore Default Categories', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: CelestialTheme.goldLight,
+                                side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

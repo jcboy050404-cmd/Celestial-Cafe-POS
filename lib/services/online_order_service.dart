@@ -23,6 +23,7 @@ class OnlineStoreProfile {
   int estimatedPrepMinutes;
   String currencySymbol;
   String? customNotice;
+  String? storeLogoBase64;
 
   OnlineStoreProfile({
     required this.storeId,
@@ -39,6 +40,7 @@ class OnlineStoreProfile {
     this.estimatedPrepMinutes = 15,
     this.currencySymbol = '₱',
     this.customNotice,
+    this.storeLogoBase64,
   });
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +58,7 @@ class OnlineStoreProfile {
         'estimatedPrepMinutes': estimatedPrepMinutes,
         'currencySymbol': currencySymbol,
         'customNotice': customNotice,
+        'storeLogoBase64': storeLogoBase64,
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
@@ -75,6 +78,7 @@ class OnlineStoreProfile {
       estimatedPrepMinutes: (json['estimatedPrepMinutes'] as num?)?.toInt() ?? 15,
       currencySymbol: json['currencySymbol'] as String? ?? '₱',
       customNotice: json['customNotice'] as String?,
+      storeLogoBase64: json['storeLogoBase64'] as String?,
     );
   }
 }
@@ -204,6 +208,23 @@ class OnlineOrderService {
     }
 
     try {
+      // Conflict check: verify slug is not already claimed by a different store
+      final checkUri = Uri.parse('$_rtdbUrl/store_slugs/$clean.json');
+      final checkRes = await http.get(checkUri).timeout(const Duration(seconds: 5));
+      if (checkRes.statusCode == 200 && checkRes.body != 'null') {
+        final dynamic data = jsonDecode(checkRes.body);
+        if (data is Map<String, dynamic>) {
+          final claimedStoreId = data['storeId'] as String? ?? '';
+          final claimedEmail = data['ownerEmail'] as String? ?? '';
+          final isMine = claimedStoreId == storeId ||
+              claimedEmail.toLowerCase() == ownerEmail.trim().toLowerCase();
+          if (!isMine) {
+            if (kDebugMode) print('claimCustomSlug: Slug "$clean" is already claimed by another store');
+            return false;
+          }
+        }
+      }
+
       final uri = Uri.parse('$_rtdbUrl/store_slugs/$clean.json');
       final body = jsonEncode({
         'storeId': storeId,
@@ -369,6 +390,26 @@ class OnlineOrderService {
     }
   }
 
+  /// Fast update of store profile (open/closed status, custom notice, order types, prep time)
+  /// directly to Firebase RTDB and local cache without re-uploading the entire menu catalog.
+  Future<bool> updateStoreProfile(OnlineStoreProfile profile) async {
+    _localProfiles[profile.storeId] = profile;
+    await saveLocalProfile(profile);
+
+    if (_isFlutterTest) return true;
+
+    try {
+      final storeId = profile.storeId;
+      final profileUri = Uri.parse('$_rtdbUrl/online_stores/$storeId/profile.json');
+      final profileJson = jsonEncode(profile.toJson());
+      final res = await http.put(profileUri, body: profileJson).timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      if (kDebugMode) print('OnlineOrderService.updateStoreProfile error: $e');
+      return false;
+    }
+  }
+
   /// Fetches the store profile & menu for the customer-facing screen.
   Future<Map<String, dynamic>?> fetchStoreCatalog(String inputStoreKey) async {
     final storeId = await resolveStoreId(inputStoreKey);
@@ -396,6 +437,20 @@ class OnlineOrderService {
       if (responses[0].statusCode == 200 && responses[0].body != 'null') {
         final map = jsonDecode(responses[0].body) as Map<String, dynamic>;
         profile = OnlineStoreProfile.fromJson(map);
+        // Fallback: If cloud record was published before logo support, merge local logo/tagline
+        final local = _localProfiles[storeId];
+        if (local != null) {
+          if ((profile.storeLogoBase64 == null || profile.storeLogoBase64!.isEmpty) &&
+              local.storeLogoBase64 != null &&
+              local.storeLogoBase64!.isNotEmpty) {
+            profile.storeLogoBase64 = local.storeLogoBase64;
+          }
+          if ((profile.storeTagline.isEmpty || profile.storeTagline == 'Handcrafted Coffee & Treats') &&
+              local.storeTagline.isNotEmpty &&
+              local.storeTagline != 'Handcrafted Coffee & Treats') {
+            profile.storeTagline = local.storeTagline;
+          }
+        }
       } else {
         profile = _localProfiles[storeId] ??
             OnlineStoreProfile(storeId: storeId, ownerEmail: '$storeId@store.com');
@@ -434,7 +489,7 @@ class OnlineOrderService {
     final actualStoreId = await resolveStoreId(storeId);
 
     if (_isFlutterTest) {
-      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, order);
+      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, Order.fromJson(order.toJson()));
       return true;
     }
 
@@ -446,17 +501,24 @@ class OnlineOrderService {
     } catch (e) {
       if (kDebugMode) print('OnlineOrderService.submitCustomerOrder error: $e');
       // Save in mock list as fallback
-      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, order);
+      _mockStoreOrders.putIfAbsent(actualStoreId, () => []).insert(0, Order.fromJson(order.toJson()));
       return false;
     }
   }
 
   /// Polls the store's incoming online orders from Firebase for the POS terminal.
-  Future<List<Order>> fetchIncomingOrders(String inputStoreKey) async {
+  ///
+  /// Only active orders (pending, preparing, ready, outForDelivery) and recent
+  /// completed/cancelled orders (within [recentCompletedWindow]) are returned
+  /// to keep network payloads compact and query execution fast.
+  Future<List<Order>> fetchIncomingOrders(
+    String inputStoreKey, {
+    Duration recentCompletedWindow = const Duration(hours: 48),
+  }) async {
     final storeId = await resolveStoreId(inputStoreKey);
 
     if (_isFlutterTest) {
-      return _mockStoreOrders[storeId] ?? [];
+      return (_mockStoreOrders[storeId] ?? []).map((o) => Order.fromJson(o.toJson())).toList();
     }
 
     try {
@@ -466,21 +528,28 @@ class OnlineOrderService {
       if (res.statusCode == 200 && res.body != 'null') {
         final dynamic raw = jsonDecode(res.body);
         final List<Order> orders = [];
+        final cutoff = DateTime.now().subtract(recentCompletedWindow);
+
+        void addIfRelevant(Map<String, dynamic> itemMap) {
+          try {
+            final o = Order.fromJson(itemMap);
+            final isFinal = o.status == OrderStatus.completed || o.status == OrderStatus.cancelled;
+            if (!isFinal || o.createdAt.isAfter(cutoff)) {
+              orders.add(o);
+            }
+          } catch (_) {}
+        }
 
         if (raw is Map<String, dynamic>) {
           for (final entry in raw.entries) {
             if (entry.value is Map<String, dynamic>) {
-              try {
-                orders.add(Order.fromJson(entry.value as Map<String, dynamic>));
-              } catch (_) {}
+              addIfRelevant(entry.value as Map<String, dynamic>);
             }
           }
         } else if (raw is List<dynamic>) {
           for (final item in raw) {
             if (item is Map<String, dynamic>) {
-              try {
-                orders.add(Order.fromJson(item));
-              } catch (_) {}
+              addIfRelevant(item);
             }
           }
         }
@@ -493,6 +562,79 @@ class OnlineOrderService {
     }
 
     return _mockStoreOrders[storeId] ?? [];
+  }
+
+  /// Archives old completed or cancelled orders from `/incoming_orders` to `/archived_orders`
+  /// to ensure the active incoming order queue remains compact and high-performing.
+  Future<int> archiveOldCompletedOrders({
+    required String storeId,
+    Duration olderThan = const Duration(hours: 48),
+  }) async {
+    final actualStoreId = await resolveStoreId(storeId);
+    if (_isFlutterTest) return 0;
+
+    try {
+      final uri = Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders.json');
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200 || res.body == 'null') return 0;
+
+      final dynamic raw = jsonDecode(res.body);
+      if (raw is! Map<String, dynamic>) return 0;
+
+      final cutoff = DateTime.now().subtract(olderThan);
+      int archivedCount = 0;
+
+      for (final entry in raw.entries) {
+        final orderId = entry.key;
+        final data = entry.value;
+        if (data is Map<String, dynamic>) {
+          final status = data['status']?.toString();
+          final isFinal = status == 'completed' || status == 'cancelled';
+          final createdAt = DateTime.tryParse(data['createdAt']?.toString() ?? '');
+
+          if (isFinal && createdAt != null && createdAt.isBefore(cutoff)) {
+            final archiveUri =
+                Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/archived_orders/$orderId.json');
+            final putRes =
+                await http.put(archiveUri, body: jsonEncode(data)).timeout(const Duration(seconds: 5));
+            if (putRes.statusCode >= 200 && putRes.statusCode < 300) {
+              final delUri =
+                  Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders/$orderId.json');
+              await http.delete(delUri).timeout(const Duration(seconds: 5));
+              archivedCount++;
+            }
+          }
+        }
+      }
+      return archivedCount;
+    } catch (e) {
+      if (kDebugMode) print('archiveOldCompletedOrders error: $e');
+      return 0;
+    }
+  }
+
+  /// Permanently deletes an online order from Firebase Realtime Database
+  /// and local mock cache.
+  Future<bool> deleteOnlineOrder({
+    required String storeId,
+    required String orderId,
+  }) async {
+    final actualStoreId = await resolveStoreId(storeId);
+
+    if (_mockStoreOrders.containsKey(actualStoreId)) {
+      _mockStoreOrders[actualStoreId]!.removeWhere((o) => o.id == orderId);
+    }
+
+    if (_isFlutterTest) return true;
+
+    try {
+      final uri = Uri.parse('$_rtdbUrl/online_stores/$actualStoreId/incoming_orders/$orderId.json');
+      final res = await http.delete(uri).timeout(const Duration(seconds: 6));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      if (kDebugMode) print('OnlineOrderService.deleteOnlineOrder error: $e');
+      return false;
+    }
   }
 
   /// Updates the status of an online order (e.g. from Pending -> Kitchen Preparing -> Ready).
@@ -535,10 +677,28 @@ class OnlineOrderService {
     String storeId, {
     String? ownerEmail,
     String? defaultStoreName,
+    String? defaultStoreTagline,
     String? defaultStoreAddress,
+    String? defaultStoreLogoBase64,
   }) async {
     if (_localProfiles.containsKey(storeId)) {
-      return _localProfiles[storeId]!;
+      final cached = _localProfiles[storeId]!;
+      if ((cached.storeLogoBase64 == null || cached.storeLogoBase64!.isEmpty) &&
+          defaultStoreLogoBase64 != null &&
+          defaultStoreLogoBase64.isNotEmpty) {
+        cached.storeLogoBase64 = defaultStoreLogoBase64;
+      }
+      if ((cached.storeTagline.isEmpty || cached.storeTagline == 'Handcrafted Coffee & Treats') &&
+          defaultStoreTagline != null &&
+          defaultStoreTagline.isNotEmpty) {
+        cached.storeTagline = defaultStoreTagline;
+      }
+      if ((cached.storeName.isEmpty || cached.storeName == 'Celestial Cafe') &&
+          defaultStoreName != null &&
+          defaultStoreName.isNotEmpty) {
+        cached.storeName = defaultStoreName;
+      }
+      return cached;
     }
 
     try {
@@ -548,6 +708,21 @@ class OnlineOrderService {
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final map = jsonDecode(jsonStr) as Map<String, dynamic>;
         final profile = OnlineStoreProfile.fromJson(map);
+        if ((profile.storeLogoBase64 == null || profile.storeLogoBase64!.isEmpty) &&
+            defaultStoreLogoBase64 != null &&
+            defaultStoreLogoBase64.isNotEmpty) {
+          profile.storeLogoBase64 = defaultStoreLogoBase64;
+        }
+        if ((profile.storeTagline.isEmpty || profile.storeTagline == 'Handcrafted Coffee & Treats') &&
+            defaultStoreTagline != null &&
+            defaultStoreTagline.isNotEmpty) {
+          profile.storeTagline = defaultStoreTagline;
+        }
+        if ((profile.storeName.isEmpty || profile.storeName == 'Celestial Cafe') &&
+            defaultStoreName != null &&
+            defaultStoreName.isNotEmpty) {
+          profile.storeName = defaultStoreName;
+        }
         _localProfiles[storeId] = profile;
         if (profile.customSlug != null && profile.customSlug!.isNotEmpty) {
           _slugToStoreIdCache[slugify(profile.customSlug!)] = profile.storeId;
@@ -563,7 +738,9 @@ class OnlineOrderService {
       storeId: storeId,
       ownerEmail: ownerEmail ?? '',
       storeName: defaultStoreName ?? 'Celestial Cafe',
+      storeTagline: defaultStoreTagline ?? 'Handcrafted Coffee & Treats',
       storeAddress: defaultStoreAddress ?? '',
+      storeLogoBase64: defaultStoreLogoBase64,
     );
     _localProfiles[storeId] = newProfile;
     return newProfile;

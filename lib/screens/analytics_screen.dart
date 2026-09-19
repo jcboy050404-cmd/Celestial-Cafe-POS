@@ -77,14 +77,14 @@ class AnalyticsScreen extends StatelessWidget {
       color: CelestialTheme.bgSurface,
       child: Row(
         children: [
-          Icon(Icons.insights_rounded, color: CelestialTheme.goldPrimary, size: 22),
+          Icon(Icons.point_of_sale_rounded, color: CelestialTheme.goldPrimary, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Business & Shift Analytics',
+                  'Sales & Business Analytics',
                   style: GoogleFonts.outfit(
                     fontSize: isMobile ? 16 : 18,
                     fontWeight: FontWeight.bold,
@@ -92,7 +92,7 @@ class AnalyticsScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Real-time revenue (₱), best sellers & shift reports',
+                  'Real-time sales revenue (₱), best sellers & shift reports',
                   style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted),
                   overflow: TextOverflow.ellipsis,
                 ),

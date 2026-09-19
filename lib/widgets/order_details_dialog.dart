@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/order.dart';
 import '../providers/pos_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/celestial_theme.dart';
 import 'receipt_dialog.dart';
 
@@ -675,10 +676,83 @@ class OrderDetailsDialog extends StatelessWidget {
   }
 
   Widget _buildModalFooter(BuildContext context, Order order) {
+    final auth = Provider.of<AuthService>(context, listen: false);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
+          if (auth.isOwnerOrAdmin && (order.status == OrderStatus.completed || order.status == OrderStatus.cancelled)) ...[
+            OutlinedButton.icon(
+              onPressed: () async {
+                final pos = Provider.of<PosProvider>(context, listen: false);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: CelestialTheme.bgSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+                    ),
+                    title: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.delete_forever_rounded, color: CelestialTheme.roseAlert, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Delete Order ${order.orderNumber}?',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: CelestialTheme.roseAlert, fontSize: 17),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: Text(
+                      'Are you sure you want to permanently delete order ${order.orderNumber} (${order.customerName})? This cannot be undone.',
+                      style: TextStyle(color: CelestialTheme.textLight, fontSize: 13),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: CelestialTheme.roseAlert,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                        label: const Text('Delete Permanently'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true) {
+                  await pos.deleteOnlineOrder(order.id);
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                }
+              },
+              icon: Icon(Icons.delete_outline_rounded, size: 16, color: CelestialTheme.roseAlert),
+              label: Text('Delete', style: TextStyle(fontSize: 11.5, color: CelestialTheme.roseAlert)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: CelestialTheme.roseAlert.withValues(alpha: 0.4)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+
           // Print Receipt Button
           OutlinedButton.icon(
             onPressed: () {

@@ -82,6 +82,7 @@ class PosProvider extends ChangeNotifier {
   List<CustomCategory> _customCategories = [];
   bool _hideSystemCategories = false;
   Set<String> _hiddenSystemCategoryIds = {};
+  List<String> _categoryOrder = [];
   String _searchQuery = '';
   String _selectedTag = 'All';
   bool _isCategoryPanelVisible = true;
@@ -149,7 +150,7 @@ class PosProvider extends ChangeNotifier {
     await _initData();
     await refreshPendingSyncCount();
     unawaited(syncPendingSales());
-    unawaited(initOnlineOrdering(storeOwnerEmail: email));
+    await initOnlineOrdering(storeOwnerEmail: email);
   }
 
   /// Call this when the user signs out. Resets to guest namespace.
@@ -179,6 +180,7 @@ class PosProvider extends ChangeNotifier {
     _customCategories = [];
     _hideSystemCategories = false;
     _hiddenSystemCategoryIds = {};
+    _categoryOrder = [];
     _orders.clear();
     _cart.clear();
     _selectedCategory = ItemCategory.all;
@@ -266,6 +268,10 @@ class PosProvider extends ChangeNotifier {
       final savedHiddenSys = prefs.getStringList(_key('hidden_system_categories'));
       if (savedHiddenSys != null) {
         _hiddenSystemCategoryIds = savedHiddenSys.toSet();
+      }
+      final savedCatOrder = prefs.getStringList(_key('category_tab_order'));
+      if (savedCatOrder != null) {
+        _categoryOrder = savedCatOrder;
       }
 
       // 1. Order Sequence
@@ -429,6 +435,7 @@ class PosProvider extends ChangeNotifier {
     _pruneOldOrders();
     _isLoaded = true;
     notifyListeners();
+    unawaited(syncOnlineStoreBranding());
   }
 
   PosThemeMode get themeMode => CelestialTheme.currentMode;
@@ -719,7 +726,58 @@ class PosProvider extends ChangeNotifier {
         isKitchenDish: custom.isKitchenDish,
       ));
     }
+    if (_categoryOrder.isNotEmpty && list.length > 2) {
+      final allTab = list.first;
+      final others = list.sublist(1);
+      others.sort((a, b) {
+        final aIdx = _categoryOrder.indexOf(a.id);
+        final bIdx = _categoryOrder.indexOf(b.id);
+        if (aIdx != -1 && bIdx != -1) return aIdx.compareTo(bIdx);
+        if (aIdx != -1) return -1;
+        if (bIdx != -1) return 1;
+        return 0;
+      });
+      return [allTab, ...others];
+    }
     return list;
+  }
+
+  void reorderCategoryTabs(int oldIndex, int newIndex) {
+    final currentTabs = allCategoryTabs.where((t) => t.id != 'all').toList();
+    if (oldIndex < 0 || oldIndex >= currentTabs.length) return;
+    if (newIndex < 0 || newIndex > currentTabs.length) return;
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    if (oldIndex == newIndex) return;
+
+    final moved = currentTabs.removeAt(oldIndex);
+    currentTabs.insert(newIndex, moved);
+
+    _categoryOrder = currentTabs.map((t) => t.id).toList();
+    _saveCategoryOrderToStorage();
+    notifyListeners();
+  }
+
+  void moveCategoryToFirst(String id) {
+    final currentTabs = allCategoryTabs.where((t) => t.id != 'all').toList();
+    final index = currentTabs.indexWhere((t) => t.id == id);
+    if (index <= 0) return;
+    final moved = currentTabs.removeAt(index);
+    currentTabs.insert(0, moved);
+    _categoryOrder = currentTabs.map((t) => t.id).toList();
+    _saveCategoryOrderToStorage();
+    notifyListeners();
+  }
+
+  Future<void> _saveCategoryOrderToStorage() async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setStringList(_key('category_tab_order'), _categoryOrder);
+      _scheduleMenuCloudSync();
+    } catch (e) {
+      if (kDebugMode) print('Error saving category tab order: $e');
+    }
   }
 
   List<Map<String, dynamic>> getCategoryTabsJsonForCustomer() {
@@ -1254,15 +1312,109 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  void updateOrderStatus(String orderId, OrderStatus newStatus) {
+  int _findIncomingOnlineOrderIndex(String orderId) {
+    final clean = orderId.trim().toLowerCase();
+    final cleanNum = clean.replaceAll('#', '').trim();
+    return _incomingOnlineOrders.indexWhere((o) {
+      final oId = o.id.trim().toLowerCase();
+      final oNum = o.orderNumber.trim().toLowerCase();
+      final oNumClean = oNum.replaceAll('#', '').trim();
+      return oId == clean ||
+          oId == cleanNum ||
+          oNum == clean ||
+          oNumClean == clean ||
+          oNumClean == cleanNum;
+    });
+  }
+
+  Future<bool> updateOrderStatus(String orderId, OrderStatus newStatus) async {
+    bool updatedAny = false;
+
+    // 1. Update in local _orders if present
     final index = _findOrderIndex(orderId);
     if (index >= 0) {
-      if (_orders[index].status == newStatus) return;
-      _orders[index].status = newStatus;
+      if (_orders[index].status != newStatus) {
+        _orders[index].status = newStatus;
+        updatedAny = true;
+        _scheduleSaveOrders();
+      }
+    }
+
+    // 2. Also update in _incomingOnlineOrders if present
+    final onlineIdx = _findIncomingOnlineOrderIndex(orderId);
+    if (onlineIdx >= 0) {
+      if (_incomingOnlineOrders[onlineIdx].status != newStatus) {
+        _incomingOnlineOrders[onlineIdx].status = newStatus;
+        updatedAny = true;
+      }
+    }
+
+    // 3. Determine if this is an online order
+    final isOnline = orderId.startsWith('online_') ||
+        onlineIdx >= 0 ||
+        (index >= 0 && (_orders[index].id.startsWith('online_') ||
+            _orders[index].cashierName.toLowerCase().contains('online') ||
+            _orders[index].cashierName.toLowerCase().contains('web')));
+
+    if (isOnline) {
+      final storeId = effectiveStoreId;
+      final targetId = (onlineIdx >= 0)
+          ? _incomingOnlineOrders[onlineIdx].id
+          : ((index >= 0) ? _orders[index].id : orderId);
+
+      // Ensure it's tracked in _orders for history and reporting
+      if (index < 0 && onlineIdx >= 0) {
+        final onlineOrder = _incomingOnlineOrders[onlineIdx];
+        final cloned = onlineOrder.copyWith(status: newStatus);
+        _orders.insert(0, cloned);
+        _scheduleSaveOrders();
+      }
+
+      // Notify immediately so UI updates with 0 lag
+      if (updatedAny) {
+        notifyListeners();
+        HapticFeedback.lightImpact();
+      }
+
+      // Sync status to cloud RTDB
+      await OnlineOrderService().updateOrderStatus(
+        storeId: storeId,
+        orderId: targetId,
+        newStatus: newStatus,
+      );
+
+      // If completing an online order, record monthly sale
+      if (newStatus == OrderStatus.completed) {
+        final completedOrder = (index >= 0)
+            ? _orders[index]
+            : (onlineIdx >= 0 ? _incomingOnlineOrders[onlineIdx] : null);
+        if (completedOrder != null) {
+          final email = _currentUserEmail ?? _currentUser?.email ?? '';
+          if (email.isNotEmpty) {
+            unawaited(() async {
+              final success = await CloudBackupService().recordMonthlySaleTransaction(
+                userEmail: email,
+                order: completedOrder,
+              );
+              if (!success) {
+                await CloudBackupService().enqueuePendingOrder(
+                  userEmail: email,
+                  order: completedOrder,
+                );
+                await refreshPendingSyncCount();
+              }
+            }());
+          }
+        }
+      }
+      return true;
+    }
+
+    if (updatedAny) {
       notifyListeners();
-      _scheduleSaveOrders();
       HapticFeedback.lightImpact();
     }
+    return true;
   }
 
   void cancelOrder(String orderId, {bool restock = true}) {
@@ -1288,6 +1440,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void deleteOrderCompletely(String orderId, {bool restock = true}) {
+    if (_currentUser?.isCashier == true) return;
     final index = _findOrderIndex(orderId);
     if (index >= 0) {
       final order = _orders[index];
@@ -1304,8 +1457,18 @@ class PosProvider extends ChangeNotifier {
 
       _orders.removeAt(index);
       _saveOrdersToStorage();
-      notifyListeners();
     }
+
+    _incomingOnlineOrders.removeWhere((o) => o.id == orderId);
+    final storeId = effectiveStoreId;
+    if (storeId.isNotEmpty && storeId != 'default_store') {
+      unawaited(OnlineOrderService().deleteOnlineOrder(
+        storeId: storeId,
+        orderId: orderId,
+      ));
+    }
+
+    notifyListeners();
   }
 
   // ── Multi-Owner Online Ordering Management ────────────────────────────────
@@ -1314,6 +1477,18 @@ class PosProvider extends ChangeNotifier {
       _incomingOnlineOrders.where((o) => o.status == OrderStatus.pending).length;
   OnlineStoreProfile? get onlineStoreProfile => _onlineStoreProfile;
   String? get customSlug => _onlineStoreProfile?.customSlug;
+  bool get isOnlineOrderOpen => _onlineStoreProfile?.isOpen ?? true;
+  String? get onlineStoreNotice => _onlineStoreProfile?.customNotice;
+
+  void addIncomingOnlineOrder(Order order) {
+    final existingIdx = _incomingOnlineOrders.indexWhere((o) => o.id == order.id);
+    if (existingIdx >= 0) {
+      _incomingOnlineOrders[existingIdx] = order;
+    } else {
+      _incomingOnlineOrders.insert(0, order);
+    }
+    notifyListeners();
+  }
 
   String get effectiveStoreId {
     final email = (_currentUser?.isCashier == true &&
@@ -1366,7 +1541,9 @@ class PosProvider extends ChangeNotifier {
       storeId: storeId,
       ownerEmail: ownerEmail,
       storeName: _storeName,
+      storeTagline: _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats',
       storeAddress: _storeAddress,
+      storeLogoBase64: _customLogoBase64,
     );
     _onlineStoreProfile!.customSlug = clean;
 
@@ -1381,6 +1558,56 @@ class PosProvider extends ChangeNotifier {
     return (success: true, message: 'Custom link "$clean" is now active!');
   }
 
+  Future<OnlineStoreProfile> _getOrLoadOnlineStoreProfile() async {
+    if (_onlineStoreProfile != null) {
+      if (_customLogoBase64 != null &&
+          (_onlineStoreProfile!.storeLogoBase64 == null || _onlineStoreProfile!.storeLogoBase64!.isEmpty)) {
+        _onlineStoreProfile!.storeLogoBase64 = _customLogoBase64;
+      }
+      if (_storeName.isNotEmpty && _storeName != 'CELESTIAL CAFE' && _onlineStoreProfile!.storeName != _storeName) {
+        _onlineStoreProfile!.storeName = _storeName;
+      }
+      if (_storeTagline.isNotEmpty && _onlineStoreProfile!.storeTagline != _storeTagline) {
+        _onlineStoreProfile!.storeTagline = _storeTagline;
+      }
+      return _onlineStoreProfile!;
+    }
+    final ownerEmail = (_currentUser?.isCashier == true && _currentUser?.ownerEmail != null)
+        ? _currentUser!.ownerEmail!
+        : (_currentUserEmail ?? '');
+    final storeId = effectiveStoreId;
+    _onlineStoreProfile = await OnlineOrderService().loadLocalProfile(
+      storeId,
+      ownerEmail: ownerEmail,
+      defaultStoreName: _storeName,
+      defaultStoreTagline: _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats',
+      defaultStoreAddress: _storeAddress,
+      defaultStoreLogoBase64: _customLogoBase64,
+    );
+    if (_customLogoBase64 != null) {
+      _onlineStoreProfile!.storeLogoBase64 = _customLogoBase64;
+    }
+    if (_storeName.isNotEmpty && _storeName != 'CELESTIAL CAFE') {
+      _onlineStoreProfile!.storeName = _storeName;
+    }
+    if (_storeTagline.isNotEmpty) {
+      _onlineStoreProfile!.storeTagline = _storeTagline;
+    }
+    return _onlineStoreProfile!;
+  }
+
+  /// Pushes store branding (logo, name, tagline) to online store profile & cloud
+  Future<void> syncOnlineStoreBranding() async {
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeName = _storeName;
+    profile.storeTagline = _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats';
+    profile.storeAddress = _storeAddress;
+    profile.storeLogoBase64 = _customLogoBase64;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
+    notifyListeners();
+  }
+
   Future<void> initOnlineOrdering({String? storeOwnerEmail}) async {
     final ownerEmail = storeOwnerEmail ??
         ((_currentUser?.isCashier == true && _currentUser?.ownerEmail != null)
@@ -1393,8 +1620,23 @@ class PosProvider extends ChangeNotifier {
       storeId,
       ownerEmail: ownerEmail,
       defaultStoreName: _storeName,
+      defaultStoreTagline: _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats',
       defaultStoreAddress: _storeAddress,
+      defaultStoreLogoBase64: _customLogoBase64,
     );
+    if (_onlineStoreProfile != null) {
+      if (_storeName.isNotEmpty && _storeName != 'CELESTIAL CAFE') {
+        _onlineStoreProfile!.storeName = _storeName;
+      }
+      if (_storeTagline.isNotEmpty) {
+        _onlineStoreProfile!.storeTagline = _storeTagline;
+      }
+      if (_customLogoBase64 != null) {
+        _onlineStoreProfile!.storeLogoBase64 = _customLogoBase64;
+      }
+      await OnlineOrderService().saveLocalProfile(_onlineStoreProfile!);
+      unawaited(OnlineOrderService().updateStoreProfile(_onlineStoreProfile!));
+    }
 
     // Initial poll
     await pollOnlineOrders();
@@ -1507,7 +1749,30 @@ class PosProvider extends ChangeNotifier {
     if (inOrdersIdx >= 0) {
       _orders[inOrdersIdx].status = OrderStatus.completed;
       _scheduleSaveOrders();
+    } else {
+      order.status = OrderStatus.completed;
+      _orders.insert(0, order);
+      _scheduleSaveOrders();
     }
+
+    // Automatically record completed online sale in master monthly sales history & cloud backup
+    final email = _currentUserEmail ?? _currentUser?.email ?? '';
+    if (email.isNotEmpty) {
+      unawaited(() async {
+        final success = await CloudBackupService().recordMonthlySaleTransaction(
+          userEmail: email,
+          order: order,
+        );
+        if (!success) {
+          await CloudBackupService().enqueuePendingOrder(
+            userEmail: email,
+            order: order,
+          );
+          await refreshPendingSyncCount();
+        }
+      }());
+    }
+
     notifyListeners();
     return await OnlineOrderService().updateOrderStatus(
       storeId: storeId,
@@ -1535,16 +1800,59 @@ class PosProvider extends ChangeNotifier {
     );
   }
 
-  Future<bool> publishOnlineMenu() async {
+  /// Permanently deletes an online order from local queues, saved storage, and cloud RTDB.
+  Future<bool> deleteOnlineOrder(String orderId) async {
+    if (_currentUser?.isCashier == true) return false;
     final storeId = effectiveStoreId;
-    final email = _currentUserEmail ?? '';
-    final profile = _onlineStoreProfile ??
-        OnlineStoreProfile(
-          storeId: storeId,
-          ownerEmail: email,
-          storeName: _storeName,
-          storeAddress: _storeAddress,
-        );
+    _incomingOnlineOrders.removeWhere((o) => o.id == orderId);
+    final inOrdersIdx = _orders.indexWhere((o) => o.id == orderId);
+    if (inOrdersIdx >= 0) {
+      _orders.removeAt(inOrdersIdx);
+      _saveOrdersToStorage();
+    }
+    notifyListeners();
+
+    if (storeId.isNotEmpty && storeId != 'default_store') {
+      return await OnlineOrderService().deleteOnlineOrder(
+        storeId: storeId,
+        orderId: orderId,
+      );
+    }
+    return true;
+  }
+
+  /// Permanently deletes all completed or cancelled online orders in bulk.
+  Future<int> clearCompletedOnlineOrders() async {
+    if (_currentUser?.isCashier == true) return 0;
+    final toDelete = <String>{};
+    for (final o in _incomingOnlineOrders) {
+      if (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) {
+        toDelete.add(o.id);
+      }
+    }
+    for (final o in _orders) {
+      final isOnline = o.id.startsWith('online_') ||
+          o.cashierName.toLowerCase().contains('online') ||
+          o.cashierName.toLowerCase().contains('web');
+      if (isOnline && (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled)) {
+        toDelete.add(o.id);
+      }
+    }
+
+    int count = 0;
+    for (final orderId in toDelete) {
+      final ok = await deleteOnlineOrder(orderId);
+      if (ok) count++;
+    }
+    return count;
+  }
+
+  Future<bool> publishOnlineMenu() async {
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeName = _storeName;
+    profile.storeTagline = _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats';
+    profile.storeAddress = _storeAddress;
+    profile.storeLogoBase64 = _customLogoBase64;
 
     final success = await OnlineOrderService().publishStoreCatalog(
       profile: profile,
@@ -1553,11 +1861,25 @@ class PosProvider extends ChangeNotifier {
     return success;
   }
 
-  Future<void> updateOnlineStoreProfile(OnlineStoreProfile profile) async {
+  Future<bool> updateOnlineStoreProfile(OnlineStoreProfile profile) async {
     _onlineStoreProfile = profile;
     await OnlineOrderService().saveLocalProfile(profile);
     notifyListeners();
-    unawaited(publishOnlineMenu());
+    final ok = await OnlineOrderService().updateStoreProfile(profile);
+    return ok;
+  }
+
+  Future<bool> setOnlineStoreOpen(bool isOpen) async {
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.isOpen = isOpen;
+    return await updateOnlineStoreProfile(profile);
+  }
+
+  Future<bool> setCustomNotice(String? notice) async {
+    final profile = await _getOrLoadOnlineStoreProfile();
+    final clean = notice?.trim();
+    profile.customNotice = (clean != null && clean.isNotEmpty) ? clean : null;
+    return await updateOnlineStoreProfile(profile);
   }
 
   // Item & Modifier Availability Management
@@ -1832,6 +2154,10 @@ class PosProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print('Error saving logo: $e');
     }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeLogoBase64 = _customLogoBase64;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
     notifyListeners();
     _scheduleProCloudSync();
   }
@@ -1845,6 +2171,10 @@ class PosProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print('Error removing logo: $e');
     }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeLogoBase64 = null;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
     notifyListeners();
     _scheduleProCloudSync();
   }
@@ -1865,6 +2195,71 @@ class PosProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) print('Error saving store details: $e');
     }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeName = _storeName;
+    profile.storeTagline = _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats';
+    profile.storeAddress = _storeAddress;
+    profile.storeLogoBase64 = _customLogoBase64;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
+    notifyListeners();
+    _scheduleProCloudSync();
+  }
+
+  Future<void> updateStoreTagline(String tagline) async {
+    _storeTagline = tagline.trim();
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setString(_key(_kStoreTagline), _storeTagline);
+    } catch (e) {
+      if (kDebugMode) print('Error saving store tagline: $e');
+    }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeTagline = _storeTagline.isNotEmpty ? _storeTagline : 'Handcrafted Coffee & Treats';
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
+    notifyListeners();
+    _scheduleProCloudSync();
+  }
+
+  Future<void> updateStoreName(String name) async {
+    _storeName = name.trim().isEmpty ? 'CELESTIAL CAFE' : name.trim();
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setString(_key(_kStoreName), _storeName);
+    } catch (e) {
+      if (kDebugMode) print('Error saving store name: $e');
+    }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeName = _storeName;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
+    notifyListeners();
+    _scheduleProCloudSync();
+  }
+
+  Future<void> resetStoreDetailsToDefault() async {
+    _storeName = 'CELESTIAL CAFE';
+    _storeTagline = '';
+    _storeAddress = 'Celestial Cafe Main Branch\nTel: (02) 8721-4900 • TIN #482-901-382-000';
+    _customLogoBytes = null;
+    _customLogoBase64 = null;
+    try {
+      final prefs = await _getPrefs();
+      await prefs.remove(_key(_kStoreName));
+      await prefs.remove(_key(_kStoreTagline));
+      await prefs.remove(_key(_kStoreAddress));
+      await prefs.remove(_key(_kCustomLogo));
+    } catch (e) {
+      if (kDebugMode) print('Error resetting store details: $e');
+    }
+    final profile = await _getOrLoadOnlineStoreProfile();
+    profile.storeName = _storeName;
+    profile.storeTagline = 'Handcrafted Coffee & Treats';
+    profile.storeAddress = _storeAddress;
+    profile.storeLogoBase64 = null;
+    await OnlineOrderService().saveLocalProfile(profile);
+    unawaited(OnlineOrderService().updateStoreProfile(profile));
     notifyListeners();
     _scheduleProCloudSync();
   }
@@ -2032,9 +2427,11 @@ class PosProvider extends ChangeNotifier {
   Future<void> restoreSystemCategories() async {
     _hideSystemCategories = false;
     _hiddenSystemCategoryIds.clear();
+    _categoryOrder.clear();
     final prefs = await _getPrefs();
     await prefs.setBool(_key(_kHideSystemCats), false);
     await prefs.remove(_key('hidden_system_categories'));
+    await prefs.remove(_key('category_tab_order'));
     notifyListeners();
     _scheduleMenuCloudSync();
   }

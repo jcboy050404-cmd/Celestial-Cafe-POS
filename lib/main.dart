@@ -9,6 +9,8 @@ import 'screens/food_costing_screen.dart';
 import 'screens/inventory_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/orders_history_screen.dart';
+import 'screens/online_orders_screen.dart';
+import 'screens/barista_kds_screen.dart';
 import 'screens/pos_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -127,9 +129,18 @@ class JcPosApp extends StatelessWidget {
         );
       }
     }
-    return authService.isLoggedIn
-        ? const MainWorkstationScaffold()
-        : const LoginScreen();
+    if (authService.isLoggedIn) {
+      final user = authService.currentUser;
+      // Barista / KDS / Staff accounts get a focused order-management interface
+      if (user != null &&
+          !user.isAdmin &&
+          !user.isOwner &&
+          (user.role == UserRole.barista || user.role == UserRole.staff)) {
+        return const BaristaKDSScreen();
+      }
+      return const MainWorkstationScaffold();
+    }
+    return const LoginScreen();
   }
 }
 
@@ -196,10 +207,12 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
 
     // Verify if current active tab is permitted; fallback to POS (0) if restricted
     final isCurrentTabAllowed = switch (posProvider.currentNavIndex) {
+      0 => true,
       1 => auth.isFeatureEnabled(AppFeature.orderHistory),
-      2 => auth.isFeatureEnabled(AppFeature.inventory),
-      3 => auth.isFeatureEnabled(AppFeature.analytics),
-      4 => auth.isFeatureEnabled(AppFeature.foodCosting),
+      2 => !auth.isCashier && auth.isFeatureEnabled(AppFeature.inventory),
+      3 => !auth.isCashier && auth.isFeatureEnabled(AppFeature.analytics),
+      4 => !auth.isCashier && auth.isFeatureEnabled(AppFeature.foodCosting),
+      5 => true, // Online Orders is always permitted for both owner and cashier
       _ => true,
     };
     if (!isCurrentTabAllowed && posProvider.currentNavIndex != 0) {
@@ -223,6 +236,7 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
       InventoryScreen(),
       AnalyticsScreen(),
       FoodCostingScreen(),
+      OnlineOrdersScreen(),
     ];
 
     final availableDestinations = <({int targetIndex, Widget icon, Widget selectedIcon, String label})>[
@@ -232,36 +246,42 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
         selectedIcon: const Icon(Icons.point_of_sale_rounded),
         label: 'POS',
       ),
+      (
+        targetIndex: 5,
+        icon: Badge(
+          isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
+          label: Text('${posProvider.pendingOnlineOrdersCount}'),
+          child: const Icon(Icons.delivery_dining_outlined),
+        ),
+        selectedIcon: Badge(
+          isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
+          label: Text('${posProvider.pendingOnlineOrdersCount}'),
+          child: const Icon(Icons.delivery_dining_rounded),
+        ),
+        label: 'Online',
+      ),
       if (auth.isFeatureEnabled(AppFeature.orderHistory))
         (
           targetIndex: 1,
-          icon: Badge(
-            isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
-            label: Text('${posProvider.pendingOnlineOrdersCount}'),
-            child: const Icon(Icons.receipt_long_outlined),
-          ),
-          selectedIcon: Badge(
-            isLabelVisible: posProvider.pendingOnlineOrdersCount > 0,
-            label: Text('${posProvider.pendingOnlineOrdersCount}'),
-            child: const Icon(Icons.receipt_long_rounded),
-          ),
+          icon: const Icon(Icons.receipt_long_outlined),
+          selectedIcon: const Icon(Icons.receipt_long_rounded),
           label: 'History',
         ),
-      if (auth.isFeatureEnabled(AppFeature.inventory))
+      if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.inventory))
         (
           targetIndex: 2,
           icon: const Icon(Icons.inventory_2_outlined),
           selectedIcon: const Icon(Icons.inventory_2_rounded),
           label: 'Stock',
         ),
-      if (auth.isFeatureEnabled(AppFeature.analytics))
+      if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.analytics))
         (
           targetIndex: 3,
-          icon: const Icon(Icons.insights_outlined),
-          selectedIcon: const Icon(Icons.insights_rounded),
-          label: 'Insights',
+          icon: const Icon(Icons.point_of_sale_outlined),
+          selectedIcon: const Icon(Icons.point_of_sale_rounded),
+          label: 'Sales',
         ),
-      if (auth.isFeatureEnabled(AppFeature.foodCosting))
+      if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.foodCosting))
         (
           targetIndex: 4,
           icon: const Icon(Icons.calculate_outlined),
@@ -295,8 +315,8 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
               // Top Persistent Header Bar with Liquid Glass Scroll Animation
               HeaderBar(isScrolled: _isScrolled),
 
-              // Pending Online Orders Global Alert Banner (When on POS or any tab except Order History)
-              if (posProvider.pendingOnlineOrdersCount > 0 && posProvider.currentNavIndex != 1)
+              // Pending Online Orders Global Alert Banner (When on POS or any tab except Online Orders)
+              if (posProvider.pendingOnlineOrdersCount > 0 && posProvider.currentNavIndex != 5)
                 Material(
                   color: Colors.transparent,
                   child: Container(
@@ -342,7 +362,7 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
                             } else if (posProvider.incomingOnlineOrders.isNotEmpty) {
                               OnlineOrderConfirmDialog.show(context, posProvider.incomingOnlineOrders.first);
                             } else {
-                              posProvider.setNavIndex(1);
+                              posProvider.setNavIndex(5);
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -360,7 +380,7 @@ class _MainWorkstationScaffoldState extends State<MainWorkstationScaffold> {
                         const SizedBox(width: 6),
                         TextButton(
                           onPressed: () {
-                            posProvider.setNavIndex(1);
+                            posProvider.setNavIndex(5);
                           },
                           style: TextButton.styleFrom(
                             backgroundColor: Colors.black45,

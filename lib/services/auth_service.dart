@@ -37,6 +37,43 @@ enum UserRole {
   admin,
   owner,
   cashier,
+  barista,
+  manager,
+  staff;
+
+  String get label {
+    switch (this) {
+      case UserRole.admin:
+        return 'ADMIN';
+      case UserRole.owner:
+        return 'OWNER';
+      case UserRole.cashier:
+        return 'CASHIER';
+      case UserRole.barista:
+        return 'BARISTA';
+      case UserRole.manager:
+        return 'MANAGER';
+      case UserRole.staff:
+        return 'STAFF';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case UserRole.admin:
+        return 'Administrator';
+      case UserRole.owner:
+        return 'Store Owner';
+      case UserRole.cashier:
+        return 'Cashier';
+      case UserRole.barista:
+        return 'Barista';
+      case UserRole.manager:
+        return 'Manager';
+      case UserRole.staff:
+        return 'Staff';
+    }
+  }
 }
 
 class AppUser {
@@ -49,6 +86,7 @@ class AppUser {
   final DateTime? proActivatedDate;
   final bool isAdmin;
   final UserRole role;
+  final String? customRoleTitle;
   final String? ownerEmail;
   final int customTrialDays;
   final bool hasCustomTrial;
@@ -65,6 +103,7 @@ class AppUser {
     this.proActivatedDate,
     this.isAdmin = false,
     UserRole? role,
+    this.customRoleTitle,
     this.ownerEmail,
     this.customTrialDays = 14,
     this.hasCustomTrial = false,
@@ -74,10 +113,45 @@ class AppUser {
 
   bool get isPro => tier == SubscriptionTier.pro;
   bool get isOwner => isAdmin || role == UserRole.owner;
-  bool get isCashier => !isAdmin && role == UserRole.cashier;
+  bool get isStaff => !isAdmin && role != UserRole.owner;
+  bool get isCashier => !isAdmin && role != UserRole.owner;
+  bool get isBarista => role == UserRole.barista || roleBadgeLabel == 'BARISTA';
+
+  String get roleBadgeLabel {
+    if (isAdmin) return 'ADMIN';
+    if (customRoleTitle != null && customRoleTitle!.trim().isNotEmpty) {
+      return customRoleTitle!.trim().toUpperCase();
+    }
+    final lowerEmail = email.toLowerCase();
+    final lowerName = displayName.toLowerCase();
+    if (role == UserRole.barista || lowerEmail.contains('barista') || lowerName.contains('barista')) {
+      return 'BARISTA';
+    }
+    if (role == UserRole.manager || lowerEmail.contains('manager') || lowerName.contains('manager')) {
+      return 'MANAGER';
+    }
+    if (role == UserRole.staff || lowerEmail.contains('staff') || lowerName.contains('staff')) {
+      return 'STAFF';
+    }
+    if (role == UserRole.cashier || lowerEmail.contains('cashier') || lowerName.contains('cashier')) {
+      return 'CASHIER';
+    }
+    if (role == UserRole.owner) {
+      return 'OWNER';
+    }
+    return role.label;
+  }
 
   bool isFeatureEnabled(String featureKey) {
     if (isAdmin) return true;
+    if (isCashier) {
+      // Cashier stations are strictly restricted to POS, Order History, and Online Orders only.
+      // (POS and Online Orders are core workstations; Order History is the only allowed AppFeature).
+      if (featureKey == 'order_history') {
+        return !disabledFeatures.contains(featureKey);
+      }
+      return false;
+    }
     return !disabledFeatures.contains(featureKey);
   }
 
@@ -106,6 +180,7 @@ class AppUser {
     DateTime? proActivatedDate,
     bool? isAdmin,
     UserRole? role,
+    String? customRoleTitle,
     String? ownerEmail,
     int? customTrialDays,
     bool? hasCustomTrial,
@@ -122,6 +197,7 @@ class AppUser {
       proActivatedDate: proActivatedDate ?? this.proActivatedDate,
       isAdmin: isAdmin ?? this.isAdmin,
       role: role ?? this.role,
+      customRoleTitle: customRoleTitle ?? this.customRoleTitle,
       ownerEmail: ownerEmail ?? this.ownerEmail,
       customTrialDays: customTrialDays ?? this.customTrialDays,
       hasCustomTrial: hasCustomTrial ?? this.hasCustomTrial,
@@ -140,6 +216,7 @@ class AppUser {
         'proActivatedDate': proActivatedDate?.toIso8601String(),
         'isAdmin': isAdmin,
         'role': role.name,
+        'customRoleTitle': customRoleTitle,
         'ownerEmail': ownerEmail,
         'customTrialDays': customTrialDays,
         'hasCustomTrial': hasCustomTrial,
@@ -149,12 +226,18 @@ class AppUser {
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     final isAdminVal = json['isAdmin'] as bool? ?? false;
-    final roleStr = json['role'] as String?;
+    final roleStr = (json['role'] as String?)?.toLowerCase();
     final parsedRole = isAdminVal
         ? UserRole.admin
         : (roleStr == 'cashier'
             ? UserRole.cashier
-            : (roleStr == 'admin' ? UserRole.admin : UserRole.owner));
+            : (roleStr == 'barista'
+                ? UserRole.barista
+                : (roleStr == 'manager'
+                    ? UserRole.manager
+                    : (roleStr == 'staff'
+                        ? UserRole.staff
+                        : (roleStr == 'admin' ? UserRole.admin : UserRole.owner)))));
 
     return AppUser(
       uid: json['uid'] as String? ?? 'user_1',
@@ -172,6 +255,7 @@ class AppUser {
           : null,
       isAdmin: isAdminVal,
       role: parsedRole,
+      customRoleTitle: json['customRoleTitle'] as String?,
       ownerEmail: json['ownerEmail'] as String?,
       customTrialDays: json['customTrialDays'] as int? ?? 14,
       hasCustomTrial: json['hasCustomTrial'] as bool? ?? false,
@@ -1655,10 +1739,18 @@ class AuthService extends ChangeNotifier {
 
     await Future.delayed(const Duration(milliseconds: 200));
 
-    final cleanEmail = email.trim().toLowerCase();
+    // Resolve identifier (Cashier Name, Station Label, Username, or Email) to account email
+    final resolvedCashier = findCashierByIdentifier(email);
+    final cleanEmail = (resolvedCashier != null ? resolvedCashier.email : email).trim().toLowerCase();
     final storedHash = _pinCredentials[cleanEmail];
 
     if (storedHash == null) {
+      if (!cleanEmail.contains('@')) {
+        _errorMessage = 'No staff account found with name "$email". Please check with your Store Owner.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
       // Check Firebase Realtime Database in case user registered on another station or phone
       final remoteUser = await _fetchUserFromRealtimeDatabase(cleanEmail, pin: pin);
       if (remoteUser != null) {
@@ -3202,11 +3294,13 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // --- Store Owner: Create Cashier Account with Custom Email & 4-Digit PIN ---
+  // --- Store Owner: Create Cashier / Staff Account with Custom Email & 4-Digit PIN ---
   Future<bool> createCashierAccount({
     required String email,
     required String displayName,
     required String pin,
+    UserRole role = UserRole.cashier,
+    String? customRoleTitle,
     List<String>? disabledFeatures,
   }) async {
     if (!isOwnerOrAdmin) {
@@ -3215,11 +3309,17 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    final cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
-      _errorMessage = 'Please enter a valid cashier email address (e.g. cashier1@mycafe.com).';
-      notifyListeners();
-      return false;
+    String cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) {
+      if (displayName.trim().isNotEmpty) {
+        cleanEmail = '${displayName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_')}@celestial.local';
+      } else {
+        _errorMessage = 'Please enter a valid cashier name, username, or email.';
+        notifyListeners();
+        return false;
+      }
+    } else if (!cleanEmail.contains('@')) {
+      cleanEmail = '${cleanEmail.replaceAll(' ', '_')}@celestial.local';
     }
     if (pin.length != 4 || int.tryParse(pin) == null) {
       _errorMessage = 'PIN must be exactly 4 numeric digits.';
@@ -3247,14 +3347,23 @@ class AuthService extends ChangeNotifier {
     _pinCredentials[cleanEmail] = _hashPin(cleanEmail, pin);
     await _persistPinCredentials();
 
+    final cleanRoleTitle = (customRoleTitle != null && customRoleTitle.trim().isNotEmpty)
+        ? customRoleTitle.trim().toUpperCase()
+        : (role == UserRole.cashier ? 'CASHIER' : role.label);
+
+    final cleanDisplayName = displayName.trim().isNotEmpty
+        ? displayName.trim()
+        : cleanEmail.split('@').first.replaceAll('_', ' ');
+
     final newCashier = AppUser(
       uid: 'cashier_${DateTime.now().millisecondsSinceEpoch}',
       email: cleanEmail,
-      displayName: displayName.trim().isEmpty ? cleanEmail.split('@').first : displayName.trim(),
+      displayName: cleanDisplayName,
       tier: SubscriptionTier.pro, // Covered by Store Owner's Pro license
       trialStartDate: DateTime.now(),
       isAdmin: false,
-      role: UserRole.cashier,
+      role: role,
+      customRoleTitle: cleanRoleTitle,
       ownerEmail: currentOwnerEmail,
       disabledFeatures: featuresToLock,
     );
@@ -3284,6 +3393,79 @@ class AuthService extends ChangeNotifier {
     ));
 
     return true;
+  }
+
+  // --- Store Owner: Update Cashier / Staff Station Role ---
+  Future<bool> updateCashierRole({
+    required String email,
+    required UserRole newRole,
+    String? customRoleTitle,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final idx = _managedAccounts.indexWhere((a) => a.email.toLowerCase() == cleanEmail);
+    if (idx >= 0) {
+      final cleanRoleTitle = (customRoleTitle != null && customRoleTitle.trim().isNotEmpty)
+          ? customRoleTitle.trim().toUpperCase()
+          : (newRole == UserRole.cashier ? 'CASHIER' : newRole.label);
+      _managedAccounts[idx] = _managedAccounts[idx].copyWith(
+        role: newRole,
+        customRoleTitle: cleanRoleTitle,
+      );
+      if (_currentUser?.email.toLowerCase() == cleanEmail) {
+        _currentUser = _currentUser?.copyWith(
+          role: newRole,
+          customRoleTitle: cleanRoleTitle,
+        );
+      }
+      await _persistManagedAccounts();
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  /// Finds a cashier account matching an identifier (Cashier Name / DisplayName, Station Label, Username, or Email).
+  AppUser? findCashierByIdentifier(String identifier) {
+    final clean = identifier.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+
+    final cashiers = _managedAccounts.where((a) => a.isCashier).toList();
+
+    // 1. Exact match by email
+    for (final acc in cashiers) {
+      if (acc.email.toLowerCase() == clean) return acc;
+    }
+    // 2. Exact match by cashier displayName (Cashier Name)
+    for (final acc in cashiers) {
+      if (acc.displayName.trim().toLowerCase() == clean) return acc;
+    }
+    // 3. Exact match by station label / roleBadgeLabel / customRoleTitle
+    for (final acc in cashiers) {
+      if (acc.roleBadgeLabel.trim().toLowerCase() == clean ||
+          (acc.customRoleTitle != null && acc.customRoleTitle!.trim().toLowerCase() == clean)) {
+        return acc;
+      }
+    }
+    // 4. Exact match by username (portion before @ in email)
+    for (final acc in cashiers) {
+      if (acc.email.split('@').first.toLowerCase() == clean) return acc;
+    }
+    // 5. Partial / contains match if unique
+    final matches = cashiers.where((a) =>
+        a.displayName.toLowerCase().contains(clean) ||
+        a.email.toLowerCase().contains(clean) ||
+        a.roleBadgeLabel.toLowerCase().contains(clean)).toList();
+    if (matches.length == 1) return matches.first;
+
+    return null;
+  }
+
+  /// Sign in as staff using either Cashier Name or Email and 4-digit PIN
+  Future<bool> signInStaff({
+    required String nameOrEmail,
+    required String pin,
+  }) async {
+    return await signInWithPin(email: nameOrEmail, pin: pin);
   }
 
   /// Returns only the cashier stations belonging to this store owner (enforcing multi-owner separation).

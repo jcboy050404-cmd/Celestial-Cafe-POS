@@ -18,15 +18,26 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+enum LoginRole { owner, employee }
+
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _pinController = TextEditingController();
   final _pinFocusNode = FocusNode();
 
+  final _employeeEmailController = TextEditingController();
+  final _employeePinController = TextEditingController();
+  final _employeeEmailFocusNode = FocusNode();
+  final _employeePinFocusNode = FocusNode();
+
   bool _obscurePin = true;
+  bool _obscureEmployeePin = true;
   bool _userManuallyClearedEmail = false;
   bool _preferInputField = false;
+  bool _agreedToTerms = false;
+  LoginRole _selectedRole = LoginRole.owner;
+  String? _selectedEmployeeEmail;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -49,6 +60,20 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = Provider.of<AuthService>(context, listen: false);
     await auth.init();
     await auth.checkActiveGoogleSession();
+    if (mounted && auth.lastStationEmail != null) {
+      final isCashier = auth.managedAccounts.any(
+        (a) => a.email.toLowerCase() == auth.lastStationEmail!.toLowerCase() && a.isCashier,
+      );
+      if (isCashier) {
+        _selectedRole = LoginRole.employee;
+        final cashier = auth.findCashierByIdentifier(auth.lastStationEmail!);
+        _employeeEmailController.text = (cashier != null && cashier.displayName.isNotEmpty)
+            ? cashier.displayName
+            : auth.lastStationEmail!;
+        _selectedEmployeeEmail = auth.lastStationEmail!;
+        setState(() {});
+      }
+    }
   }
 
   @override
@@ -56,12 +81,17 @@ class _LoginScreenState extends State<LoginScreen>
     _emailController.dispose();
     _pinController.dispose();
     _pinFocusNode.dispose();
+    _employeeEmailController.dispose();
+    _employeePinController.dispose();
+    _employeeEmailFocusNode.dispose();
+    _employeePinFocusNode.dispose();
     _animController.dispose();
     super.dispose();
   }
 
   void _showError(String msg) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: CelestialTheme.bgCard,
@@ -73,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
   void _showFeedback(String msg, {Color? color}) {
     if (!mounted) return;
     final feedbackColor = color ?? CelestialTheme.goldLight;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: CelestialTheme.bgCard,
@@ -135,6 +166,32 @@ class _LoginScreenState extends State<LoginScreen>
     if (success) return;
 
     _showError(auth.errorMessage ?? 'Incorrect PIN. Please try again.');
+  }
+
+  // ── SIGN IN as Employee (Cashier, Barista, Staff) ──────────────────────────
+  void _handleEmployeePinSignIn() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final identifier = _employeeEmailController.text.trim();
+    final pin = _employeePinController.text.trim();
+
+    if (identifier.isEmpty) {
+      _showError('Please enter your Cashier Name or Email.');
+      return;
+    }
+    if (pin.isEmpty) {
+      _showError('Please enter your 4-digit employee PIN.');
+      return;
+    }
+    if (pin.length != 4 || int.tryParse(pin) == null) {
+      _showError('PIN must be exactly 4 numeric digits.');
+      return;
+    }
+
+    final success = await auth.signInStaff(nameOrEmail: identifier, pin: pin);
+    if (!mounted) return;
+    if (!success) {
+      _showError(auth.errorMessage ?? 'Invalid cashier credentials or incorrect PIN.');
+    }
   }
 
   void _showRegisterConfirmDialog(String email, String pin) {
@@ -359,7 +416,7 @@ class _LoginScreenState extends State<LoginScreen>
     bool obscureConfirm = true;
     String? localError;
     bool isSubmitting = false;
-    bool agreedToTerms = false;
+    bool agreedToTerms = _agreedToTerms;
     final name = displayName ?? email.split('@').first;
 
     await showDialog(
@@ -960,41 +1017,14 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     )
                   else ...[
-                    _buildSignInForm(auth),
+                    _buildRoleSelector(),
+                    if (_selectedRole == LoginRole.owner)
+                      _buildSignInForm(auth)
+                    else
+                      _buildEmployeeSignInForm(auth),
                   ],
 
                   const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () => PrivacyAgreementDialog.show(context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.verified_user_outlined, size: 12, color: CelestialTheme.goldLight),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Privacy Policy & Terms of Agreement',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: CelestialTheme.goldLight,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: CelestialTheme.goldLight,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
                   Text(
                     'Developed by JC Celestial',
                     style: GoogleFonts.outfit(
@@ -1017,13 +1047,154 @@ class _LoginScreenState extends State<LoginScreen>
 );
 }
 
-  // ── SIGN IN FORM ──────────────────────────────────────────────────────────
+  // ── ROLE SELECTOR: STORE OWNER VS EMPLOYEE ──────────────────────────────
+  Widget _buildRoleSelector() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: CelestialTheme.bgSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: CelestialTheme.borderWarm),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              key: const ValueKey('login_role_owner_tab'),
+              onTap: () {
+                setState(() {
+                  _selectedRole = LoginRole.owner;
+                  _userManuallyClearedEmail = false;
+                });
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _selectedRole == LoginRole.owner
+                      ? CelestialTheme.goldPrimary
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _selectedRole == LoginRole.owner
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.storefront_rounded,
+                          size: 16,
+                          color: _selectedRole == LoginRole.owner
+                              ? CelestialTheme.primaryBtnText
+                              : CelestialTheme.textMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Store Owner',
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: _selectedRole == LoginRole.owner
+                                ? CelestialTheme.primaryBtnText
+                                : CelestialTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: InkWell(
+              key: const ValueKey('login_role_employee_tab'),
+              onTap: () {
+                setState(() {
+                  _selectedRole = LoginRole.employee;
+                  _userManuallyClearedEmail = false;
+                });
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _selectedRole == LoginRole.employee
+                      ? CelestialTheme.goldPrimary
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _selectedRole == LoginRole.employee
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.badge_rounded,
+                          size: 16,
+                          color: _selectedRole == LoginRole.employee
+                              ? CelestialTheme.primaryBtnText
+                              : CelestialTheme.textMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Employee (Staff)',
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: _selectedRole == LoginRole.employee
+                                ? CelestialTheme.primaryBtnText
+                                : CelestialTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SIGN IN FORM (STORE OWNER) ──────────────────────────────────────────
   Widget _buildSignInForm(AuthService auth) {
     final cleanEmail = _emailController.text.trim().toLowerCase();
+    final isLastCashier = auth.lastStationEmail != null &&
+        auth.managedAccounts.any((a) => a.email.toLowerCase() == auth.lastStationEmail!.toLowerCase() && a.isCashier);
     final hasStationAccount = !_preferInputField &&
         !_userManuallyClearedEmail &&
         auth.lastStationEmail != null &&
-        auth.lastStationEmail!.isNotEmpty;
+        auth.lastStationEmail!.isNotEmpty &&
+        !isLastCashier;
     final stationEmail = (hasStationAccount ? (auth.lastStationEmail ?? '') : cleanEmail).trim().toLowerCase();
     final isRegistered = stationEmail.isNotEmpty && auth.isEmailRegistered(stationEmail);
 
@@ -1173,7 +1344,13 @@ class _LoginScreenState extends State<LoginScreen>
           width: double.infinity,
           height: 48,
           child: ElevatedButton.icon(
-            onPressed: () => _handleGoogleSignIn(isSignUp: true),
+            onPressed: () {
+              if (!_agreedToTerms) {
+                _showError('Please check the box to agree to the Terms of Service & Privacy Policy.');
+                return;
+              }
+              _handleGoogleSignIn(isSignUp: true);
+            },
             icon: SizedBox(
               width: 20,
               height: 20,
@@ -1210,37 +1387,297 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         const SizedBox(height: 10),
-        Center(
-          child: RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted, height: 1.4),
+        // Checkbox: Terms of Service & Privacy Policy below Google Sign Up (clean transparent layout)
+        InkWell(
+          key: const ValueKey('google_signup_terms_tap'),
+          onTap: () {
+            setState(() {
+              _agreedToTerms = !_agreedToTerms;
+            });
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const TextSpan(text: 'By signing up, you agree to our '),
-                TextSpan(
-                  text: 'Terms of Service',
-                  style: TextStyle(
-                    color: CelestialTheme.goldLight,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    key: const ValueKey('google_signup_terms_checkbox'),
+                    value: _agreedToTerms,
+                    activeColor: CelestialTheme.goldPrimary,
+                    checkColor: CelestialTheme.primaryBtnText,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    side: BorderSide(
+                      color: _agreedToTerms ? CelestialTheme.goldPrimary : CelestialTheme.borderWarm,
+                      width: 1.2,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: (val) {
+                      setState(() {
+                        _agreedToTerms = val ?? false;
+                      });
+                    },
                   ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 1),
                 ),
-                const TextSpan(text: ' & '),
-                TextSpan(
-                  text: 'Privacy Policy',
-                  style: TextStyle(
-                    color: CelestialTheme.goldLight,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.outfit(fontSize: 11.5, color: CelestialTheme.textMuted, height: 1.3),
+                      children: [
+                        const TextSpan(text: 'I agree to the '),
+                        TextSpan(
+                          text: 'Terms of Service',
+                          style: TextStyle(
+                            color: CelestialTheme.goldLight,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 1),
+                        ),
+                        const TextSpan(text: ' & '),
+                        TextSpan(
+                          text: 'Privacy Policy',
+                          style: TextStyle(
+                            color: CelestialTheme.goldLight,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 0),
+                        ),
+                      ],
+                    ),
                   ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = () => PrivacyAgreementDialog.show(context, initialTab: 0),
                 ),
-                const TextSpan(text: '.'),
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── EMPLOYEE SIGN IN FORM (CASHIER, BARISTA, STAFF) ─────────────────────
+  Widget _buildEmployeeSignInForm(AuthService auth) {
+    final cashierAccounts = auth.managedAccounts.where((a) => a.isCashier).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Role Header Banner
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: CelestialTheme.goldPrimary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.coffee_rounded, size: 16, color: CelestialTheme.goldLight),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Staff Workstation • Cashier, Barista & Service Team',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: CelestialTheme.goldLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Quick Select Staff Station (if cashiers exist)
+        if (cashierAccounts.isNotEmpty) ...[
+          _buildLabel('Select Staff Station / Name'),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: cashierAccounts.map((cashier) {
+                final isSelected = (_selectedEmployeeEmail != null &&
+                        _selectedEmployeeEmail!.toLowerCase() == cashier.email.toLowerCase()) ||
+                    _employeeEmailController.text.trim().toLowerCase() == cashier.email.toLowerCase() ||
+                    (cashier.displayName.isNotEmpty &&
+                        _employeeEmailController.text.trim().toLowerCase() == cashier.displayName.toLowerCase());
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8, bottom: 4),
+                  child: InkWell(
+                    key: ValueKey('staff_chip_${cashier.email}'),
+                    onTap: () {
+                      setState(() {
+                        _selectedEmployeeEmail = cashier.email;
+                        _employeeEmailController.text = cashier.displayName.isNotEmpty
+                            ? cashier.displayName
+                            : cashier.email;
+                        _employeePinController.clear();
+                      });
+                      _employeePinFocusNode.requestFocus();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? CelestialTheme.goldPrimary.withValues(alpha: 0.25)
+                            : CelestialTheme.bgSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? CelestialTheme.goldPrimary
+                              : CelestialTheme.borderWarm,
+                          width: isSelected ? 1.4 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            cashier.role == UserRole.barista || cashier.roleBadgeLabel == 'BARISTA'
+                                ? Icons.coffee_rounded
+                                : (cashier.role == UserRole.cashier
+                                    ? Icons.point_of_sale_rounded
+                                    : (cashier.role == UserRole.manager ? Icons.badge_rounded : Icons.person_pin_rounded)),
+                            size: 14,
+                            color: isSelected ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            cashier.displayName.isNotEmpty ? cashier.displayName : cashier.email.split('@').first,
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected ? CelestialTheme.goldLight : CelestialTheme.textLight,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.25)
+                                  : Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              cashier.roleBadgeLabel,
+                              style: TextStyle(
+                                fontSize: 7.5,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Cashier Name / Email Input Field
+        _buildLabel('Cashier / Staff Name or Email'),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: CelestialTheme.bgSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: CelestialTheme.borderWarm),
+          ),
+          child: TextField(
+            key: const ValueKey('employee_email_input'),
+            controller: _employeeEmailController,
+            focusNode: _employeeEmailFocusNode,
+            style: GoogleFonts.outfit(color: CelestialTheme.textLight, fontSize: 14),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.badge_outlined, color: CelestialTheme.textMuted, size: 18),
+              hintText: 'e.g. Cashier 1, Counter 1, or cashier@mycafe.com',
+              hintStyle: GoogleFonts.outfit(color: CelestialTheme.textSubtle, fontSize: 13),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            ),
+            onChanged: (val) {
+              setState(() {});
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Employee 4-Digit PIN Field
+        _buildLabel('4-Digit Staff PIN'),
+        const SizedBox(height: 6),
+        _buildPinField(
+          controller: _employeePinController,
+          focusNode: _employeePinFocusNode,
+          obscure: _obscureEmployeePin,
+          onToggle: () => setState(() => _obscureEmployeePin = !_obscureEmployeePin),
+          hint: 'Enter your 4-digit staff PIN',
+        ),
+        const SizedBox(height: 18),
+
+        // Submit Button
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            key: const ValueKey('employee_sign_in_btn'),
+            onPressed: _handleEmployeePinSignIn,
+            icon: Icon(Icons.login_rounded, size: 18, color: CelestialTheme.primaryBtnText),
+            label: Text(
+              'Sign In as Staff',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: CelestialTheme.primaryBtnText,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CelestialTheme.goldPrimary,
+              foregroundColor: CelestialTheme.primaryBtnText,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Help note
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: CelestialTheme.bgSurface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: CelestialTheme.borderWarm.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: CelestialTheme.goldLight),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Store Owners can add and configure Cashier & Barista accounts in Store Settings > Staff Management.',
+                  style: GoogleFonts.outfit(fontSize: 11, color: CelestialTheme.textMuted, height: 1.35),
+                ),
+              ),
+            ],
           ),
         ),
       ],

@@ -1,0 +1,76 @@
+{
+  "rules": {
+    "users": {
+      "$emailKey": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['email']) && newData.child('email').isString()",
+        ".indexOn": ["tier", "isAdmin", "updatedAt"]
+      }
+    },
+    "pro_backups": {
+      "$emailKey": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['email', 'storeName']) && newData.child('email').isString()",
+        ".indexOn": ["updatedAt", "tier"]
+      }
+    },
+    "menu_catalog": {
+      "$emailKey": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['updatedAt', 'menuItems'])",
+        ".indexOn": ["updatedAt"]
+      }
+    },
+    "sales_history": {
+      "$emailKey": {
+        "$yearMonth": {
+          ".read": true,
+          "$orderId": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['id', 'orderNumber', 'totalAmount']) && newData.child('totalAmount').isNumber()"
+          },
+          ".indexOn": ["status", "createdAt", "orderType", "paymentMethod"]
+        }
+      }
+    },
+    "online_stores": {
+      "$storeId": {
+        "profile": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['storeId', 'storeName', 'isOpen']) && (!newData.child('storeId').exists() || newData.child('storeId').val() === $storeId)",
+          ".indexOn": ["isOpen", "updatedAt"]
+        },
+        "menu": {
+          ".read": true,
+          ".write": true
+        },
+        "incoming_orders": {
+          ".read": true,
+          "$orderId": {
+            ".write": "newData.exists() ? (newData.hasChildren(['id', 'customerName', 'totalAmount']) && newData.child('totalAmount').isNumber()) : true"
+          },
+          ".indexOn": ["status", "createdAt", "orderType"]
+        },
+        "archived_orders": {
+          ".read": true,
+          "$orderId": {
+            ".write": true
+          },
+          ".indexOn": ["status", "createdAt"]
+        }
+      }
+    },
+    "store_slugs": {
+      ".read": true,
+      "$customSlug": {
+        ".write": "!data.exists() || !newData.exists() || data.child('storeId').val() === newData.child('storeId').val()",
+        ".validate": "newData.hasChildren(['storeId', 'ownerEmail', 'customSlug']) && newData.child('customSlug').val() === $customSlug",
+        ".indexOn": ["storeId", "ownerEmail", "updatedAt"]
+      }
+    }
+  }
+}

@@ -67,7 +67,7 @@ void main() {
     expect(find.text('POS Station'), findsOneWidget);
     expect(find.text('Order History'), findsOneWidget);
     expect(find.text('Menu & Stock'), findsOneWidget);
-    expect(find.text('Analytics'), findsOneWidget);
+    expect(find.text('Sales'), findsOneWidget);
 
     // Verify removed multi-station tabs do not exist
     expect(find.text('Barista / KDS'), findsNothing);
@@ -106,7 +106,7 @@ void main() {
     expect(find.text('POS'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
     expect(find.text('Stock'), findsOneWidget);
-    expect(find.text('Insights'), findsOneWidget);
+    expect(find.text('Sales'), findsOneWidget);
 
     // Verify removed KDS does not exist on mobile nav
     expect(find.text('KDS'), findsNothing);
@@ -1134,8 +1134,8 @@ void main() {
     await tester.pumpWidget(CelestialCafePosApp(authService: auth));
     await tester.pumpAndSettle();
 
-    // Verify clean header: Settings icon and Account Chip exist, redundant loose sign out is removed
-    expect(find.byIcon(Icons.settings_outlined), findsWidgets);
+    // Verify clean header: Settings icon is hidden for cashier, Account Chip exists
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('cashier@celestialcafe.com'), findsOneWidget);
 
     // Tap the user account chip to open Account Modal
@@ -1663,9 +1663,20 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    // Tap "Sign Up with Google"
+    // Tap "Sign Up with Google" without checking terms blocks sign up
     final googleSignUpBtn = find.text('Sign Up with Google');
     expect(googleSignUpBtn, findsOneWidget);
+    await tester.tap(googleSignUpBtn);
+    await tester.pump();
+    expect(find.textContaining('Please check the box to agree to the Terms of Service & Privacy Policy'), findsOneWidget);
+
+    // Accept Terms & Conditions via checkbox
+    final termsCheckbox = find.byKey(const ValueKey('google_signup_terms_checkbox'));
+    expect(termsCheckbox, findsOneWidget);
+    await tester.tap(termsCheckbox);
+    await tester.pump();
+
+    // Now tap "Sign Up with Google" with terms accepted
     await tester.tap(googleSignUpBtn);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -1731,6 +1742,81 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(auth.currentUser?.email, 'barista.cafe@gmail.com');
+    await auth.signOut();
+  });
+
+  testWidgets('LoginScreen renders Store Owner and Employee tabs and switches cleanly', (WidgetTester tester) async {
+    final auth = AuthService();
+    await tester.pumpWidget(CelestialCafePosApp(authService: auth));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Role tabs should be present
+    expect(find.byKey(const ValueKey('login_role_owner_tab')), findsOneWidget);
+    expect(find.byKey(const ValueKey('login_role_employee_tab')), findsOneWidget);
+    expect(find.text('Store Owner'), findsOneWidget);
+    expect(find.text('Employee (Staff)'), findsOneWidget);
+
+    // In Owner mode by default: Google Sign Up & terms checkbox are visible
+    expect(find.text('Sign Up with Google'), findsOneWidget);
+    expect(find.byKey(const ValueKey('google_signup_terms_checkbox')), findsOneWidget);
+    expect(find.byKey(const ValueKey('employee_sign_in_btn')), findsNothing);
+
+    // Switch to Employee (Staff) mode
+    await tester.tap(find.byKey(const ValueKey('login_role_employee_tab')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Google Sign Up & terms checkbox should NOT be in Employee mode
+    expect(find.text('Sign Up with Google'), findsNothing);
+    expect(find.byKey(const ValueKey('google_signup_terms_checkbox')), findsNothing);
+
+    // Employee specific fields should appear
+    expect(find.text('Staff Workstation • Cashier, Barista & Service Team'), findsOneWidget);
+    expect(find.byKey(const ValueKey('employee_email_input')), findsOneWidget);
+    expect(find.byKey(const ValueKey('employee_sign_in_btn')), findsOneWidget);
+    expect(find.text('Sign In as Staff'), findsOneWidget);
+
+    // Switch back to Store Owner mode
+    await tester.tap(find.byKey(const ValueKey('login_role_owner_tab')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Owner fields restored
+    expect(find.text('Sign Up with Google'), findsOneWidget);
+    expect(find.byKey(const ValueKey('google_signup_terms_checkbox')), findsOneWidget);
+  });
+
+  testWidgets('Employee sign in with PIN authenticates staff and navigates to workstation', (WidgetTester tester) async {
+    final auth = AuthService();
+    auth.registerPinForTesting('cashier1@celestialcafe.com', '4321');
+
+    await tester.pumpWidget(CelestialCafePosApp(authService: auth));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Switch to Employee tab
+    await tester.tap(find.byKey(const ValueKey('login_role_employee_tab')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Fill employee email and PIN
+    await tester.enterText(find.byKey(const ValueKey('employee_email_input')), 'cashier1@celestialcafe.com');
+    await tester.pump();
+
+    // PIN field in employee form
+    final pinFields = find.byType(TextField);
+    await tester.enterText(pinFields.last, '4321');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Click Sign In as Staff
+    await tester.tap(find.byKey(const ValueKey('employee_sign_in_btn')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Verify authenticated user
+    expect(auth.currentUser?.email, 'cashier1@celestialcafe.com');
     await auth.signOut();
   });
 }

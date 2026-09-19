@@ -18,6 +18,91 @@ class HeaderBar extends StatefulWidget {
   final bool isScrolled;
   const HeaderBar({super.key, this.isScrolled = false});
 
+  static Widget buildRoleBadge(
+    AppUser? user, {
+    bool isAdmin = false,
+    double fontSize = 8.5,
+    double iconSize = 9.0,
+    EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+  }) {
+    final effectiveAdmin = isAdmin || (user?.isAdmin ?? false);
+    final String label;
+    final IconData icon;
+    final Color bg;
+    final Color border;
+    final Color textColor;
+
+    if (effectiveAdmin) {
+      label = 'ADMIN';
+      icon = Icons.admin_panel_settings_rounded;
+      bg = CelestialTheme.goldPrimary.withValues(alpha: 0.25);
+      border = CelestialTheme.goldPrimary.withValues(alpha: 0.55);
+      textColor = CelestialTheme.goldLight;
+    } else {
+      final roleLabel = user?.roleBadgeLabel ?? 'STAFF';
+      final lower = roleLabel.toLowerCase();
+
+      if (lower.contains('barista')) {
+        label = roleLabel;
+        icon = Icons.coffee_rounded;
+        bg = const Color(0xFF5C3317).withValues(alpha: 0.35);
+        border = const Color(0xFFD4A373).withValues(alpha: 0.65);
+        textColor = const Color(0xFFFFD199);
+      } else if (lower.contains('cashier')) {
+        label = roleLabel;
+        icon = Icons.point_of_sale_rounded;
+        bg = const Color(0xFF0F766E).withValues(alpha: 0.30);
+        border = const Color(0xFF2DD4BF).withValues(alpha: 0.55);
+        textColor = const Color(0xFF5EEAD4);
+      } else if (lower.contains('manager')) {
+        label = roleLabel;
+        icon = Icons.badge_rounded;
+        bg = const Color(0xFF5B21B6).withValues(alpha: 0.30);
+        border = const Color(0xFFA78BFA).withValues(alpha: 0.55);
+        textColor = const Color(0xFFC4B5FD);
+      } else if (lower.contains('owner')) {
+        label = roleLabel;
+        icon = Icons.storefront_rounded;
+        bg = CelestialTheme.goldPrimary.withValues(alpha: 0.20);
+        border = CelestialTheme.goldPrimary.withValues(alpha: 0.45);
+        textColor = CelestialTheme.goldLight;
+      } else {
+        label = roleLabel;
+        icon = Icons.person_rounded;
+        bg = const Color(0xFF0369A1).withValues(alpha: 0.30);
+        border = const Color(0xFF38BDF8).withValues(alpha: 0.55);
+        textColor = const Color(0xFF7DD3FC);
+      }
+    }
+
+    return Container(
+      padding: padding,
+      margin: const EdgeInsets.only(right: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: iconSize, color: textColor),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   State<HeaderBar> createState() => _HeaderBarState();
 }
@@ -89,7 +174,7 @@ class _HeaderBarState extends State<HeaderBar> {
               // Brand Logo & Compact Title (Tap to open Settings & Logo)
               Flexible(
                 child: InkWell(
-                  onTap: auth.isFeatureEnabled(AppFeature.storeSettings) ? () => _openSettings(context) : null,
+                  onTap: (!auth.isCashier && auth.isFeatureEnabled(AppFeature.storeSettings)) ? () => _openSettings(context) : null,
                   borderRadius: BorderRadius.circular(20),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -116,10 +201,12 @@ class _HeaderBarState extends State<HeaderBar> {
                               ? Image.memory(
                                   posProvider.customLogoBytes!,
                                   fit: BoxFit.cover,
+                                  key: ValueKey(posProvider.customLogoBase64?.hashCode ?? 1),
                                 )
                               : Image.asset(
                                   'assets/images/Logo.png',
                                   fit: BoxFit.cover,
+                                  key: const ValueKey('default_mobile_logo'),
                                 ),
                         ),
                       ),
@@ -131,7 +218,9 @@ class _HeaderBarState extends State<HeaderBar> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'CELESTIAL',
+                              (posProvider.storeName.trim().isEmpty || posProvider.storeName.trim().toUpperCase() == 'CELESTIAL CAFE')
+                                  ? 'CELESTIAL'
+                                  : posProvider.storeName.trim().toUpperCase(),
                               style: GoogleFonts.cinzel(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -143,7 +232,9 @@ class _HeaderBarState extends State<HeaderBar> {
                               softWrap: false,
                             ),
                             Text(
-                              'Cozy&Classic',
+                              posProvider.storeTagline.trim().isNotEmpty
+                                  ? posProvider.storeTagline.trim()
+                                  : 'Cozy&Classic',
                               style: GoogleFonts.outfit(
                                 color: Colors.white,
                                 fontSize: 7.5,
@@ -178,49 +269,72 @@ class _HeaderBarState extends State<HeaderBar> {
                       final user = auth.currentUser;
                       final isPro = auth.isPro;
                       final isAdmin = auth.isAdmin;
-                      return InkWell(
-                        onTap: () => _openAccountModal(context),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isAdmin
-                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.25)
-                                : (isPro ? CelestialTheme.goldPrimary.withValues(alpha: 0.2) : CelestialTheme.bgCard),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isAdmin || isPro ? CelestialTheme.goldPrimary : CelestialTheme.borderWarm,
+                      final isCashier = auth.isCashier;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isCashier) ...[
+                            buildRoleBadge(
+                              user,
+                              isAdmin: isAdmin,
+                              fontSize: 8.0,
+                              iconSize: 8.5,
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isAdmin
-                                    ? Icons.admin_panel_settings_rounded
-                                    : (isPro ? Icons.workspace_premium_rounded : Icons.flash_on_rounded),
-                                size: 12,
-                                color: isAdmin || isPro ? CelestialTheme.goldPrimary : CelestialTheme.amberBrewing,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                isAdmin ? 'ADMIN' : (isPro ? 'PRO' : '${user?.trialDaysRemaining ?? auth.defaultTrialDays}D TRIAL'),
-                                style: TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: isAdmin || isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
+                          ],
+                          InkWell(
+                            onTap: () => _openAccountModal(context),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isCashier
+                                    ? const Color(0xFF0F766E).withValues(alpha: 0.25)
+                                    : (isPro ? CelestialTheme.goldPrimary.withValues(alpha: 0.2) : CelestialTheme.bgCard),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isCashier
+                                      ? const Color(0xFF2DD4BF)
+                                      : (isPro ? CelestialTheme.goldPrimary : CelestialTheme.borderWarm),
                                 ),
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isCashier
+                                        ? Icons.point_of_sale_rounded
+                                        : (isPro ? Icons.workspace_premium_rounded : Icons.flash_on_rounded),
+                                    size: 12,
+                                    color: isCashier
+                                        ? const Color(0xFF5EEAD4)
+                                        : (isPro ? CelestialTheme.goldPrimary : CelestialTheme.amberBrewing),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    isCashier
+                                        ? (user?.roleBadgeLabel ?? 'CASHIER')
+                                        : (isPro ? 'PRO' : '${user?.trialDaysRemaining ?? auth.defaultTrialDays}D TRIAL'),
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: isCashier
+                                          ? const Color(0xFF5EEAD4)
+                                          : (isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       );
                     },
                   ),
 
                   // Store Settings Button
-                  if (auth.isFeatureEnabled(AppFeature.storeSettings)) ...[
+                  if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.storeSettings)) ...[
                     const SizedBox(width: 4),
                     IconButton(
                       onPressed: () => _openSettings(context),
@@ -233,6 +347,46 @@ class _HeaderBarState extends State<HeaderBar> {
                         padding: EdgeInsets.zero,
                       ),
                       tooltip: 'Store Settings & Station Configuration',
+                    ),
+                  ],
+
+                  // Online Ordering Link & QR shortcut for store owners (Mobile)
+                  if (!auth.isCashier) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      key: const ValueKey('mobile_online_order_btn'),
+                      onPressed: () => OnlineOrderingDialog.show(context),
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 20),
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: posProvider.isOnlineOrderOpen
+                                    ? CelestialTheme.emeraldReady
+                                    : CelestialTheme.roseAlert,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: CelestialTheme.bgDark, width: 1.0),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      style: IconButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: EdgeInsets.zero,
+                      ),
+                      tooltip: posProvider.isOnlineOrderOpen
+                          ? 'Customer Online Ordering: Active (Click to manage)'
+                          : 'Customer Online Ordering: Paused / Closed (Click to manage)',
                     ),
                   ],
 
@@ -324,6 +478,16 @@ class _HeaderBarState extends State<HeaderBar> {
                     label: 'POS Station',
                     badgeCount: posProvider.cartItemCount > 0 ? posProvider.cartItemCount : null,
                   ),
+                  const SizedBox(width: 8),
+                  _buildNavTab(
+                    context,
+                    index: 5,
+                    icon: Icons.delivery_dining_rounded,
+                    label: 'Online Orders',
+                    badgeCount: posProvider.pendingOnlineOrdersCount > 0
+                        ? posProvider.pendingOnlineOrdersCount
+                        : null,
+                  ),
                   if (auth.isFeatureEnabled(AppFeature.orderHistory)) ...[
                     const SizedBox(width: 8),
                     _buildNavTab(
@@ -331,12 +495,9 @@ class _HeaderBarState extends State<HeaderBar> {
                       index: 1,
                       icon: Icons.receipt_long_rounded,
                       label: 'Order History',
-                      badgeCount: posProvider.pendingOnlineOrdersCount > 0
-                          ? posProvider.pendingOnlineOrdersCount
-                          : null,
                     ),
                   ],
-                  if (auth.isFeatureEnabled(AppFeature.inventory)) ...[
+                  if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.inventory)) ...[
                     const SizedBox(width: 8),
                     _buildNavTab(
                       context,
@@ -345,16 +506,16 @@ class _HeaderBarState extends State<HeaderBar> {
                       label: 'Menu & Stock',
                     ),
                   ],
-                  if (auth.isFeatureEnabled(AppFeature.analytics)) ...[
+                  if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.analytics)) ...[
                     const SizedBox(width: 8),
                     _buildNavTab(
                       context,
                       index: 3,
-                      icon: Icons.insights_rounded,
-                      label: 'Analytics',
+                      icon: Icons.point_of_sale_rounded,
+                      label: 'Sales',
                     ),
                   ],
-                  if (auth.isFeatureEnabled(AppFeature.foodCosting)) ...[
+                  if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.foodCosting)) ...[
                     const SizedBox(width: 8),
                     _buildNavTab(
                       context,
@@ -381,18 +542,41 @@ class _HeaderBarState extends State<HeaderBar> {
           const SizedBox(width: 10),
           // User Account & Trial/Pro Status Chip (Contains Profile, License, Station Info, and Sign Out)
           _buildAccountChip(context),
-          // Online Ordering Link & QR shortcut for store owners
-          if (auth.isOwner) ...[
+          // Online Ordering Link & QR shortcut for store owners (Desktop)
+          if (!auth.isCashier) ...[
             const SizedBox(width: 4),
             IconButton(
+              key: const ValueKey('desktop_online_order_btn'),
               onPressed: () => OnlineOrderingDialog.show(context),
-              icon: Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 22),
-              tooltip: 'Customer Online Ordering & QR Code',
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(Icons.qr_code_2_rounded, color: CelestialTheme.goldLight, size: 22),
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: posProvider.isOnlineOrderOpen
+                            ? CelestialTheme.emeraldReady
+                            : CelestialTheme.roseAlert,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: CelestialTheme.bgDark, width: 1.2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              tooltip: posProvider.isOnlineOrderOpen
+                  ? 'Online Ordering: Active (Click to manage)'
+                  : 'Online Ordering: Paused / Closed (Click to manage)',
               splashRadius: 20,
             ),
           ],
           // Store Settings (Contains Theme Switcher, Text Scaling, Logo, Store Info, Hardware, & Admin)
-          if (auth.isFeatureEnabled(AppFeature.storeSettings)) ...[
+          if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.storeSettings)) ...[
             const SizedBox(width: 6),
             IconButton(
               onPressed: () => _openSettings(context),
@@ -409,6 +593,10 @@ class _HeaderBarState extends State<HeaderBar> {
   }
 
   void _openSettings(BuildContext context) {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    if (auth.isCashier) {
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => const SettingsDialog(),
@@ -417,6 +605,7 @@ class _HeaderBarState extends State<HeaderBar> {
 
   void _openAccountModal(BuildContext context) {
     final auth = Provider.of<AuthService>(context, listen: false);
+    final posProvider = Provider.of<PosProvider>(context, listen: false);
     final user = auth.currentUser;
     final isPro = auth.isPro;
     final isAdmin = auth.isAdmin || auth.checkIfAdmin(user?.email ?? '');
@@ -478,7 +667,10 @@ class _HeaderBarState extends State<HeaderBar> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
                               Text(
                                 isAdmin
@@ -488,27 +680,34 @@ class _HeaderBarState extends State<HeaderBar> {
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1.0,
-                                  color: isAdmin || user?.isOwner == true ? CelestialTheme.goldLight : CelestialTheme.textMuted,
+                                  color: isAdmin || user?.isOwner == true
+                                      ? CelestialTheme.goldLight
+                                      : const Color(0xFF5EEAD4),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: CelestialTheme.emeraldReady,
-                                  shape: BoxShape.circle,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: CelestialTheme.emeraldReady,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Online',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: CelestialTheme.emeraldReady,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Online',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: CelestialTheme.emeraldReady,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              buildRoleBadge(user, isAdmin: isAdmin),
                             ],
                           ),
                           const SizedBox(height: 2),
@@ -557,7 +756,9 @@ class _HeaderBarState extends State<HeaderBar> {
                             Text(
                               isAdmin
                                   ? 'Administrator Pro Account'
-                                  : (user?.isOwner == true ? 'Store Owner Pro License' : 'Cashier Station Terminal'),
+                                  : (user?.isOwner == true
+                                      ? 'Store Owner Pro License'
+                                      : '[${user?.roleBadgeLabel ?? "CASHIER"}] Station Terminal'),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -565,12 +766,14 @@ class _HeaderBarState extends State<HeaderBar> {
                               ),
                             ),
                             Text(
-                              isAdmin || isPro
-                                  ? 'Full lifetime / enterprise license active'
-                                  : 'Active terminal session',
+                              auth.isCashier
+                                  ? 'Access: POS Station, Order History & Online Orders Only'
+                                  : (isAdmin || isPro
+                                      ? 'Full lifetime / enterprise license active'
+                                      : 'Active terminal session'),
                               style: TextStyle(
                                 fontSize: 10,
-                                color: CelestialTheme.textMuted,
+                                color: auth.isCashier ? const Color(0xFF5EEAD4) : CelestialTheme.textMuted,
                               ),
                             ),
                           ],
@@ -583,7 +786,7 @@ class _HeaderBarState extends State<HeaderBar> {
                 const SizedBox(height: 14),
 
                 // Action Options
-                if (auth.isOwner) ...[
+                if (auth.isOwner)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: SizedBox(
@@ -604,6 +807,8 @@ class _HeaderBarState extends State<HeaderBar> {
                       ),
                     ),
                   ),
+
+                if (!auth.isCashier) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: SizedBox(
@@ -614,7 +819,14 @@ class _HeaderBarState extends State<HeaderBar> {
                           OnlineOrderingDialog.show(context);
                         },
                         icon: Icon(Icons.qr_code_2_rounded, size: 16, color: CelestialTheme.goldLight),
-                        label: Text('Customer Online Ordering & QR', style: TextStyle(color: CelestialTheme.goldLight, fontSize: 12, fontWeight: FontWeight.bold)),
+                        label: Text(
+                          'Customer Online Ordering (${posProvider.isOnlineOrderOpen ? "Active" : "Paused"})',
+                          style: TextStyle(
+                            color: posProvider.isOnlineOrderOpen ? CelestialTheme.goldLight : CelestialTheme.roseAlert,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
                           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -646,7 +858,7 @@ class _HeaderBarState extends State<HeaderBar> {
                     ),
                   ),
 
-                if (auth.isFeatureEnabled(AppFeature.storeSettings))
+                if (!auth.isCashier && auth.isFeatureEnabled(AppFeature.storeSettings))
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -703,7 +915,7 @@ class _HeaderBarState extends State<HeaderBar> {
   Widget _buildBrand(BuildContext context, PosProvider posProvider) {
     final auth = Provider.of<AuthService>(context, listen: false);
     return InkWell(
-      onTap: auth.isFeatureEnabled(AppFeature.storeSettings) ? () => _openSettings(context) : null,
+      onTap: (!auth.isCashier && auth.isFeatureEnabled(AppFeature.storeSettings)) ? () => _openSettings(context) : null,
       borderRadius: BorderRadius.circular(28),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -732,37 +944,50 @@ class _HeaderBarState extends State<HeaderBar> {
                     ? Image.memory(
                         posProvider.customLogoBytes!,
                         fit: BoxFit.cover,
+                        key: ValueKey(posProvider.customLogoBase64?.hashCode ?? 1),
                       )
                     : Image.asset(
                         'assets/images/Logo.png',
                         fit: BoxFit.cover,
+                        key: const ValueKey('default_desktop_logo'),
                       ),
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CELESTIAL',
-                  style: GoogleFonts.cinzel(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.5,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (posProvider.storeName.trim().isEmpty || posProvider.storeName.trim().toUpperCase() == 'CELESTIAL CAFE')
+                        ? 'CELESTIAL'
+                        : posProvider.storeName.trim().toUpperCase(),
+                    style: GoogleFonts.cinzel(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  'Cozy&Classic',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 10,
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w600,
+                  Text(
+                    posProvider.storeTagline.trim().isNotEmpty
+                        ? posProvider.storeTagline.trim()
+                        : 'Cozy&Classic',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -905,6 +1130,21 @@ class _HeaderBarState extends State<HeaderBar> {
     );
   }
 
+  Widget buildRoleBadge(
+    AppUser? user, {
+    bool isAdmin = false,
+    double fontSize = 8.5,
+    double iconSize = 9.0,
+    EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+  }) =>
+      HeaderBar.buildRoleBadge(
+        user,
+        isAdmin: isAdmin,
+        fontSize: fontSize,
+        iconSize: iconSize,
+        padding: padding,
+      );
+
   Widget _buildAccountChip(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, auth, _) {
@@ -966,42 +1206,26 @@ class _HeaderBarState extends State<HeaderBar> {
                     ),
                     Row(
                       children: [
-                        if (isAdmin) ...[
+                        buildRoleBadge(user, isAdmin: isAdmin),
+                        if (!auth.isCashier) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            margin: const EdgeInsets.only(right: 4),
                             decoration: BoxDecoration(
-                              color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                              color: isPro
+                                  ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
+                                  : CelestialTheme.amberBrewing.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
                             ),
                             child: Text(
-                              'ADMIN',
+                              isPro ? 'PRO LICENSE' : '${user?.trialDaysRemaining ?? auth.defaultTrialDays}D TRIAL',
                               style: TextStyle(
                                 fontSize: 8.5,
                                 fontWeight: FontWeight.bold,
-                                color: CelestialTheme.goldLight,
+                                color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
                               ),
                             ),
                           ),
                         ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: isPro
-                                ? CelestialTheme.goldPrimary.withValues(alpha: 0.2)
-                                : CelestialTheme.amberBrewing.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            isPro ? 'PRO LICENSE' : '${user?.trialDaysRemaining ?? auth.defaultTrialDays}D TRIAL',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.bold,
-                              color: isPro ? CelestialTheme.goldLight : CelestialTheme.amberBrewing,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ],

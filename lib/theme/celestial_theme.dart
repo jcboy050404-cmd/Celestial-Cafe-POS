@@ -45,8 +45,8 @@ class CelestialTheme {
   static Color get warmBeige => isLondon ? const Color(0xFFC7B3B0) : const Color(0xFFC8B29E);
   static Color get warmGray => isLondon ? const Color(0xFF8C7A7C) : const Color(0xFF8A7B70);
   static Color get borderSubtle => isLondon ? const Color(0x24FFFFFF) : const Color(0x1CFAF0E6);
-  static Color get borderHover => isLondon ? const Color(0x80E52538) : const Color(0x44D4A359);
-  static Color get borderWarm => isLondon ? const Color(0xFF4A141D) : const Color(0xFF3A2D25);
+  static Color get borderHover => isLondon ? const Color(0x38E52538) : const Color(0x30D4A359);
+  static Color get borderWarm => isLondon ? const Color(0x22FFFFFF) : const Color(0x1FFAF0E6);
 
   // Deep Tones
   static Color get brownDeep => isLondon ? const Color(0xFF12070A) : const Color(0xFF140F0C);
@@ -209,7 +209,7 @@ class CelestialTheme {
       border: border ??
           Border.all(
             color: isHovered
-                ? (isLondon ? goldPrimary.withValues(alpha: 0.60) : caramelAccent.withValues(alpha: 0.45))
+                ? (isLondon ? goldPrimary.withValues(alpha: 0.35) : caramelAccent.withValues(alpha: 0.30))
                 : borderSubtle,
             width: 1.0,
           ),
@@ -259,7 +259,7 @@ class CelestialTheme {
       borderRadius: borderRadius ?? BorderRadius.circular(20),
       border: border ??
           Border.all(
-            color: glow ? (isLondon ? goldPrimary.withValues(alpha: 0.40) : borderWarm) : borderSubtle,
+            color: glow ? (isLondon ? goldPrimary.withValues(alpha: 0.25) : borderWarm) : borderSubtle,
             width: 1.0,
           ),
       boxShadow: [

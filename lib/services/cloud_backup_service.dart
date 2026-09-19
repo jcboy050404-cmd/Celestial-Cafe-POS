@@ -67,6 +67,17 @@ class CloudBackupService {
     }
   }
 
+  /// Returns ?auth=<token> query parameter if an active Firebase session token is available
+  Future<String> _authQueryParam() async {
+    try {
+      final token = await AuthService.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        return '?auth=$token';
+      }
+    } catch (_) {}
+    return '';
+  }
+
   /// Uploads logo to Firebase Storage REST API, returning download URL if available.
   Future<String?> _uploadLogoToStorage({
     required String emailKey,
@@ -164,12 +175,22 @@ class CloudBackupService {
         backupPayload['customLogoBase64'] = effectiveBase64;
       }
 
-      final uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json');
-      final res = await http.put(
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json$authParam');
+      var res = await http.put(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(backupPayload),
       ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json');
+        res = await http.put(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(backupPayload),
+        ).timeout(const Duration(seconds: 8));
+      }
 
       if (res.statusCode == 200) {
         _lastSyncTime = DateTime.now();
@@ -193,9 +214,14 @@ class CloudBackupService {
 
     try {
       final emailKey = _sanitizeEmailKey(cleanEmail);
-      final uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json');
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json$authParam');
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      var res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/pro_backups/$emailKey.json');
+        res = await http.get(uri).timeout(const Duration(seconds: 8));
+      }
       if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
         final data = json.decode(res.body);
         if (data is Map<String, dynamic>) {
@@ -364,12 +390,22 @@ class CloudBackupService {
       final yearMonth =
           '${order.createdAt.year.toString().padLeft(4, '0')}-${order.createdAt.month.toString().padLeft(2, '0')}';
 
-      final uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth/${order.id}.json');
-      final res = await http.put(
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth/${order.id}.json$authParam');
+      var res = await http.put(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(order.toJson()),
       ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth/${order.id}.json');
+        res = await http.put(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(order.toJson()),
+        ).timeout(const Duration(seconds: 8));
+      }
 
       if (res.statusCode == 200) {
         debugPrint('CloudBackup: Recorded sale ${order.orderNumber} under $yearMonth for $cleanEmail');
@@ -395,9 +431,14 @@ class CloudBackupService {
 
     try {
       final emailKey = _sanitizeEmailKey(cleanEmail);
-      final uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth.json');
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth.json$authParam');
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      var res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/sales_history/$emailKey/$yearMonth.json');
+        res = await http.get(uri).timeout(const Duration(seconds: 8));
+      }
       if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
         final decoded = json.decode(res.body);
         if (decoded is Map<String, dynamic>) {
@@ -437,7 +478,8 @@ class CloudBackupService {
 
     try {
       final emailKey = _sanitizeEmailKey(cleanEmail);
-      final uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json$authParam');
 
       final payload = {
         'updatedAt': DateTime.now().toIso8601String(),
@@ -445,11 +487,20 @@ class CloudBackupService {
         'customCategories': customCategories.map((c) => c.toJson()).toList(),
       };
 
-      final res = await http.put(
+      var res = await http.put(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(payload),
       ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+        res = await http.put(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(payload),
+        ).timeout(const Duration(seconds: 10));
+      }
 
       if (res.statusCode == 200) {
         debugPrint('CloudBackup: Successfully synced menu catalog to Firebase for $cleanEmail');
@@ -470,9 +521,14 @@ class CloudBackupService {
 
     try {
       final emailKey = _sanitizeEmailKey(cleanEmail);
-      final uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+      final authParam = await _authQueryParam();
+      var uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json$authParam');
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      var res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200 && authParam.isNotEmpty) {
+        uri = Uri.parse('$_rtdbUrl/menu_catalog/$emailKey.json');
+        res = await http.get(uri).timeout(const Duration(seconds: 8));
+      }
       if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
         final data = json.decode(res.body);
         if (data is Map<String, dynamic>) {

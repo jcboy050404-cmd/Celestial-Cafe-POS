@@ -16,6 +16,8 @@ import 'cashier_management_dialog.dart';
 import 'create_pin_dialog.dart';
 import 'signature_banner_dialog.dart';
 import 'upgrade_pro_dialog.dart';
+import 'online_ordering_dialog.dart';
+import 'header_bar.dart';
 
 class SettingsDialog extends StatefulWidget {
   final int initialTab;
@@ -114,7 +116,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final nav = Navigator.of(context);
     setState(() => _isSavingSettings = true);
     await Future.delayed(const Duration(milliseconds: 250));
-    provider.updateStoreDetails(
+    await provider.updateStoreDetails(
       name: _nameController.text,
       tagline: _taglineController.text,
       address: _addressController.text,
@@ -125,7 +127,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     messenger.showSnackBar(
       SnackBar(
         backgroundColor: CelestialTheme.bgCard,
-        content: Text('Store branding settings saved!'),
+        content: const Text('✨ Store branding settings saved!'),
       ),
     );
   }
@@ -462,7 +464,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                     ),
                                     if (provider.hasCustomLogo)
                                       OutlinedButton.icon(
-                                        onPressed: () => provider.resetToDefaultLogo(),
+                                        onPressed: () async {
+                                          await provider.resetToDefaultLogo();
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                backgroundColor: CelestialTheme.bgCard,
+                                                content: const Text('✨ Custom logo removed. Default Celestial logo restored.'),
+                                              ),
+                                            );
+                                          }
+                                        },
                                         icon: const Icon(Icons.restore_rounded, size: 14),
                                         label: const Text('Reset', style: TextStyle(fontSize: 11)),
                                         style: OutlinedButton.styleFrom(
@@ -475,6 +487,118 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                   ],
                                 ),
                               ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Section: Customer Online Ordering & QR Code Link
+                    Text(
+                      'ONLINE ORDERING & QR CODE LINK',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                        color: CelestialTheme.goldLight,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: CelestialTheme.bgCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: CelestialTheme.goldPrimary.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.qr_code_2_rounded, size: 22, color: CelestialTheme.goldLight),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Customer Ordering Link',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: CelestialTheme.textLight,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: provider.isOnlineOrderOpen
+                                                ? CelestialTheme.emeraldReady.withValues(alpha: 0.15)
+                                                : CelestialTheme.roseAlert.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: provider.isOnlineOrderOpen
+                                                  ? CelestialTheme.emeraldReady.withValues(alpha: 0.4)
+                                                  : CelestialTheme.roseAlert.withValues(alpha: 0.4),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            provider.isOnlineOrderOpen ? 'ACTIVE' : 'PAUSED',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: provider.isOnlineOrderOpen
+                                                  ? CelestialTheme.emeraldReady
+                                                  : CelestialTheme.roseAlert,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Create and generate your live customer web ordering link, custom URL slug, and printable QR code table signs.',
+                                      style: TextStyle(fontSize: 11, color: CelestialTheme.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                OnlineOrderingDialog.show(context);
+                              },
+                              icon: const Icon(Icons.qr_code_rounded, size: 16),
+                              label: const Text(
+                                'Manage Online Orders & Create QR Link',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: CelestialTheme.goldPrimary,
+                                foregroundColor: CelestialTheme.primaryBtnText,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
                             ),
                           ),
                         ],
@@ -794,14 +918,82 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     const SizedBox(height: 20),
 
                     // Section 3: Store Information
-                    Text(
-                      'RECEIPT & STORE DETAILS',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                        color: CelestialTheme.goldLight,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'RECEIPT & STORE DETAILS',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.0,
+                            color: CelestialTheme.goldLight,
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: CelestialTheme.bgSurface,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: CelestialTheme.borderWarm),
+                                ),
+                                title: Row(
+                                  children: [
+                                    Icon(Icons.restore_rounded, color: CelestialTheme.goldLight, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text('Reset Store Branding', style: TextStyle(color: CelestialTheme.textLight, fontSize: 16)),
+                                  ],
+                                ),
+                                content: Text(
+                                  'Revert store name, tagline, address, and logo back to default Celestial Cafe branding?',
+                                  style: TextStyle(color: CelestialTheme.textMuted, fontSize: 13),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text('Cancel', style: TextStyle(color: CelestialTheme.textMuted)),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: CelestialTheme.goldPrimary,
+                                      foregroundColor: CelestialTheme.primaryBtnText,
+                                    ),
+                                    child: const Text('Reset to Default'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true && context.mounted) {
+                              await provider.resetStoreDetailsToDefault();
+                              _nameController.text = provider.storeName;
+                              _taglineController.text = provider.storeTagline;
+                              _addressController.text = provider.storeAddress;
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: CelestialTheme.bgCard,
+                                    content: const Text('✨ Store branding reset to default Celestial Cafe!'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.restore_rounded, size: 13),
+                          label: const Text('Reset to Default', style: TextStyle(fontSize: 10.5)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: CelestialTheme.textMuted,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
 
@@ -818,8 +1010,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     // Tagline
                     _buildTextField(
                       controller: _taglineController,
-                      label: 'Tagline / Category Header',
-                      hint: 'e.g. COFFEE • MILKTEA • CHEESECAKE • BITES',
+                      label: 'Store Tagline / Subtitle (Header & Online UI)',
+                      hint: 'e.g. Cozy&Classic / Handcrafted Coffee & Treats',
                       icon: Icons.subtitles_rounded,
                     ),
 
@@ -1045,25 +1237,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                       ],
                                     ),
                                   ),
-                                  if (isAdmin) ...[
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      margin: const EdgeInsets.only(right: 6),
-                                      decoration: BoxDecoration(
-                                        color: CelestialTheme.goldPrimary.withValues(alpha: 0.25),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: CelestialTheme.goldPrimary.withValues(alpha: 0.5)),
-                                      ),
-                                      child: Text(
-                                        'ADMIN',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                          color: CelestialTheme.goldLight,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  HeaderBar.buildRoleBadge(
+                                    user,
+                                    isAdmin: isAdmin,
+                                    fontSize: 9,
+                                    iconSize: 10,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
